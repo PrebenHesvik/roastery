@@ -67,6 +67,7 @@ the dashboard, the groundwork project.
 | D12 | The till story: the old till left only day totals (`shop_days.receipts`); the new till, with line detail, starts on 6 October 2026 (R-5001). Account customers at the counter are app orders (channel `shop`) throughout; only anonymous walk-ins went through the old till. What the old till sold is not in the data, and the pages say so | Claude + Fable | 2026-11-03 |
 | D13 | **Frozen columns stay frozen.** `tiny` keeps its exact columns. The new columns live in the app database and in `month` and `full`, and the tiny ⊂ month test compares on tiny's columns only:<br>• `customers.kind` (D7);<br>• `source` (`scripted`, `simulator`, `visitor`), which is a live-shop need: it lives in the app database and the live shop, and the frozen extracts carry it only where a page needs it.<br>Each cut is exact per table: `stock_daily` in tiny is the day window **and** P-10/P-20 only, so the warehouse's count of every product is projected | Claude + Fable | 2026-11-03 |
 | D14 | D4 holds as written: `test_roastery_tier3.py` asserts no header text, so a changed grain sentence (D7, D8) does not break it | checked | 2026-11-03 |
+| D15 | **`daily_sales` is the web shop's consumer sales**: counter sales stay out, as today's pages say ("the web shop only"). Found by the stats-polars session: `statistics/correlation` teaches a confounder (walk-ins against bags, r = 0.83, about 0.12 without the Decembers); with counter sales inside, walk-ins would cause part of the bags and the lesson would be false. A channel column was rejected: it changes the grain and the exact row counts | Claude, on the stats session's finding | 2026-11-03 |
 
 ---
 
@@ -134,7 +135,7 @@ Whatever is scripted is exact by construction.
 
 | table | definition in the world | exact |
 |---|---|---|
-| `daily_sales` | per day and product, the sum of **consumer** order lines (web and shop) at list price. The formula is the simulator's **demand schedule**: the quota it fills with generated orders | yes, by scripting |
+| `daily_sales` | per day and product, the sum of the **web shop's** order lines to **private customers** (consumers) at list price; counter sales and business accounts are outside it (D15). The formula is the simulator's **demand schedule**: the quota it fills with generated orders | yes, by scripting |
 | `order_values` | a **lesson set**: 600 scripted orders of 2026, consumer and business (D7), played inside the wider trade | yes |
 | `budget` | a reference table, hand-set like `prices`; never simulated | yes |
 | `checkout_test` | every visitor of the product page during a scripted 40-day A/B test; `variant` sits on the web event; `converted` = reached the checkout step, not an order placed | yes |
