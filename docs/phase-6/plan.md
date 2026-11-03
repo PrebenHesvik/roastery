@@ -5,6 +5,17 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 
 ---
 
+## Start here
+
+1. Read **Status** below: the first step that is not ticked is the current one.
+2. Read that step's own plan, linked from its row (now [6.1-contract.md](6.1-contract.md)), and work from its first unticked unit.
+3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
+4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
+5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
+6. Before the context runs low, write where you stand into the step's plan (Status and Notes).
+
+---
+
 ## Status
 
 | step | state |
@@ -23,6 +34,13 @@ Notes:
   `roastery_spec`, each with an import test; ruff at 100 (72 in `packages/shop`), single
   quotes, docstrings in double quotes as ruff's Q rule wants. The repository is public on
   GitHub (`PrebenHesvik/roastery`, created on the owner's word); the first CI run was green.
+- 2026-11-03 (6.1 U0): two corrections from 6.1-contract.md §2. (1) "Every tiny row is a
+  month row" was false: `customer_months` spans November 2025 to October 2026, `dated_lines`
+  and `latest_stock` are derived, and the `raw_*` tables are text landings. Each tiny table
+  now names the extract it lives in (`lives_in`), and the test checks it there; D13's
+  wording names this test, its decision is unchanged. (2) "Skipped by data folder" broke the
+  rule that nothing is skipped: claims whose tables are missing are deselected and listed
+  under "awaiting data" (S6). `CLAUDE.md` and this "Start here" were added.
 
 ---
 
@@ -65,7 +83,7 @@ the dashboard, the groundwork project.
 | D10 | Faults are injected by the export writer after a correct app, with a defect log (master plan, decision 7) | plan | 2026-10-28 |
 | D11 | Subscription bags ship as their own table `subscription_shipments`, not as `orders` rows (reverses gap fix G7 in `map-patterns-devops.md`): orders rows would break tiny's exact 8 orders and `customer_months` | Claude + Fable | 2026-11-03 |
 | D12 | The till story: the old till left only day totals (`shop_days.receipts`); the new till, with line detail, starts on 6 October 2026 (R-5001). Account customers at the counter are app orders (channel `shop`) throughout; only anonymous walk-ins went through the old till. What the old till sold is not in the data, and the pages say so | Claude + Fable | 2026-11-03 |
-| D13 | **Frozen columns stay frozen.** `tiny` keeps its exact columns. The new columns live in the app database and in `month` and `full`, and the tiny ⊂ month test compares on tiny's columns only:<br>• `customers.kind` (D7);<br>• `source` (`scripted`, `simulator`, `visitor`), which is a live-shop need: it lives in the app database and the live shop, and the frozen extracts carry it only where a page needs it.<br>Each cut is exact per table: `stock_daily` in tiny is the day window **and** P-10/P-20 only, so the warehouse's count of every product is projected | Claude + Fable | 2026-11-03 |
+| D13 | **Frozen columns stay frozen.** `tiny` keeps its exact columns. The new columns live in the app database and in `month` and `full`, and the extracts test (each tiny table against the extract its `lives_in` names) compares on tiny's columns only:<br>• `customers.kind` (D7);<br>• `source` (`scripted`, `simulator`, `visitor`), which is a live-shop need: it lives in the app database and the live shop, and the frozen extracts carry it only where a page needs it.<br>Each cut is exact per table: `stock_daily` in tiny is the day window **and** P-10/P-20 only, so the warehouse's count of every product is projected | Claude + Fable | 2026-11-03 |
 | D14 | D4 holds as written: `test_roastery_tier3.py` asserts no header text, so a changed grain sentence (D7, D8) does not break it | checked | 2026-11-03 |
 | D15 | **`daily_sales` is the web shop's consumer sales**: counter sales stay out, as today's pages say ("the web shop only"). Found by the stats-polars session: `statistics/correlation` teaches a confounder (walk-ins against bags, r = 0.83, about 0.12 without the Decembers); with counter sales inside, walk-ins would cause part of the bags and the lesson would be false. A channel column was rejected: it changes the grain and the exact row counts | Claude, on the stats session's finding | 2026-11-03 |
 
@@ -238,9 +256,9 @@ judgment and teaching, `sonnet` for building to a clear spec, `haiku` for sweeps
 ### 6.1 Contract A: the data contract (`packages/spec`)
 - `contract.md`: every table of §4 (existing and new) with grain, columns, types, keys, its cut of `tiny`, its definition in the world (§4.1), and its system of origin (app or outside).
 - The claims as tests, lifted from `tests/test_roastery_dataset.py` and `tests/test_roastery_tier3.py` and **parametrised on a data folder**, plus a claim for every new table.
-- The "tiny ⊂ month" test (every row, except `customer_changes.seq`), on tiny's columns only (D13).
+- The extracts test: each tiny table names where it lives (`lives_in`): `same(month)`, `same(full)`, `derived(query)` or `landing`. The test checks it against that extract, on tiny's columns only (D13). `customer_changes` is compared without `seq`, and its order by `seq` must be the same.
 - `research` skill: the VAT facts (master plan, decision 11), written as a facts note before `vat.py`. The scope covers consumers **and** business buyers abroad (D7: a Swedish café pays VAT differently from a Swedish consumer), by kind (food, standard).
-- **Done when:** the spec suite runs green against today's `dataset.sql` + `tier3.sql` output for every existing claim. The new tables' claims are skipped by data folder, not by marker, until the simulator writes them. The owner has read `contract.md`.
+- **Done when:** the spec suite runs green against today's `dataset.sql` + `tier3.sql` output for every existing claim. Nothing is skipped: the claims whose tables are missing are deselected and listed under "awaiting data", and a meta-test holds that list to exactly the claims of the tables not yet written. The owner has read `contract.md`.
 - Agent: `opus` for `contract.md`; `sonnet` to port the tests.
 
 ### 6.2 Contract C: the architecture (`docs/architecture.md`, ADRs)
@@ -266,7 +284,7 @@ judgment and teaching, `sonnet` for building to a clear spec, `haiku` for sweeps
 - **Determinism is a gate:** two builds on two machines give the same sha256.
 - **Done when:**
   - `test_roastery_tier3.py` passes unchanged on the tables derived from `full`;
-  - the tiny ⊂ month test passes;
+  - the extracts test passes: each tiny table in the extract its `lives_in` names;
   - every new table's claim passes;
   - the release asset `roastery-data-1.0.0` is published with its changelog.
 
