@@ -9,7 +9,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 
 | step | state |
 |---|---|
-| 6.0 set up | [~] local workspace done; CI waits on the GitHub repo |
+| 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
 | 6.1 contract A: data | [ ] |
 | 6.2 contract C: architecture | [ ] |
 | 6.3 app core and service layer | [ ] |
@@ -21,8 +21,8 @@ Notes:
 
 - 2026-11-03 (6.0): the workspace is three packages, `roastery` (shop), `roastery_sim`,
   `roastery_spec`, each with an import test; ruff at 100 (72 in `packages/shop`), single
-  quotes, docstrings in double quotes as ruff's Q rule wants. The GitHub repository (name,
-  public) is created only on the owner's word; then CI runs and 6.0 is ticked.
+  quotes, docstrings in double quotes as ruff's Q rule wants. The repository is public on
+  GitHub (`PrebenHesvik/roastery`, created on the owner's word); the first CI run was green.
 
 ---
 
