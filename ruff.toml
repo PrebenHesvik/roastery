@@ -1,0 +1,11 @@
+line-length = 100
+target-version = 'py313'
+
+[format]
+quote-style = 'single'
+
+[lint]
+select = ['E', 'F', 'I', 'UP', 'B', 'Q']
+
+[lint.flake8-quotes]
+inline-quotes = 'single'
