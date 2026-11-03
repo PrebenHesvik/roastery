@@ -1,0 +1,11 @@
+repository = 'data-docs'
+commit = 'd23336d'
+copied = 2026-11-03
+
+[dataset_sql]
+path = 'data_docs_export/roastery_data/dataset.sql'
+sha256 = 'cf7cfc4c0df5360b58a80ac4d643ecad4e79712e3ddc9ed0a4c29baa7c4add4d'
+
+[tier3_sql]
+path = 'data_docs_export/roastery_data/tier3.sql'
+sha256 = '9452b4e6d9cef950029ed94018fd60a1c8380df77363cb1dca900fc086d5174d'
