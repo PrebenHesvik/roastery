@@ -53,7 +53,7 @@ the dashboard, the groundwork project.
 
 | # | decision | by | date |
 |---|---|---|---|
-| D1 | The work lives outside data-docs, in `C:\dev\roastery`, one uv workspace repo in the owner's own GitHub | owner | 2026-11-03 |
+| D1 | The work lives outside data-docs, in `roastery`, one uv workspace repo in the owner's own GitHub | owner | 2026-11-03 |
 | D2 | data-docs stays a stand-alone learning app that reads a **pinned** data release | owner | 2026-11-03 |
 | D3 | Phase 6 has its own plan document (this one), split into sub-phases | owner | 2026-11-03 |
 | D4 | The answers stay the same: `test_roastery_dataset.py` and `test_roastery_tier3.py` pass unchanged on the simulator's output | owner | 2026-11-03 |
@@ -103,7 +103,7 @@ agreed before the code it binds.
 ## 3. The repository
 
 ```
-C:\dev\roastery\                    uv workspace, Python 3.13, ruff (72 chars in packages/shop)
+roastery/                    uv workspace, Python 3.13, ruff (72 chars in packages/shop)
   packages/
     spec/        the data contract: contract.md, claims as pytest, parametrised on a data folder
     shop/        the app: domain, service layer, stores (memory, sqlite); API later
@@ -230,7 +230,7 @@ Each step ends with checks that pass. Models follow data-docs' `CLAUDE.md` table
 judgment and teaching, `sonnet` for building to a clear spec, `haiku` for sweeps.
 
 ### 6.0 Set up (lead)
-- `C:\dev\roastery`: git init, the uv workspace, ruff, pytest, CI skeleton; this plan committed as `docs/phase-6/plan.md`.
+- `roastery`: git init, the uv workspace, ruff, pytest, CI skeleton; this plan committed as `docs/phase-6/plan.md`.
 - data-docs: a short `docs/proposal-roastery/phase-6.md` that points to the plan and lists only the data-docs side (6.6). The master plan's phase table says "6: planned". This is committed on a fresh branch from `main`, never on `claude/javascript-route`.
 - **Done when:** `uv run python -m pytest` runs (empty) in `roastery`; CI is green.
 
