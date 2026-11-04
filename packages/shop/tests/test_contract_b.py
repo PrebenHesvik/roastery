@@ -43,6 +43,8 @@ from roastery.ports import (
     Labels,
     Notifier,
     PaymentProvider,
+    ProviderRefused,
+    ProviderUnavailable,
     Relayed,
     Source,
     StatusFeed,
@@ -89,6 +91,9 @@ DATACLASSES = (
     Settings,
 )
 LITERALS = (('Source', Source), ('IdKind', IdKind))
+PORT_ERRORS = (FeedDown, ProviderRefused, ProviderUnavailable)
+NOT_IN_B = frozenset({'Fulfilment.late_shipments'})
+"""Reads the pages call, which architecture.md §5 keeps out."""
 
 
 class _Text(str):
@@ -131,6 +136,8 @@ def _own_methods(cls: type) -> list[str]:
             continue
         if name == '__init__' and getattr(cls, '_is_protocol', False):
             continue
+        if f'{cls.__name__}.{name}' in NOT_IN_B:
+            continue
         if isinstance(member, (staticmethod, classmethod)):
             member = member.__func__
         if isinstance(member, property):
@@ -157,15 +164,22 @@ def render() -> str:
         lines.append(f'{function.__name__}{_signature(function)}')
     for cls in DATACLASSES:
         for i, field in enumerate(dataclasses.fields(cls)):
+            default = (
+                ''
+                if field.default is dataclasses.MISSING
+                else f' = {field.default!r}'
+            )
             lines.append(
                 f'{cls.__name__}.fields[{i:02d}] '
-                f'{field.name}: {_plain(field.type)}'
+                f'{field.name}: {_plain(field.type)}{default}'
             )
     for name, literal in LITERALS:
         members = ', '.join(repr(m) for m in typing.get_args(literal))
         lines.append(f'{name} = {members}')
     lines.extend(_family(ShopError))
-    lines.append(f'FeedDown.__init__{_signature(FeedDown.__init__)}')
+    for error in PORT_ERRORS:
+        name = error.__name__
+        lines.append(f'{name}.__init__{_signature(error.__init__)}')
     return '\n'.join(sorted(lines)) + '\n'
 
 

@@ -47,7 +47,6 @@ FakeProvider.take(self, message: PaymentMessage) -> None
 FeedDown.__init__(self, /, *args, **kwargs)
 Fulfilment.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
 Fulfilment.deliver(self, shipment_id: ShipmentId) -> None
-Fulfilment.late_shipments(self) -> tuple[Order, ...]
 Fulfilment.ship(self, order_id: OrderId, *, promised_by: dt.date) -> ShipmentId
 HandlerFailure.fields[00] handler: str
 HandlerFailure.fields[01] event: str
@@ -57,7 +56,7 @@ IllegalSubscriptionMove.__init__(self, subscription_id: SubscriptionId, state: s
 IllegalTransition.__init__(self, order_id: OrderId, state: str, action: str) -> None
 Item.fields[00] product_id: ProductId
 Item.fields[01] qty: Qty
-Item.fields[02] price: Money | None
+Item.fields[02] price: Money | None = None
 Jobs.__init__(self, uow: UnitOfWork, *, clock: Clock, ids: Ids, feed: StatusFeed, settings: Settings) -> None
 Jobs.count_at_close(self) -> int
 Jobs.csv_export(self) -> Mapping[str, str]
@@ -90,6 +89,8 @@ PeriodOverlap.__init__(self, table: str, key: str, valid_from: dt.date) -> None
 PlaceOrder.fields[00] customer_id: CustomerId
 PlaceOrder.fields[01] channel: Channel
 PlaceOrder.fields[02] items: tuple[Item, ...]
+ProviderRefused.__init__(self, /, *args, **kwargs)
+ProviderUnavailable.__init__(self, /, *args, **kwargs)
 Receipt.fields[00] payment_id: PaymentId
 Receipt.fields[01] order_id: OrderId
 Receipt.fields[02] status: str
@@ -102,9 +103,9 @@ SequentialIds.next(self, kind: IdKind) -> str
 Settings.fields[00] database_url: Url
 Settings.fields[01] provider_url: Url
 Settings.fields[02] provider_key: Secret
-Settings.fields[03] price_ttl: int
+Settings.fields[03] price_ttl: int = 300
 Settings.fields[04] shop_zone: ZoneInfo
-Settings.fields[05] relay_batch: Positive
+Settings.fields[05] relay_batch: Positive = 5
 ShopError.__init__(self, /, *args, **kwargs)
 Source = 'scripted', 'simulator', 'visitor'
 StatusChanged.fields[00] event_id: EventId
