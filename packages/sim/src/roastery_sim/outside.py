@@ -97,10 +97,10 @@ class ProductCode:
 
 @dataclass(frozen=True)
 class TillReceipt:
-    """A till receipt; `sold_at` is Bergen time, naive."""
+    """A till receipt; `sold_at` is Bergen time, naive; no member is None (R-5001)."""
 
     receipt_id: str
-    member_no: int
+    member_no: int | None
     sold_at: dt.datetime
 
 
