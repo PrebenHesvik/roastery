@@ -21,7 +21,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | step | state |
 |---|---|
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
-| 6.1 contract A: data | [~] [6.1-contract.md](6.1-contract.md); done locally 2026-11-04, CI on push |
+| 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
 | 6.2 contract C: architecture | [ ] |
 | 6.3 app core and service layer | [ ] |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
@@ -378,3 +378,70 @@ judgment and teaching, `sonnet` for building to a clear spec, `haiku` for sweeps
 | contract B changes after 1.0 | frozen at 6.4's end; a change is a new data version with a changelog |
 | the app grows for the pages, not the shop | contract C names a reason for each module; `premature-pattern` is a page, not a practice |
 | the plan drifts from the master plan | 6.0 writes the pointer; the master plan's phase 6 outline is corrected in the same commit |
+
+---
+
+## The prompt that starts 6.2
+
+Paste this into a new Claude Code session opened in the `roastery` repository:
+
+```text
+We are starting step 6.2 of phase 6 in this repository (roastery): contract C, the
+architecture of the shop app. Step 6.1 (the data contract) is done and pushed.
+
+Read first, in this order:
+1. CLAUDE.md (the rules, the freezes, how agents are briefed and which model does what).
+2. docs/phase-6/plan.md: "Start here", Status, the decisions D1-D15, §2 (the three
+   contracts and how the app and the data depend on each other), §5 (contract C) and §6.2.
+3. docs/phase-6/6.1-contract.md: the decisions S1-S19 and the Notes. These change the app:
+   S13 unpaid orders are on invoice, so an order is placed, then paid OR invoiced, then
+   shipped, then delivered (an invoiced order ships before it is paid); S14 a return is a
+   credit order with a negative line and a negative payment; S10 stock is the app's own
+   stock service; S9 lesson_ids; S17 account_kind; S18 web_visits; D11 subscription bags
+   ship as subscription_shipments, not orders; D12 the till is a second system.
+4. packages/spec/contract.md (what every table is, which system makes it) and
+   docs/facts/vat.md (VAT: Norwegian VAT only on sales in Norway; abroad an export at 0%,
+   or the buyer's VAT at checkout under IOSS; rates change inside the simulated years).
+
+The goal of 6.2: docs/architecture.md and one ADR per choice in docs/adr/, so that
+1. each of the 35 Design Patterns pages gets a real home module in the app, or a
+   named reason (the requirement list is section 1 of map-patterns-devops.md, below);
+2. the choices that shape every page are made on purpose: persistence, domain types,
+   errors, events and outbox, the Clock, wiring, the API, settings, checks (plan §5);
+3. contract B is written as typed signatures: every service function the simulator
+   calls. These are frozen after 6.4.
+The owner reads architecture.md before 6.3 writes any code. 6.2 writes no app code.
+
+Read-only sources in the data-docs repository beside this one (never commit there; its
+main checkout may be in use by other sessions):
+- docs/proposal-roastery/map-patterns-devops.md, sections 1 (the 35 pages: pattern,
+  requirement, module, fit, gaps G1-G17), 2 (a first module map, a starting point, not
+  binding) and 5 (the repo by phase).
+- docs/handover-patterns.md (how the Design Patterns route was built on its current app).
+- data_docs_export/patterns_app/firm/ (the current teaching app the pages show; the
+  roastery app replaces it in phase 7) and data_docs_export/patterns_export.py (how
+  pages show module code: 72-character lines, parts, the naive twins in without/).
+- docs/proposal-roastery/map-python.md (the Python route keeps its own small app).
+
+How to work (the owner's preferences):
+- Enter plan mode and plan 6.2 with Fable (a Plan agent with model fable) before any
+  writing. Write the step's plan as docs/phase-6/6.2-architecture.md, organized like
+  6.1-contract.md: Status, decisions, units with model, inputs, outputs and "done when".
+- Use the codebase-design skill for the seams.
+- Ask the owner the questions only they can answer, with context, implications and
+  your recommendation first (they take the recommendation about 95% of the time).
+- Work through agents as CLAUDE.md says; the lead checks and commits; an independent
+  opus review before the step is called done; the advisor before "done".
+- Record decisions as new numbered rows in the step's plan; tick Status with hashes.
+- Commit only your own paths; push only on the owner's word.
+
+Context you will not find in this repository:
+- data-docs is a separate learning site; phase 6's data-docs side (step 6.6) waits on
+  its Statistics-on-Polars session and its v0.12.0 release. The pointer file
+  docs/proposal-roastery/phase-6.md is on data-docs' branch claude/roastery-sim (not
+  merged). 6.2 does not touch data-docs.
+- The DevOps route (phase 8) will follow one real change through this repository: the
+  shop joining the EU import scheme (IOSS), so foreign buyers pay their VAT at checkout,
+  behind a flag (the master plan's decision 10). The architecture should make that change
+  small: VAT rates as dated data by country and kind, not settings.
+```
