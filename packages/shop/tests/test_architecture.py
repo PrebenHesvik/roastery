@@ -22,24 +22,18 @@ AWAITING = (
     'api',
     'bootstrap',
     'cache',
-    'catalogue',
     'checkout',
     'cli',
-    'clock',
     'commands',
     'contracts',
-    'customer',
     'customers',
-    'errors',
     'events',
     'exports',
     'fakes',
     'fulfilment',
     'idempotency',
-    'ids',
     'listing',
     'middleware',
-    'money',
     'order',
     'outbox',
     'parsing',
@@ -52,7 +46,6 @@ AWAITING = (
     'reports',
     'repository',
     'resilience',
-    'result',
     'settings',
     'stock',
     'subscription',
@@ -82,8 +75,8 @@ def test_only_the_awaiting_modules_have_no_file() -> None:
     assert list(AWAITING) == sorted(AWAITING)
 
 
-def test_awaiting_holds_forty_names() -> None:
-    assert len(AWAITING) == 40
+def test_awaiting_holds_thirty_three_names() -> None:
+    assert len(AWAITING) == 33
 
 
 def test_the_check_bites() -> None:
