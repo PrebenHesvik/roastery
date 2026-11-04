@@ -55,20 +55,18 @@ class _Clock:
 def _builders() -> Iterator[Mapping[str, Build]]:
     """Each store's builder; every sqlite connection is closed
     when the block ends, so no file or memory is left open."""
-    from roastery.repository import create_tables
-    from roastery.uow import InMemoryStore, SqliteStore
+    from roastery.bootstrap import memory_store, sqlite_store
 
     connections: list[sqlite3.Connection] = []
 
     def memory(source: Source) -> UnitOfWork:
-        store = InMemoryStore(clock=_Clock(), price_ttl=60)
+        store = memory_store(clock=_Clock(), price_ttl=60)
         return store.unit_of_work(source)
 
     def sqlite(source: Source) -> UnitOfWork:
         connection = sqlite3.connect(':memory:')
         connections.append(connection)
-        create_tables(connection)
-        store = SqliteStore(connection, clock=_Clock(), price_ttl=60)
+        store = sqlite_store(connection, clock=_Clock(), price_ttl=60)
         return store.unit_of_work(source)
 
     try:

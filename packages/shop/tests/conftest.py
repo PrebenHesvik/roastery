@@ -1,8 +1,8 @@
 """Fixtures the tests of the stores share (A21).
 
 `store` runs a test on the memory store and on sqlite over
-`:memory:`; the connection is closed when the test ends, so no
-database is left open.
+`:memory:`, each built by bootstrap's constructor; the connection
+is closed when the test ends, so no database is left open.
 """
 
 from __future__ import annotations
@@ -13,10 +13,9 @@ from collections.abc import Iterator
 
 import pytest
 
+from roastery.bootstrap import memory_store, sqlite_store
 from roastery.fakes import FakeClock
 from roastery.ports import Store
-from roastery.repository import create_tables
-from roastery.uow import InMemoryStore, SqliteStore
 
 PRICE_TTL = 60
 
@@ -33,11 +32,10 @@ def store(
 ) -> Iterator[Store]:
     """A new, empty store: the memory one, then the sqlite one."""
     if request.param == 'memory':
-        yield InMemoryStore(clock=clock, price_ttl=PRICE_TTL)
+        yield memory_store(clock=clock, price_ttl=PRICE_TTL)
         return
     connection = sqlite3.connect(':memory:')
     try:
-        create_tables(connection)
-        yield SqliteStore(connection, clock=clock, price_ttl=PRICE_TTL)
+        yield sqlite_store(connection, clock=clock, price_ttl=PRICE_TTL)
     finally:
         connection.close()

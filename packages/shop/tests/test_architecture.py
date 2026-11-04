@@ -20,7 +20,6 @@ PACKAGE_DIR = Path(roastery.__file__).parent
 # modules (C14).
 AWAITING = (
     'api',
-    'bootstrap',
     'cli',
     'idempotency',
     'middleware',

@@ -5,6 +5,9 @@ description = 'The roastery shop app: domain, service layer and stores.'
 requires-python = '>=3.13'
 dependencies = ['tzdata>=2026.6']
 
+[project.scripts]
+roastery = 'roastery.bootstrap:main_from_os'
+
 [build-system]
 requires = ['uv_build>=0.8.22,<0.9']
 build-backend = 'uv_build'
