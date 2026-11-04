@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (now [6.1-contract.md](6.1-contract.md)), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row (now [6.2-architecture.md](6.2-architecture.md)), and work from its first unticked unit.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
@@ -22,7 +22,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 |---|---|
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
 | 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
-| 6.2 contract C: architecture | [ ] |
+| 6.2 contract C: architecture | [ ] [6.2-architecture.md](6.2-architecture.md) |
 | 6.3 app core and service layer | [ ] |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
 | 6.5 the volume, `roastery-data 1.0` | [ ] |
