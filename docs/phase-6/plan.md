@@ -21,7 +21,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | step | state |
 |---|---|
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
-| 6.1 contract A: data | [ ] planned in [6.1-contract.md](6.1-contract.md) |
+| 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed 2026-11-04 |
 | 6.2 contract C: architecture | [ ] |
 | 6.3 app core and service layer | [ ] |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
