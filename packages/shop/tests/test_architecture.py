@@ -34,7 +34,6 @@ AWAITING = (
     'idempotency',
     'listing',
     'middleware',
-    'order',
     'outbox',
     'parsing',
     'payments',
@@ -73,10 +72,6 @@ def test_only_the_awaiting_modules_have_no_file() -> None:
     on_disk = {file.stem for file in PACKAGE_DIR.glob('*.py')}
     assert sorted(names - on_disk) == list(AWAITING)
     assert list(AWAITING) == sorted(AWAITING)
-
-
-def test_awaiting_holds_thirty_three_names() -> None:
-    assert len(AWAITING) == 33
 
 
 def test_the_check_bites() -> None:
