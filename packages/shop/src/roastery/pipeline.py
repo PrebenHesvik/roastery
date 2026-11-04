@@ -34,6 +34,19 @@ LINE_COLUMNS: Final[tuple[str, ...]] = (
 
 
 @dataclass(frozen=True)
+class Rows:
+    """One table as contract A names it: its columns and rows.
+
+    The values are Python's: str, int, bool, Decimal, date, a UTC
+    datetime, or None. The rows keep the order they were given.
+    """
+
+    name: str
+    columns: tuple[str, ...]
+    rows: tuple[tuple[object, ...], ...]
+
+
+@dataclass(frozen=True)
 class ExportLine:
     """An order line as the store holds it, with its deletion."""
 
