@@ -1,6 +1,6 @@
 # 0006. Errors
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C6 and C20)
+Status: accepted, 2026-11-04 (step 6.2, decisions C6, C20 and C29)
 
 ## Context
 
@@ -25,13 +25,14 @@ asks a sharper question with real rows: `country_of` has two ways to find no cou
 
 ## Decision
 
-Four kinds of failure, four ways to report them:
+Five kinds of failure, five ways to report them:
 
 | kind | how | example |
 |---|---|---|
 | a malformed value | `ValueError` or `TypeError`, raised where the value is built (ADR 0004) | `Qty(0)`, `OrderId('C-01')` |
 | a command the shop's rules refuse | raise a member of the closed family `ShopError`; nothing is written | ship O-106 |
 | a question with two kinds of answer | return a `Result`: `Ok[T] \| Err[E]` | `country_of(C-05)` |
+| a handler that fails after the change was kept | collected, never raised to the caller (C29): the call returns, and `App.failures()` lists it (ADR 0009) | the confirmation e-mail's `Notifier` is down |
 | a bug | any other exception, never caught in `roastery` | |
 
 **The family.** `roastery/errors.py`, a core module (C20), holds `ShopError` and every subclass
@@ -144,7 +145,11 @@ STATUS: Final[Mapping[type[ShopError], int]] = MappingProxyType({
 ## Consequences
 
 - A refused command writes nothing: the unit of work rolls back on any exception (ADR 0003).
-  P-99 rolls back the order, its lines, the stock reservation and the outbox row together.
+  P-99 rolls back the order, its lines, the `sold` movements and the outbox row together.
+- A call that returns has kept its rows, and a call that raises has kept none. A handler runs
+  after the commit, so its failure cannot be raised across contract B without breaking that
+  rule: it is collected instead (C29). `HandlersFailed` is raised only by `EventBus.publish`
+  itself, and the wiring's `CollectingBus` keeps it (ADR 0009). It is not a `ShopError`.
 - The simulator catches `ShopError` only where its script says a refusal is expected (O-106).
   Anywhere else the run stops.
 - `NoSuchCustomer` and `UnknownCustomer` are two names on purpose: one is a refusal raised by

@@ -1,6 +1,6 @@
 # 0004. Domain types
 
-Status: accepted, 2026-11-04 (step 6.2, decision C4)
+Status: accepted, 2026-11-04 (step 6.2, decisions C4 and C25)
 
 ## Context
 
@@ -32,7 +32,8 @@ live in the core modules of ADR 0001's `LAYERS`:
 
 | module | types |
 |---|---|
-| `roastery/ids.py` | the id types (with `CategoryId`), `Country`, `PostalCode`, `AccountKind` |
+| `roastery/ids.py` | the id types, `Country`, `PostalCode`, `Email`, `AccountKind` |
+| `roastery/customer.py` | `Customer`, `CustomerChange` |
 | `roastery/money.py` | `Money`, `Qty`, rounding to the øre |
 | `roastery/catalogue.py` | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails` |
 | `roastery/order.py` | `OrderLine`, `Channel`, the order's states (ADR 0005) |
@@ -52,8 +53,11 @@ shape `PREFIX-digits`:
 | `EventId` | `E` | E-09 |
 | `PaymentId` | `PAY` | PAY-1 |
 | `SubscriptionId` | `S` | S-1 |
-| `CategoryId` | fixed in `ids.py` with the other prefixes (ADR 0007) | |
-| `ShipmentId`, `MovementId` | fixed in `ids.py` with the other prefixes (ADR 0007) | |
+| `CategoryId` | `CAT` | CAT-11 |
+| `CampaignId` | `K` | K-1 |
+| `SubEventId`, `ShipmentId`, `BagId`, `MovementId`, `PurchaseId`, `RuleId` | the prefixes of contract B's id table (ADR 0007) | |
+
+One type per kind of ADR 0007's `IdKind`, and `PaymentId` for the provider's ids. The background trade's ids have a fixed width per kind (ADR 0007); the type checks the prefix and the digits, not the width.
 
 A `NewType` is refused: it is a name for the type checker and checks nothing at run time.
 
@@ -141,8 +145,25 @@ class OrderLine:
 | `Channel` | `Literal['web', 'shop']` | a type alias, no class |
 | `Kind` | `Literal['beans', 'equipment']` | as `products.kind` holds it |
 | `AccountKind` | `Literal['consumer', 'business']` | a type alias, no class; in `ids.py` |
+| `Email` | text | one `@`, and the domain `example.invalid` (C25): no address in the data can reach a real inbox |
 | `BeanDetails` | weight, origin, roast, process | frozen dataclass in `catalogue.py`; a bean product's own fields |
 | `EquipmentDetails` | warranty, material | frozen dataclass in `catalogue.py`; an equipment product's own fields |
+
+**The customer** (`customer.py`):
+
+```python
+@dataclass(frozen=True)
+class Customer:
+    customer_id: CustomerId
+    name: str
+    email: Email
+    country: Country | None
+    postal_code: PostalCode | None
+    account_kind: AccountKind
+    joined: dt.date
+```
+
+`CustomerChange` is one row of the change log: `seq`, `op`, the id, the country and postal code after the change, and `changed_at` (ADR 0003).
 
 A customer's country is `Country | None`: C-05 has none, and that is a fact about Lars, not
 a fault. What a missing country means is said by the caller that needs one (ADR 0008,

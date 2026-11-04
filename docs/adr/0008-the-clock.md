@@ -1,6 +1,6 @@
 # 0008. The clock
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C8 and C19)
+Status: accepted, 2026-11-04 (step 6.2, decisions C8, C19 and C23)
 
 ## Context
 
@@ -40,14 +40,16 @@ There is no `today()`. A day is always worked out from a moment and a zone, by a
 function in `roastery/clock.py`:
 
 ```python
-def local_date(now: dt.datetime, zone: str) -> dt.date:
+def local_date(now: dt.datetime, zone: ZoneInfo) -> dt.date:
     """The day `now` falls on in `zone`; `now` must be aware."""
 ```
 
 - `local_date` refuses a naive `now` with `ValueError`.
 - It reads no clock and no setting. The same moment and zone give the same day.
 
-**Where the zone comes from.** One table in `roastery/clock.py`, by country:
+A zone is a `ZoneInfo` everywhere: in `local_date`, in `ZONES`, in `order_zone` and in `Settings.shop_zone` (ADR 0014), so a zone name is parsed once, where it is read.
+
+**Where the zone comes from.** One table in `roastery/clock.py`, `ZONES`, by country:
 
 | country | zone |
 |---|---|
@@ -57,15 +59,15 @@ def local_date(now: dt.datetime, zone: str) -> dt.date:
 | FI | Europe/Helsinki |
 
 - At the counter (channel `shop`), the zone is `ROASTERY_SHOP_ZONE` (`Europe/Oslo`), read
-  once into the settings (ADR 0014) and wired in.
+  once into the settings as a `ZoneInfo` (ADR 0014) and wired in.
 - On the web, the zone is the customer's country's. The caller works the country out once,
   with `order_country` in `roastery/checkout.py` (ADR 0010), the one place that says what
   a missing country means; the zone follows from it:
 
 ```python
 def order_zone(
-    channel: Channel, country: Country, shop_zone: str
-) -> str:
+    channel: Channel, country: Country, shop_zone: ZoneInfo
+) -> ZoneInfo:
     if channel == 'shop':
         return shop_zone
     return ZONES[country]
@@ -77,14 +79,16 @@ def order_zone(
 - O-105's line is stamped 7 October 11:05 UTC; it is 7 October in every one of the four zones,
   so no frozen row depends on this choice.
 
-**Two adapters** stand at the seam:
+**No wall clock in `packages/shop`.** The package holds one adapter, and the caller brings the
+other:
 
 | adapter | where | what |
 |---|---|---|
-| `SystemClock` | `bootstrap.py`, wired for the API | the one place in `packages/shop` that may call `dt.datetime.now(dt.UTC)` |
-| `FakeClock` | `fakes.py`, wired by the simulator and the tests | a moment that only moves when told (`set`, `advance`) |
+| `FakeClock` | `fakes.py`, wired by the simulator, the tests and the cli | a moment that only moves when told (`set`, `advance`). The cli sets it to the moment it is given (`--at`, ADR 0013) |
+| the live shop's UTC clock | outside `packages/shop`, with the FastAPI adapter (ADR 0013, plan §8) | the only code that reads the wall clock |
 
-Jobs take no clock argument: the port is wired in (C12).
+So the seam has two adapters, as every port must, and nothing in `roastery` calls
+`dt.datetime.now`. Jobs take no clock argument: the port is wired in (C12).
 
 ## Alternatives refused
 
@@ -100,26 +104,29 @@ Jobs take no clock argument: the port is wired in (C12).
 ## Consequences
 
 - Every service that writes a stamp takes it from `clock.now()` once per command, so all rows
-  of one unit of work share one moment.
+  of one unit of work share one moment. The one exception is the count at close: its
+  `counted_at` is the counted day's close, not the moment the job ran (C23, ADR 0011).
 - The rule "no `datetime.now`, `time.time` or unseeded `random`" is checked by the
-  teachability test (C17, ADR 0015). `SystemClock` is its one listed exception.
-- The pure functions of the domain (`late_shipments`, VAT by day) take a `dt.date` or a
+  teachability test (C17, ADR 0015), with no exception: no module of `roastery` holds a wall
+  clock (ADR 0013, ADR 0015).
+- The pure functions of the domain (`order.late_orders`, VAT by day) take a `dt.date` or a
   moment as an argument, never a clock.
 - The till's Bergen-time `sold_at` is turned into UTC by the parser, with the shop zone
   (ADR 0012).
 - `tzdata` is the shop's one runtime dependency (C19, ADR 0002). `zoneinfo` finds no zones on
   Windows without it (`ZoneInfo('Europe/Helsinki')` raises `ZoneInfoNotFoundError`), a slim image
   may lack the system database, and a system database's version can differ between machines.
-  The wheel pins one version of the zone data, so a local run and CI give the same days. A
-  hand-written rule for the four zones was refused: it would repeat the EU's last Sundays of
-  March and October in code.
+  What is pinned where: `packages/shop/pyproject.toml` states a lower bound on `tzdata` (set in
+  6.3), the workspace's `uv.lock` pins the exact version for local runs and CI, and data-docs'
+  own lock pins it there. So a local run and CI give the same days. A hand-written rule for the
+  four zones was refused: it would repeat the EU's last Sundays of March and October in code.
 
 ## Pages served
 
 | page | what it shows from this ADR |
 |---|---|
-| `pure-core-imperative-shell` | `late_shipments(orders, events, today)` deciding with a day passed in; the shell reads `clock.now()` and works out the day. The twin patches the clock |
+| `pure-core-imperative-shell` | `order.late_orders(orders, events, today)` deciding with a day passed in; the shell, `Fulfilment.late_shipments`, reads `clock.now()` and works out the day. The twin patches the clock |
 | `fakes-over-mocks` | `FakeClock` as a working fake: it moves only when told |
-| `ports-and-adapters` | `Clock` with two adapters, wired in `bootstrap` |
+| `ports-and-adapters` | `Clock` with two adapters: `FakeClock` in the package, the live shop's clock outside it |
 | `configuration` | `ROASTERY_SHOP_ZONE` read once and passed in, never read inside `local_date` |
 | `errors` | `order_country` matching `NoCountry` once; the date and the VAT both follow from it |

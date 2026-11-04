@@ -1,6 +1,6 @@
 # 0011. Contract B: the simulator's call surface
 
-Status: accepted, 2026-11-04 (step 6.2, decision C12)
+Status: accepted, 2026-11-04 (step 6.2, decisions C12, C23, C25, C27, C29 and C30)
 
 ## Context
 
@@ -17,7 +17,22 @@ Four things shape it:
 
 ### The surface
 
-Contract B is the fenced block in `architecture.md` §5, with the table of what each call raises. In numbers: 7 services and 27 calls; 2 commands, plus 2 frozen records (`Item` and `Receipt`); 5 jobs; and 17 members of `ShopError`.
+Contract B is the fenced block in `architecture.md` §5, with the table of what each call raises. In numbers: 7 services and 27 calls; 2 commands, plus 2 frozen records (`Item` and `Receipt`); 5 jobs; `App.failures()`; and 17 members of `ShopError`.
+
+**It is the whole surface the simulator imports** (C27), not only the services. A name the simulator imports and the snapshot does not cover could change under 6.4's tag. So the block also holds:
+
+| what | from | why the simulator imports it |
+|---|---|---|
+| `wire`, `Source` | `bootstrap`, `ports` | it wires the app twice over one store (ADR 0007) |
+| `sqlite_store`, `memory_store` | `bootstrap` | the store both wirings share (C32: sqlite for `month` and `full`, memory for `tiny`) |
+| `SequentialIds`, `ScriptedIds`, `IdKind` | `repository`, `ports` | the two `Ids` adapters (ADR 0007) |
+| `FakeClock` | `fakes` | the simulator's clock: it moves it through three years |
+| `FakeProvider`, `FakeNotifier`, `FakeLabels` | `fakes` | the provider it plays, and the two handlers' ports (C26) |
+| `Settings` | `settings` | built directly, as the tests do (ADR 0014) |
+| `StatusFeed`, `FeedDown`, `StatusChanged`, `Relayed` | `ports`, `events` | its own feed adapter, and what `jobs.relay` returns (ADR 0009) |
+| `CollectingBus`, `HandlerFailure` | `events` | `App.events`, and what `App.failures()` returns (C29) |
+
+`Relayed` is a port type in `ports.py`, so the simulator imports no adapter module for a type.
 
 | service | module | calls |
 |---|---|---|
@@ -44,9 +59,9 @@ Contract B is the fenced block in `architecture.md` §5, with the table of what 
 
 **C22 holds.** `place` builds the `Placed` order first, then takes each line's VAT share with `scheme_for(order, on)`. The order carries the country `order_country` chose, so phase 8 can widen `scheme_for` without changing contract B.
 
-**Invoices (S13).** A business account's order is invoiced inside `place`: one unit of work, two outbox rows (`placed`, then `invoiced`). So the claim "each business order invoiced once, never paid" follows from the call, and does not depend on the script remembering. A consumer who pays later is put on invoice by `Payments.invoice(order_id)`. An open invoice is paid by `Payments.settle(message)`: a payment row and no status event (ADR 0005). `settle` refuses an order with no open invoice (`NoOpenInvoice`), and `handle_message` refuses to pay an invoiced order (`IllegalTransition`). So a message delivered to the wrong call is loud.
+**Invoices (S13).** A business account's order is invoiced inside `place`: one unit of work, two outbox rows (`placed`, then `invoiced`). So the claim "each business order invoiced once, never paid" follows from the call, and does not depend on the script remembering. A consumer who pays later is put on invoice by `Payments.invoice(order_id)`. S13 says consumers may pay later, and contract A has their orders: of the 33 `unpaid` orders of `order_values` (an invoice still open on 30 September 2026), 20 are web orders of 4 bags, and D7 makes only the 10-bag orders and the café's 48 business. So `invoice` stays. It could go only if 6.4 made every one of those buyers a business account. An open invoice is paid by `Payments.settle(message)`: a payment row and no status event (ADR 0005). `settle` refuses an order with no open invoice (`NoOpenInvoice`), and `handle_message` refuses to pay an invoiced order (`IllegalTransition`). So a message delivered to the wrong call is loud.
 
-**Idempotency.** `handle_message` and `settle` record a `payment_id` once and return the same `Receipt` for every delivery: PAY-1 twice, recorded once. A known `payment_id` with another order or amount raises **`PaymentMismatch`**. That is the name the map's `idempotency` row asked for. `KeyReused` stays for the API's key store in `idempotency.py`: the same key with another body. Both live in `errors.py` (C20), which every layer may import.
+**Idempotency.** `handle_message` and `settle` record a `payment_id` once and return the same `Receipt` for every delivery: PAY-1 twice, recorded once. A known `payment_id` with another order or amount raises **`PaymentMismatch`**. It compares a message with the payment stored under its id, never with the order's total. Payments are in the customer's currency, and they pay the lines the customer saw, planted ones included: PAY-2 is 516.98 SEK for 548.00 NOK of lines, L-03's 349.00 and the planted L-09's 199.00, while the app's O-102 holds L-03 only. So nothing in the app compares a payment with an order's total. That is the name the map's `idempotency` row asked for. `KeyReused` stays for the API's key store in `idempotency.py`: the same key with another body. Both live in `errors.py` (C20), which every layer may import.
 
 **The outbound call.** It is `Payments.refund(order_id) -> PaymentId`. It asks the provider for the money back through the `PaymentProvider` port: `provider.refund(payment_id, amount, key=f'refund-{order_id}')`.
 
@@ -83,8 +98,8 @@ O-106's cancel does put its bag back. L-10 left at `place` (E-11, 6 Oct 21:30 UT
 **The count at close cannot use the job's own moment as written in S19.** S19 says `counted_at` stamps the count job (16:00 UTC), yet the 9 October count of 59 includes O-108 at 19:30 UTC. A job that ran at 16:00 could not have seen it. So `jobs.count_at_close` runs after the day is over, and writes `stock_daily` for the last closed shop day:
 
 - `on_hand` is the balance of every movement whose `moved_at` falls on that day or before, by the UTC day, as the balance claim reads it. The two rules agree for the week; a sale at 23:00 UTC would fall on different days under them.
-- `counted_at` is that day's close: 18:00 in `ROASTERY_SHOP_ZONE`, which is 16:00 UTC in summer. The close is a constant in `stock.py`, the job's own stamp, never the moment of the last sale.
-- The 7 October pair (26 at 16:00, 36 at 8 Oct 06:30) is the export writer's (S19, the defect log). The app writes one row for 7 October, 36 at its close.
+- `counted_at` is that day's close: 18:00 in `ROASTERY_SHOP_ZONE`, which is 16:00 UTC in summer. The close is a constant in `stock.py`, the job's own stamp, never the moment of the last sale. It is the one stamp of contract B that is not `clock.now()` (C23).
+- **7 October, row by row.** The app writes one row per product: P-10, 36, counted at 7 Oct 16:00; P-20, 4, counted at 7 Oct 16:00. The export writer then sends the day twice (plan 4.2, the defect log). The first send keeps the app's stamp and plants the fault: P-10's 36 becomes 26. The second send is the "recount": every product of the day again, with the app's true counts (P-10 36, P-20 4), stamped 8 Oct 06:30. So none of the four 7 October rows of `stock_daily` is the app's row as written: the 16:00 pair carries the app's stamp, and the 06:30 pair the app's counts. `latest_stock` takes the 06:30 pair: P-10 36, the true count, as `contract.md` says.
 
 **Catalogue.**
 
@@ -96,24 +111,32 @@ O-106's cancel does put its bag back. L-10 left at `place` (E-11, 6 Oct 21:30 UT
 
 **Subscriptions.** `skip`, `pause`, `resume` and `cancel` each take a reason, and each writes one `subscription_events` row (the `command` page).
 
+- Each of the four calls builds its command (`Skip`, `Pause`, `Resume`, `Cancel` in `commands.py`), checks it with `apply` against the subscription's state (`IllegalSubscriptionMove`), and keeps it: the command is the `subscription_events` row it becomes, with its reason. `subscribe` writes `subscriptions.started` and no event, so it has no command.
+- `replay(subscription, events)` rebuilds the periods from `subscriptions.started` and the subscription's `subscription_events`, in order. `jobs.ship_subscription_bags` asks it whether a bag is due, and the `command` page replays S-2 and S-3 with it.
+- So `commands.py` earns its keep: the log is the state, read back by the job, and the rules of which move follows which live once in `apply`. The five calls stay five, with keyword arguments (C12): a single `handle(command)` would put four more dataclasses on the snapshot, and return a `SubscriptionId` for one command and `None` for the rest.
+
 - A skip is dated in the month it skips, so it skips this month.
 - `cancel` sets `ended` to today, on the customer's clock.
 - `Customers.erase` cancels the customer's open subscriptions in its unit of work, with reason `erased`: C-07 is erased on 9 October and S-7 ends that day.
 - `jobs.ship_subscription_bags` ships this month's bag to every running subscription that has none yet and is not skipped or paused. It writes `subscription_shipments` and one `shipped` movement each. It takes no month: the month is the shop's today. A second run in a month ships nothing new.
 
-**Customers.** `register` sets `joined` to today. `change` is a move: the new country and postal code, as `customer_changes` records them. `erase` writes a tombstone. The customers store writes the change rows (ADR 0003). The `line_stamps` stamps are written by `place`, `credit_for` and `cancel`, never by a job.
+**Customers.** `register` sets `joined` to today and keeps the customer's e-mail (C25), which reaches contract A only in `raw_customers`. `change` takes the customer's whole contact after the change: country, postal code and e-mail, never optional fields. The data's changes are moves, and `customer_changes` records the country and postal code after each update (ADR 0003). `erase` writes a tombstone. The customers store writes the change rows (ADR 0003). The `line_stamps` stamps are written by `place`, `credit_for` and `cancel`, never by a job.
 
 **Jobs** take no argument and no clock. `wire` binds them to the store, the feed and the settings (ADR 0013). `nightly_extract` replaces tonight's `customer_extracts` copy. `csv_export` returns the two files' text, and the caller saves them; the export writer adds the faults after it (D10).
 
-**Not in contract B.** These are reads the pages call and the simulator does not: `country_of`, `late_shipments`, `reports`, `parse_till`. Web tracking has no call (C11).
+**Handler failures** (C29). A call returns once its unit of work commits, whatever its handlers do after. A handler's failure is kept by the wiring's `CollectingBus` (ADR 0009) and read with `App.failures()`. The simulator reads it after each day and stops if it is not empty: a failure is a bug in a fake, never a refusal.
+
+**Not in contract B.** These are reads the pages call and the simulator does not: `customers.country_of`, `Fulfilment.late_shipments`, the `reports` functions (`reports.reconcile_till` among them), `parsing.parse_till`. Web tracking has no call (C11).
 
 ### The snapshot test
 
-6.3 writes `packages/shop/tests/test_contract_b.py`. It renders, sorted:
+6.3 writes `packages/shop/tests/test_contract_b.py`. It renders the whole surface of C27, sorted:
 
-- `str(inspect.signature(...))` of each public method of `App`, `Jobs`, the seven services and `PaymentProvider`;
-- the fields of `Item`, `PlaceOrder`, `PaymentMessage`, `Receipt` and `App`;
-- every subclass of `ShopError`, followed recursively, with its `__init__` signature.
+- `str(inspect.signature(...))` of each public method of `App`, `Jobs`, the seven services, `CollectingBus`, `PaymentProvider`, `StatusFeed`, `SequentialIds`, `ScriptedIds`, `FakeClock`, `FakeProvider`, `FakeNotifier` and `FakeLabels`, and of each class's `__init__`;
+- the signatures of `wire`, `sqlite_store` and `memory_store`;
+- the fields of `Item`, `PlaceOrder`, `PaymentMessage`, `Receipt`, `App`, `Settings`, `Relayed`, `StatusChanged` and `HandlerFailure`;
+- `Source` and `IdKind`, as their `Literal` members;
+- every subclass of `ShopError`, followed recursively, with its `__init__` signature, and `FeedDown`.
 
 It compares that text with the committed `packages/shop/tests/contract_b.txt`. A second assertion checks that no module but `errors.py` defines a member. 6.4 pins the file at its tag.
 
@@ -132,12 +155,13 @@ It compares that text with the committed `packages/shop/tests/contract_b.txt`. A
 | `KeyReused` for the payment redelivery too | two meanings for one name: the API's key with another body, and a provider message with another amount. The map asked for a name of its own |
 | `add_kind`, `log_event` | the deletion test: a kind the `Kind` type cannot hold; web tracking is an outside system (C11) |
 | `Catalogue` methods spread over `Stock` and `Checkout` | prices, rules and campaigns change for one reason (the shop's offer), and the `strategy` and `registries-and-plugins` pages read them together |
-| a general `Customers.change` with optional fields | the only change the data holds is a move (country and postal code); `customer_changes` carries no other column |
+| a general `Customers.change` with optional fields | a call with every field optional says nothing of the customer after it. `change` takes the whole contact (country, postal code, e-mail); the data's changes are moves, and `customer_changes` carries the country and postal code after each |
+| `Subscriptions.handle(command)` in place of four calls | four more frozen dataclasses on the snapshot, and one call returning two kinds of answer. The commands are still the log: each call builds one and keeps it |
 
 ## Consequences
 
 - The simulator never writes an app table. It calls these 27 calls and 5 jobs, writes the outside systems' tables, and runs the derived queries in its extract writer.
-- The simulator's provider must record each refund it is asked for, so the simulator can write the provider's negative message and deliver it. `FakeProvider` keeps them; the snapshot does not cover the fake.
+- The simulator's provider must record each refund it is asked for, so the simulator can write the provider's negative message and deliver it. `FakeProvider` keeps them, and the snapshot covers it (C27).
 - The API maps the port errors too: `ProviderRefused` to 402 and `ProviderUnavailable` to 503, beside ADR 0006's `STATUS`.
 - 6.4's script must give L-10 a product other than P-10 and P-20, roast 24 bags of P-10 on 8 October, and keep cancels away from midnight UTC. Order 300's customer must be a consumer, and no credit order of a business account may fall before the week: the claim "each business order invoiced once, never paid" would see the credit order's `paid` event. The `subscribers` claim reads `event_at::DATE`, and `ended` is a local date; near midnight the two can differ.
 
@@ -145,7 +169,7 @@ It compares that text with the committed `packages/shop/tests/contract_b.txt`. A
 
 | ADR | change |
 |---|---|
-| 0001 | the service row gains `listing` (the `Catalogue` service): 8 service modules, 39 in all (40 with C20's `errors`) |
+| 0001 | the service row gains `listing` (the `Catalogue` service): 8 service modules, 39 in all (40 with C20's `errors`, 41 with `customer` for C25's e-mail) |
 | 0004 | `ids.py` gains `CategoryId` and `AccountKind` (`Literal['consumer', 'business']`); `catalogue.py` gains `BeanDetails` (weight, origin, roast, process) and `EquipmentDetails` (warranty, material) |
 | 0003 | a store's `get` of an unknown id raises `UnknownId` (a `ShopError`), not a bare `LookupError` |
 | 0005 | `Head` gains `country: Country`, the order's country as `order_country` chose it (C22); a business account's order is invoiced inside `place`, so a business counter sale ends at `Invoiced` (then `settle`), not at `Paid` |

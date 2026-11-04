@@ -113,6 +113,10 @@ Order = Placed | Paid | Invoiced | Shipped | Delivered | Cancelled
 
 ```python
 Action = Literal['pay', 'invoice', 'ship', 'deliver', 'cancel']
+Status = Literal[
+    'placed', 'paid', 'invoiced', 'shipped', 'delivered',
+    'cancelled',
+]
 
 TRANSITIONS: Final[Mapping[tuple[str, Action], str]] = (
     MappingProxyType({...})          # the eight rows above
@@ -130,7 +134,7 @@ def deliver(order: Order) -> Delivered: ...
 def cancel(order: Order, reason: str) -> Cancelled: ...
 
 
-def status(order: Order) -> str:
+def status(order: Order) -> Status:
     """The feed's word: the class name in lower case."""
 ```
 
@@ -201,15 +205,15 @@ def status(order: Order) -> str:
   whether `month` and `full` show the link is open until 1.0 (S12). `lesson_ids` maps
   order 300 to the credit order's `O-...` id (S9).
 - Order 300's original sale is chosen by 6.4's script. `credit_for` refuses a line already
-  credited, and a sale that is not `Paid` or `Delivered`; U4 names those errors in contract B.
+  credited, and a sale that is not `Paid` or `Delivered`; contract B names those errors: `AlreadyCredited` and `NotCreditable`.
 - Undoing a sale is a `sold` movement with the opposite sign (C21), so `stock_movements` keeps
   its five reasons and the signed `qty` says the direction. The week's frozen balances come out
   the same: O-106's cancel puts its bag back, and 6.4 gives L-10 a product other than P-10 and
   P-20 (ADR 0011).
-- A cancel of a `Paid` order needs the money back. That is a negative payment from the
-  provider, delivered to `handle_message`; the cancel itself writes no payment.
-- `late_shipments` (the `pure-core-imperative-shell` page) must skip `shop` orders: O-104 is
-  paid and never ships.
+- A cancel of a `Paid` order needs the money back: `Payments.refund` asks the provider, and its
+  negative message is delivered to `handle_message`; the cancel itself writes no payment.
+- `order.late_orders` (the pure core of the `pure-core-imperative-shell` page; its shell is
+  `Fulfilment.late_shipments`) must skip `shop` orders: O-104 is paid and never ships.
 - The map's §1 row for `illegal-states` listed `Shipped(shipped_on)`. The class holds the
   `shipment_id` and the settlement instead; the day lives on the `shipments` row
   (`shipped_on`, `promised_by`, `delivered_on`).
@@ -223,7 +227,7 @@ def status(order: Order) -> str:
 | `illegal-states` | the six classes; only `Paid` holds a payment id; `Shipped` carries how it was settled. The twin: flags and optionals |
 | `state-machine` | `TRANSITIONS` as rows, the same six words as `order_events`; O-101's full path; `ship(O-106)` refused |
 | `anaemic-model` | the twin `Order` with a public `status`, where a service ships or refunds what the classes here would refuse |
-| `pure-core-imperative-shell` | `late_shipments(orders, events, today)` as a pure function that knows O-104 never ships |
+| `pure-core-imperative-shell` | `late_orders(orders, events, today)` as a pure function that knows O-104 never ships |
 | `unit-of-work` | placing: the order, its lines, the `sold` movements and the outbox row in one commit; a cancel: the state, the deleted lines and the outbox row |
 | `outbox` | each move as one `StatusChanged` row; the feed's word is `status(order)` |
-| `observer-and-events` | `Paid` as the move whose event the handlers hear: the receipt, the next bag booked; stock is not among them, it moved at placing |
+| `observer-and-events` | `Paid` (and `Invoiced`) as the moves whose events the handlers hear: the confirmation e-mail and the shipping label (C26). Stock and the outbox row are not among them: both are written in the move's unit of work |

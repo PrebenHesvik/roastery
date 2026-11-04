@@ -2,7 +2,7 @@
 
 One file per choice, written in step 6.2 (`NNNN-title.md`).
 
-The decisions C1 to C24 are in `docs/phase-6/6.2-architecture.md`; the choices are summarised in `docs/architecture.md` §4.
+The decisions C1 to C32 are in `docs/phase-6/6.2-architecture.md`; the choices are summarised in `docs/architecture.md` §4.
 
 - [0001](0001-flat-package-and-layers.md): A flat package and its layers
 - [0002](0002-no-dependencies.md): Stdlib plus tzdata in the shop

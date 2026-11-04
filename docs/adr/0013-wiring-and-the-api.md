@@ -1,10 +1,10 @@
 # 0013. Wiring and the API
 
-Status: accepted, 2026-11-04 (step 6.2, decision C14, and the bootstrap)
+Status: accepted, 2026-11-04 (step 6.2, decisions C14, C26, C27, C29, C31 and C32, and the bootstrap)
 
 ## Context
 
-The app has ports with two adapters each: memory and sqlite stores, `FakeProvider` and the SDK-backed provider, `FakeFeed` and the simulator's feed, a sequence and a script for ids (ADR 0007). Something has to choose, once, which adapter stands at each port.
+The app has ports with two adapters each: memory and sqlite stores, `FakeProvider` and the SDK-backed provider, `FakeFeed` and the simulator's feed, a sequence and a script for ids (ADR 0007). Three ports have their second adapter outside `packages/shop`, brought by the live shop (plan §8): the `Clock` (ADR 0008), the `Notifier` and the `Labels` (ADR 0009). Something has to choose, once, which adapter stands at each port.
 
 Two callers drive the app:
 
@@ -33,14 +33,16 @@ def wire(
     source: Source,
     feed: StatusFeed,
     provider: PaymentProvider,
+    notifier: Notifier,
+    labels: Labels,
 ) -> App:
     """The services on the store, the same for every caller.
 
     Takes a unit of work from the store, stamping `source`;
-    makes the bus and subscribes the handlers; puts the price
-    cache in front of the prices for settings.price_ttl; puts
-    retry and the breaker around the provider; and binds the
-    jobs to the store, the feed and the batch size.
+    builds the rule registry; makes the bus, subscribes the
+    handlers and wraps it in a CollectingBus; puts retry and
+    the breaker around the provider; and binds the jobs to
+    the store, the feed and the batch size.
     """
     ...
 ```
@@ -49,11 +51,18 @@ def wire(
 
 | argument | API | simulator | a test or a walk |
 |---|---|---|---|
-| `store` | `sqlite_store(connection)` | one `sqlite_store(connection)` or `memory_store()`, shared by its two wirings | `memory_store()` |
-| `clock` | the caller's UTC clock | the simulator's clock | `FakeClock` |
+| `store` | `sqlite_store(connection, ...)` | one store, shared by its two wirings: `sqlite_store` for `month` and `full`, `memory_store` for `tiny` (C32) | `memory_store(...)` |
+| `clock` | the live shop's UTC clock, from outside the package; the cli's `FakeClock` at `--at` | `FakeClock`, moved by the script | `FakeClock` |
 | `ids`, `source` | ADR 0007 | ADR 0007 | ADR 0007 |
-| `feed` | the caller's feed | the simulator's feed | `FakeFeed` |
+| `feed` | the caller's feed; the cli's `ClosedFeed` | the simulator's feed | `FakeFeed` |
 | `provider` | `ProviderPayments` on the SDK, from `PROVIDER_URL` and `PROVIDER_KEY` | `FakeProvider` | `FakeProvider` |
+| `notifier`, `labels` | the live shop's mailer and carrier client; the cli's `FakeNotifier`, `FakeLabels` | `FakeNotifier`, `FakeLabels` | the same fakes |
+
+Inside `wire`, beside the ports:
+
+- **The rule registry is built here**, by `pricing.standard_rules()`, and handed to `Checkout`. It is never module state: `pricing.RULES` is a read-only mapping of the three standard rules, and a registry that plugins register into is a new object per wiring (the `registries-and-plugins` page's "what goes wrong": a registry in a module variable is shared by everyone who imports it).
+- **The bus** is made here, its handlers (`fulfilment.confirm`, `fulfilment.label`) are bound to the `Notifier`, the `Labels` and the store, and it is wrapped in one `CollectingBus` handed to every service. `App.failures()` reads it (C29, ADR 0009).
+- **The price cache is not built here.** It is built with the store, one per store (C31, ADR 0003), so the simulator's two wirings share it.
 
 `wire` wraps the `PaymentProvider` it is given in `resilience`'s retry and `CircuitBreaker`, so every caller gets the same protected port, whatever stands behind it. A decline (`ProviderRefused`) is never retried; `ProviderUnavailable` is retried, and passes through when the retries run out or the breaker is open (ADR 0011).
 
@@ -62,22 +71,27 @@ def wire(
 ### Memory and sqlite
 
 ```python
-def memory_store() -> InMemoryStore:
-    """The app's tables as dicts: for a test, or a walk."""
+def memory_store(*, clock: Clock, price_ttl: int) -> InMemoryStore:
+    """The app's tables as dicts, with their one price cache.
+
+    For a test, a walk or `tiny` (C32).
+    """
     ...
 
 
-def sqlite_store(connection: sqlite3.Connection) -> SqliteStore:
-    """The app's tables on a connection in sqlite3's default mode.
+def sqlite_store(
+    connection: sqlite3.Connection, *, clock: Clock, price_ttl: int
+) -> SqliteStore:
+    """The app's tables on a connection, with their price cache.
 
-    The mode is checked first (ADR 0003), then the tables are
-    made if they are not there. The caller opens and closes
-    the connection.
+    The connection must be in sqlite3's default mode (ADR
+    0003); the tables are made if they are not there. The
+    caller opens and closes the connection.
     """
     ...
 ```
 
-The two differ in the store and nothing else. Wired on either, the same calls give the same rows: the `ports-and-adapters` page runs both and shows one frame.
+Each builds the store's one `CachedPrices` with the clock and `price_ttl` it is given (C31). The two differ in the store and nothing else. Wired on either, the same calls give the same rows: the `ports-and-adapters` page runs both and shows one frame.
 
 ### The jobs
 
@@ -116,13 +130,13 @@ All four are built before phase 7.
 def main(argv: Sequence[str], env: Mapping[str, str]) -> int:
     """Read the settings, wire on sqlite, run the cli's command.
 
-    The command is given the moment to run at (`--at`): the job
-    runs on a fixed clock, so a rerun gives the same rows.
+    The command is given the moment to run at (`--at`): main
+    wires a FakeClock set to it, so a rerun gives the same rows.
     """
     ...
 ```
 
-The cli offers the export jobs (`nightly_extract`, `csv_export`). The relay runs where a feed is: the simulator now, the live shop later. Until then `main` wires `fakes.ClosedFeed`, a feed that refuses every batch, so a relay called from the cli loses nothing; its rows wait.
+`main` holds no wall clock: the CronJob passes `--at` (ADR 0015). The cli offers the export jobs (`nightly_extract`, `csv_export`). The relay runs where a feed is: the simulator now, the live shop later. Until then `main` wires `fakes.ClosedFeed`, a feed that refuses every batch, so a relay called from the cli loses nothing; its rows wait. It wires `FakeNotifier` and `FakeLabels` too: the jobs publish no event.
 
 The package's script entry is `roastery = 'roastery.bootstrap:main_from_os'`, which passes `sys.argv[1:]` and `os.environ`. That one line is the only place the environment is read (ADR 0014).
 
@@ -132,7 +146,7 @@ The simulator calls `wire` and then the services on `App`, as the API's handlers
 
 ### Later: FastAPI and the live shop
 
-A FastAPI adapter comes with the live shop plan (plan §8). It is a thin package outside `packages/shop` that turns HTTP into the handlers' dicts and calls them. It brings the wall clock and the real feed with it. Nothing in `roastery` changes for it.
+A FastAPI adapter comes with the live shop plan (plan §8). It is a thin package outside `packages/shop` that turns HTTP into the handlers' dicts and calls them. It brings the wall clock, the real feed, the mailer (`Notifier`) and the carrier client (`Labels`) with it. Nothing in `roastery` changes for it.
 
 ### The flag client, injected
 
@@ -179,4 +193,6 @@ It comes with phase 8, with its two adapters: a fixed set of flags (in `fakes.py
 | `idempotency` | the key store at the API's edge; PAY-1 delivered twice, recorded once (with ADR 0011's `handle_message`) |
 | `configuration` | `main` reading the settings once and handing them to `wire` (ADR 0014) |
 | `fakes-over-mocks` | `FakeClock`, `FakeProvider` and `FakeFeed` passed to `wire` |
-| `observer-and-events` | the handlers subscribed in `wire` |
+| `observer-and-events` | the handlers subscribed in `wire`, and the `CollectingBus` around the bus |
+| `registries-and-plugins` | `standard_rules()` called in `wire`: a registry per wiring, never module state |
+| `cache-aside` | the store's one `CachedPrices`, built by `sqlite_store` and `memory_store` |

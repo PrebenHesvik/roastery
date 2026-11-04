@@ -1,6 +1,6 @@
 # 0007. Ids and provenance
 
-Status: accepted, 2026-11-04 (step 6.2, decision C7). Replaces plan §2's "caller-supplied
+Status: accepted, 2026-11-04 (step 6.2, decisions C7 and C30). Replaces plan §2's "caller-supplied
 ids for scripted rows".
 
 ## Context
@@ -54,9 +54,36 @@ The prefix of each kind is one table in `roastery/ids.py`. The ones the data alr
 | campaign | `K` | K-1 |
 | subscription | `S` | S-1 |
 
-The new tables have no rows yet; 6.3 fixes their prefixes in the same table (U4 lists them in
-contract B). Each must differ from every prefix above and from the outside systems' (`PAY`,
-`R`, `W`, `V`).
+The new tables have no rows yet. Their prefixes are in contract B's id table
+(`architecture.md` §5): `SE`, `SH`, `SB`, `M`, `GP`, `PR`. Each differs from every prefix
+above and from the outside systems' (`PAY`, `R`, `W`, `V`).
+
+**The background trade's ids have a fixed width per kind** (C30), wider than any id of the
+script, so a background id and a scripted id never meet:
+
+| kind | width | first background id |
+|---|---|---|
+| customer | 5 | C-00001 |
+| order | 6 | O-000001 |
+| line | 7 | L-0000001 |
+| event | 7 | E-0000001 |
+| product | 3 | P-001 |
+| category | 3 | CAT-001 |
+| campaign | 3 | K-001 |
+| subscription | 5 | S-00001 |
+| sub_event | 6 | SE-000001 |
+| shipment | 6 | SH-000001 |
+| bag | 6 | SB-000001 |
+| movement | 7 | M-0000001 |
+| purchase | 5 | GP-00001 |
+| rule | 4 | PR-0001 |
+
+The widths hold three years of trade with room. The script's ids keep their own shape
+(C-01, O-101, L-12, K-1, S-7): they are the frozen rows'.
+
+**Nothing promises that sorting by id is sorting by time.** `C-00001` sorts before `C-01`,
+and E-05 happened before E-03. A reader orders by a moment (`event_at`, `updated_at`), never
+by an id.
 
 **Ids the app does not make** are stored as they arrive, never through `Ids`:
 
@@ -102,8 +129,10 @@ class ScriptedIds:
   the calls: E-01, E-02, E-05, E-06, E-03, and so on. When a kind's list is used up, it asks
   `then`.
 - The simulator wires the app twice over one store (below). Both wirings share one
-  `SequentialIds`, built with every id of the script as its `skip` set. So a background order
-  of 2025 can never take O-101 before the cast's week reaches it.
+  `SequentialIds`. Its `skip` set is every id of the script and every id the defect log plants
+  (L-05, L-09, ...), so the sequence never makes an id the export writer will also write. With
+  the widths above the two cannot meet anyway; the skip set holds the rule if a width is ever
+  changed.
 
 **The store refuses a duplicate id.** An insert whose key exists raises `DuplicateId(kind,
 value)`, a `ShopError` (ADR 0006): sqlite through its primary key, the memory twin through
@@ -145,7 +174,8 @@ def wire(
 - The script must list each kind's ids in the order of its calls. 6.4 builds that list from
   the frozen rows' moments (`event_at`, `updated_at`), not from the ids' numbers.
 - Rows the export writer plants (L-05, L-09, D10) are not in the script: the app never makes
-  them. A script that asks the app for L-09 would raise `UnknownProduct` on P-99.
+  them, and `SequentialIds` skips their ids (C30). A script that asks the app for L-09 would
+  raise `UnknownProduct` on P-99.
 - `lesson_ids` maps order 300 to the `O-...` id the app gave the credit order (S9). That id
   comes from the same sequence, so it has the same shape.
 - A duplicate is loud. If 6.4's script and the sequence ever meet, the run stops at the call.

@@ -12,7 +12,7 @@ The teaching app today, `firm`, uses the standard library only. Its `frames.py` 
 
 ## Decision
 
-`packages/shop` has one runtime dependency, `tzdata`, and nothing else (C19, an amendment to C2). `tzdata` is a data package (PEP 615), not a library: `zoneinfo` reads the IANA time zones from it where the system has none. Its `pyproject.toml` has `dependencies = ['tzdata']`. The rest is the standard library.
+`packages/shop` has one runtime dependency, `tzdata`, and nothing else (C19, an amendment to C2). `tzdata` is a data package (PEP 615), not a library: `zoneinfo` reads the IANA time zones from it where the system has none. Its `pyproject.toml` lists `tzdata` alone, with a lower bound set in 6.3; the workspace's `uv.lock` pins the exact version (ADR 0008). The rest is the standard library.
 
 - Storage is the standard library's `sqlite3` (ADR 0003).
 - Money is `decimal.Decimal`; time is `datetime` with `zoneinfo`, whose zone data comes from `tzdata` (ADR 0008).
@@ -52,7 +52,7 @@ Why `tzdata` is allowed: on Windows `ZoneInfo('Europe/Oslo')` raises `ZoneInfoNo
 ## Consequences
 
 - The pin adds no library to data-docs but `tzdata`, which data-docs already has.
-- A third-party import anywhere in `roastery` is a review finding. 6.3 may add a test that the package's `dependencies` list is exactly `['tzdata']`.
+- A third-party import anywhere in `roastery` is a review finding. 6.3 may add a test that the package's `dependencies` name `tzdata` and nothing else (the name, not the bound).
 - The FastAPI adapter of the live shop lives outside `packages/shop` and calls `api.py`'s handlers.
 - `frames.py` in data-docs knows the row types of `reports.py`. A renamed field there is a page change (ADR 0015).
 

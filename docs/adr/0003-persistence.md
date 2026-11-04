@@ -1,6 +1,6 @@
 # 0003. Persistence
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C3 and C20)
+Status: accepted, 2026-11-04 (step 6.2, decisions C3, C20, C25, C26, C31 and C32)
 
 ## Context
 
@@ -108,6 +108,8 @@ class CustomerRepository(Protocol):
         ...
 ```
 
+`Customer` and `CustomerChange` are core types in `roastery/customer.py` (ADR 0001). A customer carries an e-mail (C25), ending in `example.invalid`; it reaches contract A only in `raw_customers`, through the csv export. `customer_changes` has no e-mail column, so the log row of an update carries the country and postal code as they are after it, whatever changed: every update writes one row, as `contract.md` says ("every insert, update and delete").
+
 `seq` is given by the store, from 1 up, as `MAX(seq) + 1` inside the transaction. Memory and sqlite give the same numbers. An erase is a tombstone: its row carries the key, and its country and postal code are empty. Orders keep the customer's id after an erase (O-107 still names C-07).
 
 ### One store, a unit of work per wiring
@@ -127,6 +129,10 @@ class Store(Protocol):
 
 `uow.py` has the two adapters: `SqliteStore` (a connection) and `InMemoryStore` (the dicts). Two units of work over one store see each other's commits. They are used one at a time: the simulator plays one call after another.
 
+**One price cache per store** (C31). Each store adapter is built with one `CachedPrices` (`cache.py`), in front of its prices, and every unit of work of that store reads list prices through it. `Catalogue.set_price` evicts the product's entry when its unit of work commits. Both wirings of the simulator share the store, so they share the cache and see one eviction: no wiring can price a cart from an entry the other made stale. The cache is a concrete class, not a port: it has one adapter, and a port with one adapter fails the deletion test. `bootstrap`'s store constructors take the clock and `price_ttl` for it (ADR 0013).
+
+**Which store runs what** (C32). `full` and `month` are played on sqlite. The memory store serves the tests, the walks and `tiny`. The memory unit of work copies the store's dicts per call (below), which is quadratic over three years of trade.
+
 ### sqlite's transaction mode
 
 The sqlite unit of work needs a connection in `sqlite3`'s default mode, as firm's `uow.py` does:
@@ -135,7 +141,7 @@ The sqlite unit of work needs a connection in `sqlite3`'s default mode, as firm'
 - `__enter__` runs `BEGIN`; `commit()` commits; `__exit__` always rolls back, so a write after the last commit is undone too;
 - a unit of work cannot be opened twice at once (`RuntimeError`).
 
-The memory unit of work keeps a copy of the store's dicts when the block opens and at each commit, and puts the copy back into the store when the block ends. It has no isolation: there is one caller at a time.
+The memory unit of work keeps a copy of the store's dicts when the block opens and at each commit, and puts the copy back into the store when the block ends. It has no isolation: there is one caller at a time. The copy is why the memory store is kept to small runs (C32).
 
 The caller opens the sqlite connection and closes it. `bootstrap.sqlite_store` checks the mode, makes the tables and returns the `SqliteStore` (ADR 0013).
 
@@ -145,6 +151,8 @@ The caller opens the sqlite connection and closes it. `bootstrap.sqlite_store` c
 |---|---|
 | An ORM (SQLAlchemy) | It is a dependency (ADR 0002). Its session is a unit of work and its mapper a repository: the patterns the pages show would sit inside the library, out of sight. |
 | sqlite only, no memory twin | One adapter makes the repository seam hypothetical. The `depend-on-abstractions` and `contract-tests` pages need two stores giving the same answer, and the walks need a store with no file. |
+| the memory store for `full` too | Its copy per call grows with the store: three years of trade would take hours. sqlite is the store of the long runs (C32) |
+| a `PriceCache` port, or a cache per wiring | One adapter makes the port hypothetical. A cache per wiring would let one wiring's `set_price` leave the other's entry stale, and plant the cache-aside page's stale price in the data (C31) |
 | The extracts' tables as the app's schema | Contract A's tables are shaped for the reader (one grain, the cast's rows, faults in the csv export). The app would carry its readers' shape, and a new extract would change the app. |
 | The service writes `customer_changes` | Each command would have to remember it; one forgotten call leaves a change with no row. The store owning it is the deeper module: one place, checked on both stores. |
 | A sqlite trigger writes `customer_changes` | The memory twin cannot have a trigger, so the two stores would differ in the one place the log is made. The trigger also hides the rule from the page. |
@@ -156,7 +164,7 @@ The caller opens the sqlite connection and closes it. `bootstrap.sqlite_store` c
 - Every store has two adapters, and 6.3 writes both. `contracts.py` runs the same checks on both (ADR 0015).
 - A listing without `ORDER BY` is a bug the teachability test looks for (ADR 0015). Memory listings are sorted the same way.
 - `source` is stamped by the unit of work, so no service signature carries it.
-- The outbox row and the change row commit with the change or are undone with it. No handler, job or second transaction writes them.
+- The outbox row and the change row commit with the change or are undone with it. No handler, job or second transaction writes them (C26).
 - `exports.py` owns the mapping from the app's schema to contract A. A change to an app column is a change there, not in the extracts' contract.
 - A sqlite connection in another mode is refused at once, not after a half-written task.
 

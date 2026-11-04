@@ -1,6 +1,6 @@
 # 0001. A flat package and its layers
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C1, C14, C20 and C24)
+Status: accepted, 2026-11-04 (step 6.2, decisions C1, C14, C20 and C24; `customer` added for C25)
 
 ## Context
 
@@ -34,6 +34,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             'catalogue',
             'clock',
             'commands',
+            'customer',
             'errors',
             'events',
             'ids',
@@ -76,7 +77,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
 """The modules of each layer, sorted; a module is in one row."""
 ```
 
-40 modules in 8 layers: core 14, ports 1, vendor 1, adapters 8, service 8, api 4, bootstrap 2, checks 2.
+41 modules in 8 layers: core 15, ports 1, vendor 1, adapters 8, service 8, api 4, bootstrap 2, checks 2.
 
 `INWARD` lists the layers each layer may import. The rows go from the inside out.
 
@@ -122,31 +123,32 @@ def layer_of(module: str) -> str:
 |---|---|---|
 | core | `catalogue` | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails`, the category path |
 | core | `clock` | `local_date(now, zone)` and the zone of each country: days from moments, as a pure function (ADR 0008) |
-| core | `commands` | the subscription commands as data; apply, replay, the command log |
+| core | `commands` | the subscription commands as data, each the `subscription_events` row it becomes; `apply`, `replay` |
+| core | `customer` | `Customer` (with its e-mail, C25) and `CustomerChange`: the customer as the app holds it, and its change log's row |
 | core | `errors` | `ShopError` and its 17 members, the one closed family (ADR 0006) |
-| core | `events` | `OrderPlaced`, `OrderPaid`, `StatusChanged`; the in-process `EventBus` (ADR 0009) |
-| core | `ids` | the id value types: `CustomerId`, `ProductId`, `CategoryId`, `OrderId`, `LineId`, `EventId`, `Country`, `PostalCode`, `AccountKind` (ADR 0004) |
+| core | `events` | `OrderPlaced`, `OrderPaid`, `OrderInvoiced`, `StatusChanged`; the in-process `EventBus`; `CollectingBus` and `HandlerFailure` (C29) (ADR 0009) |
+| core | `ids` | the id value types, one per kind of ADR 0007 and the provider's: `CustomerId`, `OrderId`, `LineId`, `EventId`, `ProductId`, `CategoryId`, `CampaignId`, `SubscriptionId`, `SubEventId`, `ShipmentId`, `BagId`, `MovementId`, `PurchaseId`, `RuleId`, `PaymentId`; and `Country`, `PostalCode`, `Email`, `AccountKind` (ADR 0004) |
 | core | `money` | `Money(amount, currency)` on `Decimal`, `Qty`, rounding to the øre (ADR 0004) |
 | core | `order` | `OrderLine`, one class per feed status, `TRANSITIONS` (ADR 0005) |
 | core | `parsing` | payloads and till rows into `ParsedLine` or `Reject` (ADR 0012) |
 | core | `pipeline` | the export's stages as generators |
-| core | `pricing` | `Rule`, `list_price`, `subscriber`, `campaign`, the rule registry |
+| core | `pricing` | `Rule`, `list_price`, `subscriber`, `campaign`; `Registry` and `standard_rules`, which `wire` calls (no registry in module state) |
 | core | `result` | `Ok`, `Err`, `partition` (ADR 0006) |
 | core | `subscription` | `Subscription`, its periods, `bags_due(on)` |
 | core | `vat` | `vat_of`, `scheme_for`, the rate rows' type (ADR 0010) |
-| ports | `ports` | every port: the repositories, `Store`, `UnitOfWork`, `Outbox`, `Clock`, `Ids`, `StatusFeed`, `PaymentProvider`, `PriceRepository`; their errors |
+| ports | `ports` | every port, with the errors of the ports: the repositories, `Store`, `UnitOfWork`, `Outbox`, `Clock`, `Ids`, `StatusFeed`, `PaymentProvider`, `PriceRepository`, `Notifier`, `Labels`; the relay's result `Relayed` |
 | vendor | `provider_sdk` | the payment provider's SDK stand-in: camelCase, minor units, `ProviderApiError` |
-| adapters | `cache` | the price cache in front of the price store, with its TTL |
+| adapters | `cache` | `CachedPrices`, the one price cache of a store, in front of its prices, with its TTL (C31) |
 | adapters | `exports` | the csv export (`raw_*`) and the customer extract, written through `pipeline` |
-| adapters | `fakes` | `FakeClock`, `FakeProvider`, `FakeFeed`, `ClosedFeed`: the working fakes |
+| adapters | `fakes` | the working fakes: `FakeClock`, `FakeProvider`, `FakeFeed`, `ClosedFeed`, `FakeNotifier`, `FakeLabels` |
 | adapters | `outbox` | outbox rows in memory and in sqlite; `relay` in batches to the `StatusFeed` (ADR 0009) |
 | adapters | `provider` | the `PaymentProvider` port on the SDK: minor units to `Money`, SDK errors to port errors |
-| adapters | `repository` | every store twice, in memory and in sqlite; the schema; the `Ids` adapters `SequentialIds` and `ScriptedIds` (ADR 0007 names them; placed here unless it says otherwise) |
+| adapters | `repository` | every store twice, memory and sqlite; the schema; the `Ids` adapters `SequentialIds` and `ScriptedIds` (ADR 0007) |
 | adapters | `resilience` | retry with backoff, `CircuitBreaker` |
 | adapters | `uow` | the two `Store` adapters and their units of work, memory and sqlite (ADR 0003) |
 | service | `checkout` | `Checkout`: place, cancel, `credit_for` (the facade) |
 | service | `customers` | `Customers`: register, change, erase |
-| service | `fulfilment` | `Fulfilment`: ship, deliver, `late_shipments` |
+| service | `fulfilment` | `Fulfilment`: ship, deliver, `late_shipments`; the handlers `confirm` and `label` (C26) |
 | service | `listing` | `Catalogue`: categories, products, prices, rules, campaigns (ADR 0011) |
 | service | `payments` | `Payments`: a provider message handled once, invoice, settle |
 | service | `reports` | the read side: rows, never frames (ADR 0002) |
@@ -169,6 +171,7 @@ The map's changes, as 6.2 made them:
 - `stock.py` owns the movements and the count at close.
 - `errors.py` is new: the `ShopError` family needs one core module (C20).
 - `listing.py` is new: the `Catalogue` service lives there, and `catalogue.py` stays core (C24).
+- `customer.py` is new: `CustomerRepository` in `ports.py` names `Customer`, so the type needs a core home, as `order.py` is `Checkout`'s and `subscription.py` is `Subscriptions`'.
 - `exports.py` writes the csv export and the customer extract, through `pipeline.py`.
 - `frames.py` (the polars bridge), `cohesion.py` (a teaching reader of classes) and `without/` (the naive twins) stay in data-docs.
 

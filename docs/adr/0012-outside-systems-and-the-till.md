@@ -30,7 +30,7 @@ word for word:
 
 | what | tables | system | how it meets the app |
 |---|---|---|---|
-| provider messages | `payments` | payment provider | the simulator writes every message it sends, redeliveries included (PAY-1 twice), and delivers each to `Payments.handle_message` |
+| provider messages | `payments` | payment provider | the simulator writes every message it sends, redeliveries included (PAY-1 twice), and delivers each to `Payments.handle_message`, or an open invoice's payment to `Payments.settle` |
 | web tracking | `web_events`, `web_visits` | web tracking | none: the app never reads them. The simulator writes a visitor's checkout, then calls `Checkout.place` within two minutes (W-03 at 08:11, E-01 at 08:12) |
 | the till's files | `till_receipts`, `till_lines`, `till_members`, `product_codes` | till | read by `parse_till` and reconciled (below); never booked |
 | fx rates | `fx_rates` | outside feed: bank rates | none in the app; reports convert with them |
@@ -53,7 +53,7 @@ contract B:
 
 ```python
 @dataclass(frozen=True)
-class TillSale:
+class ParsedLine:
     receipt_id: str
     line_no: int
     product_id: ProductId
@@ -66,13 +66,13 @@ def parse_till(
     receipts: Iterable[Mapping[str, str]],
     lines: Iterable[Mapping[str, str]],
     codes: Mapping[str, ProductId | None],
-    shop_zone: str,
-) -> Parsed[TillSale]:
+    shop_zone: ZoneInfo,
+) -> Parsed[ParsedLine]:
     """Every till line, a sale or a Reject; rows keep order."""
 ```
 
 `parse_till` lives in `roastery/parsing.py` (core). It turns each row into an
-`Ok[TillSale]` or an `Err[Reject]` (ADR 0006):
+`Ok[ParsedLine]` or an `Err[Reject]` (ADR 0006):
 
 - `ean` reaches a product only through `product_codes`: 2000000000213 is P-21.
 - A code the till knows and the shop does not list is a `Reject`: 2000000000992 (R-5003,
@@ -83,14 +83,14 @@ def parse_till(
 ```python
 @dataclass(frozen=True)
 class Reconciliation:
-    matched: tuple[tuple[TillSale, LineId], ...]
-    walk_ins: tuple[TillSale, ...]     # no shop order matches
+    matched: tuple[tuple[ParsedLine, LineId], ...]
+    walk_ins: tuple[ParsedLine, ...]     # no shop order matches
     unmatched: tuple[LineId, ...]      # a shop line not rung
     rejects: tuple[Reject, ...]
 
 
 def reconcile_till(
-    sales: Parsed[TillSale],
+    sales: Parsed[ParsedLine],
     shop_lines: Iterable[ShopLine],  # line, product, placed_at
     within: dt.timedelta,
 ) -> Reconciliation: ...
@@ -122,7 +122,8 @@ A return at the till is the other way round: undoing a sale is a `sold` movement
 ## Consequences
 
 - Contract B (ADR 0011) has no call for any table in the first table above, except
-  `handle_message`, through which a provider message becomes the app's own payment record.
+  `handle_message` and `settle`, through which a provider message becomes the app's own
+  payment record.
   The `payments` table is the provider's log; the app's record holds PAY-1 once.
 - The simulator owns a writer for each outside system. U4's table of writers is checked
   against `contract.md`'s system column word for word.
@@ -141,7 +142,7 @@ A return at the till is the other way round: undoing a sale is a `sold` movement
 
 | page | what it shows from this ADR |
 |---|---|
-| `parse-dont-validate` | `parse_till`: a till row in, a `TillSale` or a `Reject` out; 2000000000992 is a reject; Bergen time made UTC once. The twin checks the rows in three callers |
+| `parse-dont-validate` | `parse_till`: a till row in, a `ParsedLine` or a `Reject` out; 2000000000992 is a reject; Bergen time made UTC once. The twin checks the rows in three callers |
 | `ports-and-adapters` | the simulator as the outside world: it plays the provider, the tracker and the till, and drives the same services as the API |
 | `idempotency` | the provider's PAY-1 delivered twice to `handle_message`, recorded once |
 | `cqrs-lite` | `reconcile_till` as a read: rows in, rows out, no write |
