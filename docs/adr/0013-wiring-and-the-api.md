@@ -136,7 +136,7 @@ def main(argv: Sequence[str], env: Mapping[str, str]) -> int:
     ...
 ```
 
-`main` holds no wall clock: the CronJob passes `--at` (ADR 0015). The cli offers the export jobs (`nightly_extract`, `csv_export`). The relay runs where a feed is: the simulator now, the live shop later. Until then `main` wires `fakes.ClosedFeed`, a feed that refuses every batch, so a relay called from the cli loses nothing; its rows wait. It wires `FakeNotifier` and `FakeLabels` too: the jobs publish no event.
+`main` holds no wall clock: the CronJob passes `--at` (ADR 0015). The cli offers the export jobs (`nightly_extract`, `csv_export`) and `count_at_close` (6.3, A38); it does not offer `relay` (6.3, A42). The relay runs where a feed is: the simulator now, the live shop later. Until then `main` wires `fakes.ClosedFeed`, a feed that refuses every batch, so a relay called from the cli loses nothing; its rows wait. It wires `FakeNotifier` and `FakeLabels` too: the jobs publish no event.
 
 The package's script entry is `roastery = 'roastery.bootstrap:main_from_os'`, which passes `sys.argv[1:]` and `os.environ`. That one line is the only place the environment is read (ADR 0014).
 

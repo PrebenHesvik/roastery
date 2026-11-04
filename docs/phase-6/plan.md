@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (now [6.3-app.md](6.3-app.md)), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row (6.4 has no plan file yet: write it first, as 6.3 did; [6.3-app.md](6.3-app.md) §4 lists what 6.4 inherits), and work from its first unticked unit.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
@@ -23,7 +23,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
 | 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
 | 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
-| 6.3 app core and service layer | [ ] [6.3-app.md](6.3-app.md); planned 2026-11-04 |
+| 6.3 app core and service layer | [x] [6.3-app.md](6.3-app.md); closed 2026-11-04 |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
 | 6.5 the volume, `roastery-data 1.0` | [ ] |
 | 6.6 data-docs reads the release | [ ] |
@@ -55,6 +55,8 @@ Notes:
 - 2026-11-04 (6.2): contract C is `docs/architecture.md` with ADRs 0001-0015; decisions C1 to C39 in 6.2-architecture.md change this plan: ids come through an `Ids` port, not from the caller (C7, §2); web tracking is an outside system and the app has no `log_event` (C11, §2); `tzdata` is the shop's one runtime dependency (C19); the API modules have their layer now and are built before phase 7 (C14); `month` and `full` run on sqlite (C32); the stock count runs after the day and stamps the close (C23, C34, S19). Contract B (§5 of architecture.md) is the candidate 6.3 builds and 6.4 freezes.
 
 - 2026-11-04 (6.3): the step's plan is [6.3-app.md](6.3-app.md), decisions A1 to A26. The owner settled that pricing rules do not stack: one rule per line, the larger percent wins, and the subscriber rule prices beans lines of a running subscription (A14); 6.5 keeps subscriber-rule periods off the cast's list-price orders (D4).
+
+- 2026-11-04 (6.3): the shop app is built (`packages/shop`, 37 modules; the four api modules wait, C14) and tested on both stores; decisions A1 to A42 in [6.3-app.md](6.3-app.md). What 6.4 must know: a credit order's VAT follows its sale, an amendment to C10 for credit orders only (A40); a subscription move is dated in the customer's zone and the command carries its `day`, replacing A30's UTC day (A41); the app db has app-only columns the export writer must project around (`payments.status`, `subscription_events.day`, `orders.credit_of`, `vat_amount`; `product_costs` keeps one `currency`, `subscription_shipments` keys on `bag_id`: A33); the contract B snapshot also pins the services' and fakes' constructors as built, which 6.4 confirms before the tag (A39, §5); and 6.3-app.md §4: the refund currency on a sale paid in another currency, the column projections, `FakeFeed`'s rule, the batch size. The independent review found 14 defects, one a blocker (A40), all fixed (A40 to A42).
 
 ---
 

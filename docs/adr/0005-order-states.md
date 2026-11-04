@@ -96,7 +96,7 @@ Order = Placed | Paid | Invoiced | Shipped | Delivered | Cancelled
 - **The settlement is carried.** `Shipped` and `Delivered` hold the `Paid` or `Invoiced` they
   came from. It is fixed at the move and never changes after it.
 
-**The table of legal moves** is keyed on exactly the six class names:
+**The table of legal moves** is keyed on exactly the six class names (in code, the six feed words they stand for, `placed` to `cancelled`: 6.3, A29):
 
 | from | action | to |
 |---|---|---|
