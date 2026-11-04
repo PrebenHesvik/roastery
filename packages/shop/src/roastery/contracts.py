@@ -16,9 +16,10 @@ product behind a movement: the services do that. A taken id raises
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from types import MappingProxyType
 from typing import Final
 
 from roastery.catalogue import (
@@ -881,8 +882,9 @@ def _p10() -> ProductId:
 
 
 def _write_one_of_each(uow: UnitOfWork) -> None:
-    """One row of every table whose source the export reads."""
+    """A row of every table whose source the export reads."""
     uow.customers.add(_customer(1), _moment())
+    uow.orders.add(_order('O-101', 'L-01'), _booking())
     uow.catalogue.add_category(
         Category(CategoryId('CAT-1'), 'Beans', None, 1)
     )
@@ -892,9 +894,20 @@ def _write_one_of_each(uow: UnitOfWork) -> None:
         ),
         BeanDetails(250, 'Brazil', 'medium', 'dry'),
     )
+    uow.catalogue.add_product(
+        Product(
+            _p21(), 'Kettle', 'equipment', CategoryId('CAT-1'), None
+        ),
+        EquipmentDetails(12, 'steel'),
+    )
     uow.catalogue.add_campaign(
         Campaign(
-            CampaignId('K-1'), 'Autumn', 10, _day(5), _day(9), (_p10(),)
+            CampaignId('K-1'),
+            'Autumn',
+            10,
+            _day(5),
+            _day(9),
+            (_p10(), _p21()),
         )
     )
     uow.prices.add(Price(_p10(), _nok('129.00'), _day(1), None))
@@ -914,6 +927,7 @@ def _write_one_of_each(uow: UnitOfWork) -> None:
     uow.subscriptions.add_bag(
         BagShipment(BagId('SB-1'), sub, _p10(), _day(5), 1)
     )
+    uow.stock.add(_movement(1, 'P-10', 'sold', -2, _moment(5, 10)))
     uow.stock.add_count(Count(_p10(), _day(5), 40, _moment(5, 16)))
     uow.shipments.add(
         Shipment(
@@ -935,131 +949,68 @@ def _write_one_of_each(uow: UnitOfWork) -> None:
     uow.extracts.replace(_day(5), (extract,))
 
 
-def _every_source(uow: UnitOfWork) -> list[str]:
-    """The source of each row `_write_one_of_each` wrote."""
-    return [
-        uow.customers.change_source(1),
-        uow.catalogue.category_source(CategoryId('CAT-1')),
-        uow.catalogue.product_source(_p10()),
-        uow.catalogue.campaign_source(CampaignId('K-1')),
-        uow.prices.source_of(_p10(), _day(1)),
-        uow.costs.source_of(_p10(), _day(1)),
-        uow.rules.source_of(RuleId('PR-1')),
-        uow.subscriptions.source_of(SubscriptionId('S-1')),
-        uow.subscriptions.event_source(SubEventId('SE-1')),
-        uow.subscriptions.bag_source(BagId('SB-1')),
-        uow.stock.count_source(_p10(), _day(5), _moment(5, 16)),
-        uow.shipments.source_of(ShipmentId('SH-1')),
-        uow.purchases.source_of(PurchaseId('GP-1')),
-        uow.extracts.source_of(_day(5), CustomerId('C-01')),
-    ]
+def _p21() -> ProductId:
+    return ProductId('P-21')
 
 
-def every_table_reads_back_its_source(uow: UnitOfWork) -> str:
+ONE_OF_EACH: Final[Mapping[str, tuple[tuple[str, ...], ...]]] = (
+    MappingProxyType(
+        {
+            'customers': (('C-01',),),
+            'customer_changes': (('1',),),
+            'orders': (('O-101',),),
+            'order_lines': (('L-01',),),
+            'line_stamps': (('L-01',),),
+            'categories': (('CAT-1',),),
+            'products': (('P-10',), ('P-21',)),
+            'bean_details': (('P-10',),),
+            'equipment_details': (('P-21',),),
+            'campaigns': (('K-1',),),
+            'campaign_products': (('K-1', 'P-10'), ('K-1', 'P-21')),
+            'prices': (('P-10', '2026-10-01'),),
+            'product_costs': (('P-10', '2026-10-01'),),
+            'pricing_rules': (('PR-1',),),
+            'subscriptions': (('S-1',),),
+            'subscription_events': (('SE-1',),),
+            'subscription_shipments': (('SB-1',),),
+            'stock_movements': (('M-1',),),
+            'stock_daily': (
+                ('P-10', '2026-10-05', '2026-10-05T16:00:00+00:00'),
+            ),
+            'shipments': (('SH-1',),),
+            'green_purchases': (('GP-1',),),
+            'customer_extracts': (('2026-10-05', 'C-01'),),
+        }
+    )
+)
+"""The keys of the rows `_write_one_of_each` writes, as text."""
+
+
+def every_table_gives_each_row_its_source(uow: UnitOfWork) -> str:
     with uow:
         _write_one_of_each(uow)
         uow.commit()
     with uow:
-        seen = _every_source(uow)
-    if seen != [uow.source] * len(seen):
-        raise Broken(
-            f'{uow.source} wrote rows that read back as {seen}'
-        )
-    return f'{len(seen)} tables read back as {uow.source}'
-
-
-def the_source_of_a_missing_row_is_refused(uow: UnitOfWork) -> str:
-    p99 = ProductId('P-99')
-    late = _moment(9, 16)
-    with uow:
-        reads: tuple[tuple[Callable[[], object], str, str], ...] = (
-            (lambda: uow.customers.change_source(9), 'change', '9'),
-            (
-                lambda: uow.catalogue.category_source(
-                    CategoryId('CAT-9')
-                ),
-                'category',
-                'CAT-9',
-            ),
-            (
-                lambda: uow.catalogue.product_source(p99),
-                'product',
-                'P-99',
-            ),
-            (
-                lambda: uow.catalogue.campaign_source(
-                    CampaignId('K-9')
-                ),
-                'campaign',
-                'K-9',
-            ),
-            (
-                lambda: uow.prices.source_of(p99, _day(1)),
-                'price',
-                'P-99 2026-10-01',
-            ),
-            (
-                lambda: uow.costs.source_of(p99, _day(1)),
-                'cost',
-                'P-99 2026-10-01',
-            ),
-            (
-                lambda: uow.rules.source_of(RuleId('PR-9')),
-                'rule',
-                'PR-9',
-            ),
-            (
-                lambda: uow.subscriptions.source_of(
-                    SubscriptionId('S-9')
-                ),
-                'subscription',
-                'S-9',
-            ),
-            (
-                lambda: uow.subscriptions.event_source(
-                    SubEventId('SE-9')
-                ),
-                'sub_event',
-                'SE-9',
-            ),
-            (
-                lambda: uow.subscriptions.bag_source(BagId('SB-9')),
-                'bag',
-                'SB-9',
-            ),
-            (
-                lambda: uow.stock.count_source(p99, _day(9), late),
-                'count',
-                'P-99 2026-10-09 2026-10-09T16:00:00+00:00',
-            ),
-            (
-                lambda: uow.shipments.source_of(ShipmentId('SH-9')),
-                'shipment',
-                'SH-9',
-            ),
-            (
-                lambda: uow.purchases.source_of(PurchaseId('GP-9')),
-                'purchase',
-                'GP-9',
-            ),
-            (
-                lambda: uow.extracts.source_of(
-                    _day(9), CustomerId('C-09')
-                ),
-                'extract',
-                '2026-10-09 C-09',
-            ),
-        )
-        for call, kind, value in reads:
-            _missing(call, kind, value)
-    return f'{len(reads)} source reads: UnknownId naming the row'
+        seen = {name: dict(uow.sources(name)) for name in ONE_OF_EACH}
+        try:
+            uow.sources('kinds')
+        except ValueError:
+            pass
+        else:
+            raise Broken('kinds, which keeps no source, gave one')
+    for name, keys in ONE_OF_EACH.items():
+        if seen[name] != dict.fromkeys(keys, uow.source):
+            raise Broken(f'{name} gave {seen[name]}')
+    return (
+        f'{len(seen)} tables give each row {uow.source};'
+        ' kinds is ValueError'
+    )
 
 
 SOURCE: Final = (
     rows_read_back_with_the_source,
     the_source_outlives_the_commit,
-    every_table_reads_back_its_source,
-    the_source_of_a_missing_row_is_refused,
+    every_table_gives_each_row_its_source,
 )
 """Every source check, in the order a table of them sorts."""
 

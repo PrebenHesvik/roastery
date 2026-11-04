@@ -22,7 +22,7 @@ from roastery.catalogue import (
 )
 from roastery.errors import PeriodOverlap, UnknownId, UnknownProduct
 from roastery.ids import CampaignId, CategoryId, ProductId, RuleId
-from roastery.money import Money
+from roastery.money import Money, in_nok
 from roastery.ports import Campaign, Cost, Ids, UnitOfWork
 from roastery.pricing import Discount, Price
 
@@ -110,7 +110,13 @@ class Catalogue:
         price: Money,
         valid_from: dt.date,
     ) -> None:
-        """Closes the open period on valid_from, opens one."""
+        """Closes the open period on valid_from, opens one.
+
+        ValueError for a price that is not NOK in øre, or below
+        zero (zero is a real price)."""
+        in_nok(price, 'a price')
+        if price.amount < 0:
+            raise ValueError(f'a price must not be negative: {price}')
         with self._uow as uow:
             _require_product(uow, product_id)
             held = uow.prices.of(product_id)
@@ -131,7 +137,10 @@ class Catalogue:
         packaging: Money,
         roasting: Money,
     ) -> None:
-        """Closes the open cost period, opens one."""
+        """Closes the open cost period, opens one; ValueError for
+        an amount that is not NOK in øre."""
+        for amount in (green, packaging, roasting):
+            in_nok(amount, 'a cost')
         with self._uow as uow:
             _require_product(uow, product_id)
             held = uow.costs.of(product_id)
@@ -162,8 +171,11 @@ class Catalogue:
         product_ids: tuple[ProductId, ...],
     ) -> None:
         """campaigns, campaign_products and its pricing rule
-        (percent = discount_pct, valid_to = last_day + 1)."""
+        (percent = discount_pct, valid_to = last_day + 1).
+        ValueError for a product named twice."""
         held = tuple(sorted(product_ids, key=str))
+        if len(set(held)) != len(held):
+            raise ValueError(f'a product named twice: {product_ids}')
         with self._uow as uow:
             for product_id in held:
                 _require_product(uow, product_id)

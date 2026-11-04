@@ -90,6 +90,7 @@ PeriodOverlap.__init__(self, table: str, key: str, valid_from: dt.date) -> None
 PlaceOrder.fields[00] customer_id: CustomerId
 PlaceOrder.fields[01] channel: Channel
 PlaceOrder.fields[02] items: tuple[Item, ...]
+Positive = NewType(int)
 ProviderRefused.__init__(self, /, *args, **kwargs)
 ProviderUnavailable.__init__(self, /, *args, **kwargs)
 Receipt.fields[00] payment_id: PaymentId
@@ -102,6 +103,7 @@ Rows.fields[01] columns: tuple[str, ...]
 Rows.fields[02] rows: tuple[tuple[object, ...], ...]
 ScriptedIds.__init__(self, script: Mapping[IdKind, Sequence[str]], then: Ids) -> None
 ScriptedIds.next(self, kind: IdKind) -> str
+Secret = NewType(str)
 SequentialIds.__init__(self, start: Mapping[IdKind, int], skip: frozenset[str] = frozenset()) -> None
 SequentialIds.next(self, kind: IdKind) -> str
 Settings.fields[00] database_url: Url
@@ -130,6 +132,7 @@ Subscriptions.skip(self, subscription_id: SubscriptionId, *, reason: str) -> Non
 Subscriptions.subscribe(self, customer_id: CustomerId, *, product_id: ProductId) -> SubscriptionId
 UnknownId.__init__(self, kind: str, value: str) -> None
 UnknownProduct.__init__(self, product_id: ProductId) -> None
+Url = NewType(str)
 WrongKind.__init__(self, product_id: ProductId, kind: str) -> None
 memory_store(*, clock: Clock, price_ttl: int) -> InMemoryStore
 sqlite_store(connection: sqlite3.Connection, *, clock: Clock, price_ttl: int) -> SqliteStore

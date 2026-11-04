@@ -13,6 +13,7 @@ import datetime as dt
 import io
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 
 import pytest
 
@@ -623,6 +624,60 @@ def test_a_campaign_prices_a_placed_line_through_its_last_day(
         PlaceOrder(C01, 'web', (Item(P20, Qty(1)),))
     )
     assert placed.head.lines[0].unit_price == _nok(price)
+
+
+class _Counted:
+    """Ids that keep every kind they were asked for."""
+
+    def __init__(self, inner: Ids) -> None:
+        self.inner = inner
+        self.drawn: list[IdKind] = []
+
+    def next(self, kind: IdKind) -> str:
+        self.drawn.append(kind)
+        return self.inner.next(kind)
+
+
+@pytest.mark.parametrize(
+    'amount',
+    [Money.of('129.00', 'SEK'), _nok('129.005')],
+    ids=['sek', 'third-place'],
+)
+def test_a_malformed_amount_is_refused_before_a_row_or_an_id(
+    store: Store, clock: FakeClock, amount: Money
+) -> None:
+    # A35: refused before an id is drawn; ADR 0004: never rounded
+    ids = _Counted(_ids({}))
+    app = _wire(store, clock, ids).app
+    _set_up(app, clock)
+    before = app.jobs.app_tables()
+    drawn = len(ids.drawn)
+    day = dt.date(2026, 10, 20)
+    calls = (
+        lambda: app.catalogue.set_price(
+            P10, price=amount, valid_from=day
+        ),
+        lambda: app.catalogue.set_cost(
+            P10,
+            valid_from=day,
+            green=amount,
+            packaging=_nok('5.00'),
+            roasting=_nok('10.00'),
+        ),
+        lambda: app.stock.buy_green(
+            origin='Brazil', kg=Decimal('60.00'), nok_per_kg=amount
+        ),
+        lambda: app.stock.buy_green(
+            origin='Brazil',
+            kg=Decimal('60.005'),
+            nok_per_kg=_nok('85.00'),
+        ),
+    )
+    for call in calls:
+        with pytest.raises(ValueError):
+            call()
+    assert ids.drawn[drawn:] == []
+    assert app.jobs.app_tables() == before
 
 
 def test_a_web_order_to_finland_books_no_vat(

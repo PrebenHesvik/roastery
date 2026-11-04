@@ -23,7 +23,7 @@ from roastery.errors import (
     WrongKind,
 )
 from roastery.ids import MovementId, ProductId, PurchaseId
-from roastery.money import Money, Qty
+from roastery.money import Money, Qty, in_nok, two_places
 from roastery.ports import (
     Clock,
     Count,
@@ -159,11 +159,14 @@ class Stock:
     def buy_green(
         self, *, origin: str, kg: Decimal, nok_per_kg: Money
     ) -> None:
-        """A green_purchases row, bought today."""
+        """A green_purchases row, bought today; ValueError for a
+        kg or a price with a third place, or a price not in NOK."""
         if not isinstance(kg, Decimal):
             raise TypeError('kg must be a Decimal')
         if not kg.is_finite() or kg <= 0:
             raise ValueError(f'kg must be above zero: {kg}')
+        two_places(kg, 'kg')
+        in_nok(nok_per_kg, 'nok_per_kg')
         now = self._clock.now()
         purchase = GreenPurchase(
             PurchaseId(self._ids.next('purchase')),

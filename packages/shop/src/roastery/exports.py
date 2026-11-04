@@ -26,7 +26,7 @@ from roastery.catalogue import (
     EquipmentDetails,
 )
 from roastery.customer import Customer
-from roastery.money import Money
+from roastery.money import Money, two_places
 from roastery.pipeline import Rows, as_text, live_lines, pipe, to_csv
 from roastery.ports import ExtractRow, UnitOfWork
 
@@ -117,17 +117,23 @@ CENT: Final = Decimal('0.01')
 
 
 def _cents(amount: Decimal) -> Decimal:
-    return amount.quantize(CENT)
+    """The amount at two places; a third place is a bug where it
+    entered (ValueError), never rounded here."""
+    return two_places(amount, 'an app amount').quantize(CENT)
 
 
 def _nok(money: Money) -> Decimal:
-    """The amount of a `*_nok` column; another currency is a bug."""
+    """The amount of a NOK column (`*_nok`, `price`, `unit_price`):
+    contract A's amounts are NOK; another currency is a bug."""
     if money.currency != 'NOK':
         raise ValueError(f'a NOK column holds {money.currency}')
     return _cents(money.amount)
 
 
 def _utc(moment: dt.datetime) -> dt.datetime:
+    """The moment in UTC; a naive one is a bug (ValueError)."""
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError('a moment must be timezone-aware')
     return moment.astimezone(dt.UTC)
 
 
@@ -145,7 +151,6 @@ def _customers(uow: UnitOfWork) -> Iterator[Cells]:
             'postal_code': _text(customer.postal_code),
             'joined': customer.joined,
             'account_kind': customer.account_kind,
-            'source': uow.customers.source_of(customer.customer_id),
         }
 
 
@@ -157,7 +162,6 @@ def _products(uow: UnitOfWork) -> Iterator[Cells]:
             'kind': product.kind,
             'category_id': str(product.category_id),
             'weight_g': product.weight_g,
-            'source': uow.catalogue.product_source(product.product_id),
         }
 
 
@@ -171,7 +175,6 @@ def _orders(uow: UnitOfWork) -> Iterator[Cells]:
             'customer_id': str(head.customer_id),
             'order_date': uow.orders.booking(head.order_id).order_date,
             'channel': head.channel,
-            'source': uow.orders.source_of(head.order_id),
         }
 
 
@@ -183,8 +186,7 @@ def _order_lines(uow: UnitOfWork) -> Iterator[Cells]:
             'order_id': str(line.order_id),
             'product_id': str(line.product_id),
             'qty': line.qty.value,
-            'unit_price': _cents(line.unit_price.amount),
-            'source': uow.orders.source_of(line.order_id),
+            'unit_price': _nok(line.unit_price),
         }
 
 
@@ -203,7 +205,6 @@ def _line_stamps(uow: UnitOfWork) -> Iterator[Cells]:
             'qty': line.qty.value,
             'is_deleted': line.is_deleted,
             'updated_at': _utc(stamp),
-            'source': uow.orders.source_of(line.order_id),
         }
 
 
@@ -212,12 +213,9 @@ def _prices(uow: UnitOfWork) -> Iterator[Cells]:
         for price in uow.prices.of(product.product_id):
             yield {
                 'product_id': str(price.product_id),
-                'price': _cents(price.price.amount),
+                'price': _nok(price.price),
                 'valid_from': price.valid_from,
                 'valid_to': price.valid_to,
-                'source': uow.prices.source_of(
-                    price.product_id, price.valid_from
-                ),
             }
 
 
@@ -228,9 +226,6 @@ def _stock_daily(uow: UnitOfWork) -> Iterator[Cells]:
             'stock_date': count.stock_date,
             'on_hand': count.on_hand,
             'counted_at': _utc(count.counted_at),
-            'source': uow.stock.count_source(
-                count.product_id, count.stock_date, count.counted_at
-            ),
         }
 
 
@@ -241,9 +236,6 @@ def _customer_extracts(uow: UnitOfWork) -> Iterator[Cells]:
             'customer_id': str(row.customer_id),
             'country': row.country,
             'postal_code': _text(row.postal_code),
-            'source': uow.extracts.source_of(
-                row.extract_date, row.customer_id
-            ),
         }
 
 
@@ -258,7 +250,6 @@ def _customer_changes(uow: UnitOfWork) -> Iterator[Cells]:
             'country': change.country,
             'postal_code': _text(change.postal_code),
             'changed_at': _utc(change.changed_at),
-            'source': uow.customers.change_source(change.seq),
         }
 
 
@@ -270,7 +261,6 @@ def _subscriptions(uow: UnitOfWork) -> Iterator[Cells]:
             'product_id': str(sub.product_id),
             'started': sub.started,
             'ended': sub.ended,
-            'source': uow.subscriptions.source_of(sub.subscription_id),
         }
 
 
@@ -281,9 +271,6 @@ def _categories(uow: UnitOfWork) -> Iterator[Cells]:
             'category_name': category.name,
             'parent_id': _text(category.parent_id),
             'sort_order': category.sort_order,
-            'source': uow.catalogue.category_source(
-                category.category_id
-            ),
         }
 
 
@@ -295,13 +282,11 @@ def _kinds(uow: UnitOfWork) -> Iterator[Cells]:
 
 def _campaign_products(uow: UnitOfWork) -> Iterator[Cells]:
     for campaign in uow.catalogue.campaigns():
-        source = uow.catalogue.campaign_source(campaign.campaign_id)
         for product_id in campaign.product_ids:
             yield {
                 'campaign_id': str(campaign.campaign_id),
                 'campaign_name': campaign.name,
                 'product_id': str(product_id),
-                'source': source,
             }
 
 
@@ -313,9 +298,6 @@ def _campaigns(uow: UnitOfWork) -> Iterator[Cells]:
             'discount_pct': campaign.discount_pct,
             'first_day': campaign.first_day,
             'last_day': campaign.last_day,
-            'source': uow.catalogue.campaign_source(
-                campaign.campaign_id
-            ),
         }
 
 
@@ -329,9 +311,6 @@ def _bean_details(uow: UnitOfWork) -> Iterator[Cells]:
                 'origin': details.origin,
                 'roast': details.roast,
                 'process': details.process,
-                'source': uow.catalogue.product_source(
-                    product.product_id
-                ),
             }
 
 
@@ -343,9 +322,6 @@ def _equipment_details(uow: UnitOfWork) -> Iterator[Cells]:
                 'product_id': str(product.product_id),
                 'warranty_months': details.warranty_months,
                 'material': details.material,
-                'source': uow.catalogue.product_source(
-                    product.product_id
-                ),
             }
 
 
@@ -360,7 +336,6 @@ def _subscription_events(uow: UnitOfWork) -> Iterator[Cells]:
                 'event_type': command.EVENT_TYPE,
                 'reason': command.reason,
                 'event_at': _utc(command.event_at),
-                'source': subs.event_source(command.event_id),
             }
 
 
@@ -375,7 +350,6 @@ def _subscription_shipments(uow: UnitOfWork) -> Iterator[Cells]:
                 'product_id': str(bag.product_id),
                 'shipped_on': bag.shipped_on,
                 'qty': bag.qty,
-                'source': subs.bag_source(bag.bag_id),
             }
 
 
@@ -388,7 +362,6 @@ def _stock_movements(uow: UnitOfWork) -> Iterator[Cells]:
                 'moved_at': _utc(move.moved_at),
                 'reason': move.reason,
                 'qty': move.qty,
-                'source': uow.stock.source_of(move.movement_id),
             }
 
 
@@ -400,7 +373,6 @@ def _green_purchases(uow: UnitOfWork) -> Iterator[Cells]:
             'origin': purchase.origin,
             'kg': _cents(purchase.kg),
             'nok_per_kg': _nok(purchase.nok_per_kg),
-            'source': uow.purchases.source_of(purchase.purchase_id),
         }
 
 
@@ -415,9 +387,6 @@ def _product_costs(uow: UnitOfWork) -> Iterator[Cells]:
                 'green_nok': _nok(cost.green),
                 'packaging_nok': _nok(cost.packaging),
                 'roasting_nok': _nok(cost.roasting),
-                'source': uow.costs.source_of(
-                    cost.product_id, cost.valid_from
-                ),
             }
 
 
@@ -429,7 +398,6 @@ def _shipments(uow: UnitOfWork) -> Iterator[Cells]:
             'shipped_on': shipment.shipped_on,
             'promised_by': shipment.promised_by,
             'delivered_on': shipment.delivered_on,
-            'source': uow.shipments.source_of(shipment.shipment_id),
         }
 
 
@@ -442,7 +410,6 @@ def _pricing_rules(uow: UnitOfWork) -> Iterator[Cells]:
             'percent': rule.percent,
             'valid_from': rule.valid_from,
             'valid_to': rule.valid_to,
-            'source': uow.rules.source_of(rule.rule_id),
         }
 
 
@@ -713,11 +680,32 @@ APP_TABLES: Final[tuple[Projection, ...]] = (
 feed write them, not the app."""
 
 
+def _key_text(value: object) -> str:
+    """A key's cell as `UnitOfWork.sources` keys it."""
+    if isinstance(value, dt.date):
+        return value.isoformat()  # a moment is in UTC already
+    return str(value)
+
+
+def _with_source(uow: UnitOfWork, table: Projection) -> Iterator[Cells]:
+    """The table's cells, each with the source of its own row,
+    from one read of the table's source column (W30)."""
+    if 'source' not in table.columns:
+        yield from table.read(uow)
+        return
+    sources = uow.sources(table.name)
+    for cells in table.read(uow):
+        key = tuple(_key_text(cells[column]) for column in table.key)
+        if key not in sources:
+            raise ValueError(f'{table.name} keeps no source for {key}')
+        yield {**cells, 'source': sources[key]}
+
+
 def project(uow: UnitOfWork, table: Projection) -> Rows:
     """The table's rows in its columns' order, sorted by its key
     (by every column for a table with none)."""
     rows = []
-    for cells in table.read(uow):
+    for cells in _with_source(uow, table):
         if set(cells) != set(table.columns):
             raise ValueError(f'{table.name} read {sorted(cells)}')
         rows.append(tuple(cells[column] for column in table.columns))

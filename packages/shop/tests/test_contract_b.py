@@ -51,7 +51,7 @@ from roastery.ports import (
     StatusFeed,
 )
 from roastery.repository import ScriptedIds, SequentialIds
-from roastery.settings import Settings
+from roastery.settings import Positive, Secret, Settings, Url
 from roastery.stock import Stock
 from roastery.subscriptions import Subscriptions
 
@@ -93,6 +93,9 @@ DATACLASSES = (
     Settings,
 )
 LITERALS = (('Source', Source), ('IdKind', IdKind))
+NEW_TYPES = (Url, Secret, Positive)
+"""The constructors of Settings' field types, which the simulator
+calls: each is pinned with the type it wraps."""
 PORT_ERRORS = (FeedDown, ProviderRefused, ProviderUnavailable)
 NOT_IN_B = frozenset({'Fulfilment.late_shipments'})
 """Reads the pages call, which architecture.md §5 keeps out."""
@@ -178,6 +181,9 @@ def render() -> str:
     for name, literal in LITERALS:
         members = ', '.join(repr(m) for m in typing.get_args(literal))
         lines.append(f'{name} = {members}')
+    for new_type in NEW_TYPES:
+        wraps = new_type.__supertype__.__name__
+        lines.append(f'{new_type.__name__} = NewType({wraps})')
     lines.extend(_family(ShopError))
     for error in PORT_ERRORS:
         name = error.__name__

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, fields, replace
 from decimal import Decimal
 from types import MappingProxyType
@@ -609,18 +609,6 @@ class _MemoryRepo:
         self._source = source
 
 
-def _source_in(
-    table: Mapping[Any, tuple[Any, ...]],
-    key: object,
-    kind: str,
-    value: str,
-) -> Source:
-    """The source a held row was written under: its last item."""
-    if key not in table:
-        raise UnknownId(kind, value)
-    return table[key][-1]
-
-
 class MemoryCustomers(_MemoryRepo):
     def add(self, customer: Customer, at: dt.datetime) -> None:
         key = str(customer.customer_id)
@@ -657,9 +645,6 @@ class MemoryCustomers(_MemoryRepo):
 
     def source_of(self, customer_id: CustomerId) -> Source:
         return self._held(customer_id)[1]
-
-    def change_source(self, seq: int) -> Source:
-        return _source_in(self._t.changes, seq, 'change', str(seq))
 
     def _held(self, customer_id: CustomerId) -> tuple[Customer, Source]:
         key = str(customer_id)
@@ -832,18 +817,6 @@ class MemoryCatalogue(_MemoryRepo):
             found.append(replace(campaign, product_ids=products))
         return tuple(found)
 
-    def category_source(self, category_id: CategoryId) -> Source:
-        key = str(category_id)
-        return _source_in(self._t.categories, key, 'category', key)
-
-    def product_source(self, product_id: ProductId) -> Source:
-        key = str(product_id)
-        return _source_in(self._t.products, key, 'product', key)
-
-    def campaign_source(self, campaign_id: CampaignId) -> Source:
-        key = str(campaign_id)
-        return _source_in(self._t.campaigns, key, 'campaign', key)
-
 
 class MemoryPrices(_MemoryRepo):
     def of(self, product_id: ProductId) -> tuple[Price, ...]:
@@ -874,13 +847,6 @@ class MemoryPrices(_MemoryRepo):
             replace(price, valid_to=valid_to),
             source,
         )
-
-    def source_of(
-        self, product_id: ProductId, valid_from: dt.date
-    ) -> Source:
-        key = (str(product_id), valid_from)
-        value = f'{key[0]} {valid_from}'
-        return _source_in(self._t.prices, key, 'price', value)
 
 
 def _one_currency(cost: Cost) -> str:
@@ -923,13 +889,6 @@ class MemoryCosts(_MemoryRepo):
         cost, source = self._t.costs[key]
         _check_period(cost.valid_from, valid_to)
         self._t.costs[key] = (replace(cost, valid_to=valid_to), source)
-
-    def source_of(
-        self, product_id: ProductId, valid_from: dt.date
-    ) -> Source:
-        key = (str(product_id), valid_from)
-        value = f'{key[0]} {valid_from}'
-        return _source_in(self._t.costs, key, 'cost', value)
 
 
 def _check_period(valid_from: dt.date, valid_to: dt.date) -> None:
@@ -977,10 +936,6 @@ class MemoryRules(_MemoryRepo):
                 rule = replace(rule, product_ids=frozenset(held))
             found.append(rule)
         return tuple(found)
-
-    def source_of(self, rule_id: RuleId) -> Source:
-        key = str(rule_id)
-        return _source_in(self._t.rules, key, 'rule', key)
 
 
 class MemorySubscriptions(_MemoryRepo):
@@ -1050,20 +1005,6 @@ class MemorySubscriptions(_MemoryRepo):
         if key in self._t.bags:
             raise DuplicateId('bag', key)
         self._t.bags[key] = (bag, self._source)
-
-    def source_of(self, subscription_id: SubscriptionId) -> Source:
-        key = str(subscription_id)
-        return _source_in(
-            self._t.subscriptions, key, 'subscription', key
-        )
-
-    def event_source(self, event_id: SubEventId) -> Source:
-        key = str(event_id)
-        return _source_in(self._t.sub_events, key, 'sub_event', key)
-
-    def bag_source(self, bag_id: BagId) -> Source:
-        key = str(bag_id)
-        return _source_in(self._t.bags, key, 'bag', key)
 
     def _started(self) -> list[Subscription]:
         keys = sorted(self._t.subscriptions)
@@ -1135,16 +1076,6 @@ class MemoryStock(_MemoryRepo):
             raise UnknownId('movement', key)
         return self._t.movements[key][1]
 
-    def count_source(
-        self,
-        product_id: ProductId,
-        stock_date: dt.date,
-        counted_at: dt.datetime,
-    ) -> Source:
-        key = (str(product_id), stock_date, counted_at)
-        value = f'{key[0]} {stock_date} {moment_text(counted_at)}'
-        return _source_in(self._t.counts, key, 'count', value)
-
 
 def _count_key(count: Count) -> tuple[str, dt.date, dt.datetime]:
     """A count's key, in the order `stock_daily` sorts by."""
@@ -1175,10 +1106,6 @@ class MemoryShipments(_MemoryRepo):
         keys = sorted(self._t.shipments)
         return tuple(self._t.shipments[key][0] for key in keys)
 
-    def source_of(self, shipment_id: ShipmentId) -> Source:
-        key = str(shipment_id)
-        return _source_in(self._t.shipments, key, 'shipment', key)
-
 
 class MemoryPurchases(_MemoryRepo):
     def add(self, purchase: GreenPurchase) -> None:
@@ -1190,10 +1117,6 @@ class MemoryPurchases(_MemoryRepo):
     def all(self) -> tuple[GreenPurchase, ...]:
         keys = sorted(self._t.purchases)
         return tuple(self._t.purchases[key][0] for key in keys)
-
-    def source_of(self, purchase_id: PurchaseId) -> Source:
-        key = str(purchase_id)
-        return _source_in(self._t.purchases, key, 'purchase', key)
 
 
 class MemoryVatRates(_MemoryRepo):
@@ -1238,12 +1161,130 @@ class MemoryExtracts(_MemoryRepo):
         keys = sorted(self._t.extracts)
         return tuple(self._t.extracts[key][0] for key in keys)
 
-    def source_of(
-        self, extract_date: dt.date, customer_id: CustomerId
-    ) -> Source:
-        key = (extract_date, str(customer_id))
-        value = f'{extract_date} {key[1]}'
-        return _source_in(self._t.extracts, key, 'extract', value)
+
+# The source of every row of a table (W30) ------------------------
+
+SOURCE_KEYS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        'customers': ('customer_id',),
+        'customer_changes': ('seq',),
+        'orders': ('order_id',),
+        'order_lines': ('line_id',),
+        'line_stamps': ('line_id',),
+        'categories': ('category_id',),
+        'products': ('product_id',),
+        'bean_details': ('product_id',),
+        'equipment_details': ('product_id',),
+        'campaigns': ('campaign_id',),
+        'campaign_products': ('campaign_id', 'product_id'),
+        'prices': ('product_id', 'valid_from'),
+        'product_costs': ('product_id', 'valid_from'),
+        'pricing_rules': ('rule_id',),
+        'subscriptions': ('subscription_id',),
+        'subscription_events': ('event_id',),
+        'subscription_shipments': ('bag_id',),
+        'stock_movements': ('movement_id',),
+        'stock_daily': ('product_id', 'stock_date', 'counted_at'),
+        'shipments': ('shipment_id',),
+        'green_purchases': ('purchase_id',),
+        'customer_extracts': ('extract_date', 'customer_id'),
+    }
+)
+"""The tables `sources` reads, each with its key's columns."""
+
+type Sources = dict[tuple[str, ...], Source]
+
+
+def _source_keys(table: str) -> tuple[str, ...]:
+    if table not in SOURCE_KEYS:
+        raise ValueError(f'no source is read for {table!r}')
+    return SOURCE_KEYS[table]
+
+
+def _key_text(value: object) -> str:
+    """A key's value as sqlite holds it: a moment as UTC text."""
+    if isinstance(value, dt.datetime):
+        return moment_text(value)
+    if isinstance(value, dt.date):
+        return value.isoformat()
+    return str(value)
+
+
+def _last_items(
+    table: Mapping[Any, tuple[Any, ...]],
+) -> Iterator[tuple[tuple[object, ...], Source]]:
+    """Each row's key and source, which is its last item."""
+    for key, held in table.items():
+        yield (key if isinstance(key, tuple) else (key,)), held[-1]
+
+
+def _held_within(
+    t: Tables, table: str
+) -> Iterator[tuple[tuple[object, ...], Source]]:
+    """The rows the memory store keeps inside their owner's: an
+    order's lines, a product's details, a campaign's products.
+    Each is written in its owner's call, so it has its source."""
+    if table in ('orders', 'order_lines', 'line_stamps'):
+        for key, row in t.orders.items():
+            if table == 'orders':
+                yield (key,), row.source
+                continue
+            for line in row.order.head.lines:
+                yield (line.line_id,), row.source
+    elif table in ('bean_details', 'equipment_details'):
+        beans = table == 'bean_details'
+        for key, (_, details, source) in t.products.items():
+            if isinstance(details, BeanDetails) == beans:
+                yield (key,), source
+    else:
+        for key, (campaign, source) in t.campaigns.items():
+            for product_id in campaign.product_ids:
+                yield (key, product_id), source
+
+
+def memory_sources(t: Tables, table: str) -> Sources:
+    """The source of each row of the app table `table`, by its
+    key as text; ValueError for a table it does not read."""
+    _source_keys(table)
+    plain: Mapping[str, Mapping[Any, tuple[Any, ...]]] = {
+        'customers': t.customers,
+        'customer_changes': t.changes,
+        'categories': t.categories,
+        'products': t.products,
+        'campaigns': t.campaigns,
+        'prices': t.prices,
+        'product_costs': t.costs,
+        'pricing_rules': t.rules,
+        'subscriptions': t.subscriptions,
+        'subscription_events': t.sub_events,
+        'subscription_shipments': t.bags,
+        'stock_movements': t.movements,
+        'stock_daily': t.counts,
+        'shipments': t.shipments,
+        'green_purchases': t.purchases,
+        'customer_extracts': t.extracts,
+    }
+    found = (
+        _last_items(plain[table])
+        if table in plain
+        else _held_within(t, table)
+    )
+    keyed = (
+        (tuple(_key_text(value) for value in key), source)
+        for key, source in found
+    )
+    return dict(sorted(keyed))
+
+
+def sqlite_sources(db: sqlite3.Connection, table: str) -> Sources:
+    """The source column of `table`, by its key as text;
+    ValueError for a table it does not read."""
+    sql = 'SELECT {keys}, source FROM {table} ORDER BY {keys}'
+    keys = ', '.join(_source_keys(table))
+    rows = db.execute(sql.format(keys=keys, table=table)).fetchall()
+    return {
+        tuple(str(value) for value in row[:-1]): row[-1] for row in rows
+    }
 
 
 # Sqlite adapters ------------------------------------------------------
@@ -1287,23 +1328,6 @@ class _SqliteRepo:
     ) -> None:
         if not self._exists(table, f'{column} = ?', (value,)):
             raise UnknownId(kind, value)
-
-    def _source_where(
-        self,
-        kind: str,
-        value: str,
-        table: str,
-        where: str,
-        params: Sequence[object],
-    ) -> Source:
-        """The source of the one row `where` finds; UnknownId if
-        it finds none."""
-        found = self._db.execute(
-            f'SELECT source FROM {table} WHERE {where}', params
-        ).fetchone()
-        if found is None:
-            raise UnknownId(kind, value)
-        return found[0]
 
 
 class SqliteCustomers(_SqliteRepo):
@@ -1403,11 +1427,6 @@ class SqliteCustomers(_SqliteRepo):
         if not rows:
             raise UnknownId('customer', key)
         return rows[0][0]
-
-    def change_source(self, seq: int) -> Source:
-        return self._source_where(
-            'change', str(seq), 'customer_changes', 'seq = ?', (seq,)
-        )
 
     def _log(
         self,
@@ -1848,24 +1867,6 @@ class SqliteCatalogue(_SqliteRepo):
             for campaign_id, name, pct, first, last in rows
         )
 
-    def category_source(self, category_id: CategoryId) -> Source:
-        key = str(category_id)
-        return self._source_where(
-            'category', key, 'categories', 'category_id = ?', (key,)
-        )
-
-    def product_source(self, product_id: ProductId) -> Source:
-        key = str(product_id)
-        return self._source_where(
-            'product', key, 'products', 'product_id = ?', (key,)
-        )
-
-    def campaign_source(self, campaign_id: CampaignId) -> Source:
-        key = str(campaign_id)
-        return self._source_where(
-            'campaign', key, 'campaigns', 'campaign_id = ?', (key,)
-        )
-
 
 def _product(row: tuple[Any, ...]) -> Product:
     product_id, name, kind, category_id, weight = row
@@ -1921,18 +1922,6 @@ class SqlitePrices(_SqliteRepo):
             'UPDATE prices SET valid_to = ?'
             ' WHERE product_id = ? AND valid_from = ?',
             (valid_to.isoformat(), key, price.valid_from.isoformat()),
-        )
-
-    def source_of(
-        self, product_id: ProductId, valid_from: dt.date
-    ) -> Source:
-        key = (str(product_id), valid_from.isoformat())
-        return self._source_where(
-            'price',
-            ' '.join(key),
-            'prices',
-            'product_id = ? AND valid_from = ?',
-            key,
         )
 
 
@@ -1997,18 +1986,6 @@ class SqliteCosts(_SqliteRepo):
             'UPDATE product_costs SET valid_to = ?'
             ' WHERE product_id = ? AND valid_from = ?',
             (valid_to.isoformat(), key, start.isoformat()),
-        )
-
-    def source_of(
-        self, product_id: ProductId, valid_from: dt.date
-    ) -> Source:
-        key = (str(product_id), valid_from.isoformat())
-        return self._source_where(
-            'cost',
-            ' '.join(key),
-            'product_costs',
-            'product_id = ? AND valid_from = ?',
-            key,
         )
 
 
@@ -2098,12 +2075,6 @@ class SqliteRules(_SqliteRepo):
                 )
             )
         return tuple(found)
-
-    def source_of(self, rule_id: RuleId) -> Source:
-        key = str(rule_id)
-        return self._source_where(
-            'rule', key, 'pricing_rules', 'rule_id = ?', (key,)
-        )
 
 
 _COMMANDS: Final[Mapping[str, type[Command]]] = MappingProxyType(
@@ -2243,32 +2214,6 @@ class SqliteSubscriptions(_SqliteRepo):
             ),
         )
 
-    def source_of(self, subscription_id: SubscriptionId) -> Source:
-        key = str(subscription_id)
-        return self._source_where(
-            'subscription',
-            key,
-            'subscriptions',
-            'subscription_id = ?',
-            (key,),
-        )
-
-    def event_source(self, event_id: SubEventId) -> Source:
-        key = str(event_id)
-        return self._source_where(
-            'sub_event',
-            key,
-            'subscription_events',
-            'event_id = ?',
-            (key,),
-        )
-
-    def bag_source(self, bag_id: BagId) -> Source:
-        key = str(bag_id)
-        return self._source_where(
-            'bag', key, 'subscription_shipments', 'bag_id = ?', (key,)
-        )
-
     def _built(self, row: tuple[Any, ...]) -> Subscription:
         sub_id, customer_id, product_id, started = row
         begun = Subscription.begin(
@@ -2378,25 +2323,6 @@ class SqliteStock(_SqliteRepo):
             raise UnknownId('movement', key)
         return rows[0][0]
 
-    def count_source(
-        self,
-        product_id: ProductId,
-        stock_date: dt.date,
-        counted_at: dt.datetime,
-    ) -> Source:
-        key = (
-            str(product_id),
-            stock_date.isoformat(),
-            moment_text(counted_at),
-        )
-        return self._source_where(
-            'count',
-            ' '.join(key),
-            'stock_daily',
-            'product_id = ? AND stock_date = ? AND counted_at = ?',
-            key,
-        )
-
 
 def _count(row: tuple[Any, ...]) -> Count:
     product_id, day, on_hand, stamp = row
@@ -2455,12 +2381,6 @@ class SqliteShipments(_SqliteRepo):
         )
         return tuple(_shipment(row) for row in rows)
 
-    def source_of(self, shipment_id: ShipmentId) -> Source:
-        key = str(shipment_id)
-        return self._source_where(
-            'shipment', key, 'shipments', 'shipment_id = ?', (key,)
-        )
-
 
 def _shipment(row: tuple[Any, ...]) -> Shipment:
     shipment, order, shipped, promised, delivered = row
@@ -2504,16 +2424,6 @@ class SqlitePurchases(_SqliteRepo):
                 _money(price, cur),
             )
             for purchase_id, bought_on, origin, kg, price, cur in rows
-        )
-
-    def source_of(self, purchase_id: PurchaseId) -> Source:
-        key = str(purchase_id)
-        return self._source_where(
-            'purchase',
-            key,
-            'green_purchases',
-            'purchase_id = ?',
-            (key,),
         )
 
 
@@ -2572,18 +2482,6 @@ class SqliteExtracts(_SqliteRepo):
             ' ORDER BY extract_date, customer_id'
         )
         return tuple(_extract(row) for row in rows)
-
-    def source_of(
-        self, extract_date: dt.date, customer_id: CustomerId
-    ) -> Source:
-        key = (extract_date.isoformat(), str(customer_id))
-        return self._source_where(
-            'extract',
-            ' '.join(key),
-            'customer_extracts',
-            'extract_date = ? AND customer_id = ?',
-            key,
-        )
 
 
 def _extract(row: tuple[Any, ...]) -> ExtractRow:

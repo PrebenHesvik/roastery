@@ -14,7 +14,7 @@ import datetime as dt
 from collections.abc import Callable, Iterable
 
 from roastery.ids import ProductId
-from roastery.ports import Clock, PriceRepository, Source
+from roastery.ports import Clock, PriceRepository
 from roastery.pricing import Price
 
 
@@ -113,12 +113,6 @@ class UnitPrices:
     def close(self, product_id: ProductId, valid_to: dt.date) -> None:
         self._inner.close(product_id, valid_to)
         self._changed.add(product_id)
-
-    def source_of(
-        self, product_id: ProductId, valid_from: dt.date
-    ) -> Source:
-        """From the table: a source is never cached."""
-        return self._inner.source_of(product_id, valid_from)
 
     def committed(self) -> None:
         """The commit succeeded: evict what this unit changed."""

@@ -49,7 +49,7 @@ from roastery.ids import (
     OrderId,
     ProductId,
 )
-from roastery.money import Money, Qty
+from roastery.money import Money, Qty, in_nok
 from roastery.order import (
     Channel,
     Delivered,
@@ -85,11 +85,17 @@ class Item:
     price None: the list price on the order's day, with the
     rules that hold. A price given: set by hand, as the till
     rang it (L-06 at 549.00) or a free sample (L-12 at 0.00).
+    A line is in NOK, as the list is: ValueError for a price
+    in another currency or with a third place.
     """
 
     product_id: ProductId
     qty: Qty  # 1 or more
     price: Money | None = None
+
+    def __post_init__(self) -> None:
+        if self.price is not None:
+            in_nok(self.price, 'a hand price')
 
 
 @dataclass(frozen=True)

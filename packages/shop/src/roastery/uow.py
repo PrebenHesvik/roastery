@@ -15,6 +15,7 @@ commit has succeeded, never when it is undone (A22).
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Mapping
 from typing import Any, Self
 
 from roastery.cache import CachedPrices, UnitPrices
@@ -48,6 +49,8 @@ from roastery.repository import (
     SqliteSubscriptions,
     SqliteVatRates,
     Tables,
+    memory_sources,
+    sqlite_sources,
 )
 
 
@@ -121,6 +124,9 @@ class InMemoryUnitOfWork:
         self._kept = self._tables.snapshot()
         self._prices.committed()
 
+    def sources(self, table: str) -> Mapping[tuple[str, ...], Source]:
+        return memory_sources(self._tables, table)
+
 
 class SqliteUnitOfWork:
     """One sqlite transaction over every table.
@@ -181,6 +187,9 @@ class SqliteUnitOfWork:
             raise RuntimeError('commit needs an open unit of work')
         self._db.commit()
         self._prices.committed()
+
+    def sources(self, table: str) -> Mapping[tuple[str, ...], Source]:
+        return sqlite_sources(self._db, table)
 
 
 class InMemoryStore:

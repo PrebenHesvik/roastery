@@ -71,6 +71,29 @@ class Money:
         return Money(step, self.currency)
 
 
+def two_places(amount: Decimal, what: str) -> Decimal:
+    """`amount`, if it has two decimals or fewer; else ValueError.
+
+    A stored amount is DECIMAL(7,2): a third place is refused
+    where it enters, never rounded away later (ADR 0004).
+    """
+    exponent = amount.as_tuple().exponent
+    if not isinstance(exponent, int) or exponent < -2:
+        raise ValueError(f'{what} has more than two places: {amount}')
+    return amount
+
+
+def in_nok(money: Money, what: str) -> Money:
+    """`money`, if it is NOK in øre; else ValueError.
+
+    The shop's own amounts (prices, costs, green coffee) are NOK.
+    """
+    if money.currency != 'NOK':
+        raise ValueError(f'{what} must be NOK, not {money.currency}')
+    two_places(money.amount, what)
+    return money
+
+
 @dataclass(frozen=True)
 class Qty:
     """A whole number other than zero.

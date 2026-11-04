@@ -1204,6 +1204,7 @@ As 6.3 built it (6.3-app.md, A19 and A39), the snapshot pins a little more than 
 - the `__init__` of each listed class as built: the seven services, `Jobs`, `CollectingBus`, `FakeNotifier` and `FakeLabels`. The block shows none, because the simulator never builds a service (`wire` does); 6.4 confirms or changes them before the tag;
 - each dataclass field's default (`Item.price = None`, `Settings.price_ttl = 300`, `Settings.relay_batch = 5`);
 - the port's errors `ProviderRefused` and `ProviderUnavailable` beside `FeedDown`;
+- the settings' field types `Url`, `Secret` and `Positive`, which the simulator builds `Settings` with (6.4, W38); and `Jobs.app_tables` with `Rows` (6.4, W2);
 - not `Fulfilment.late_shipments`, a read the pages call ("Not in contract B" above): the test leaves it out by name.
 
 The raises table above is not checked by the test. The review checks it against the family's names (6.2 U6, then each change).
