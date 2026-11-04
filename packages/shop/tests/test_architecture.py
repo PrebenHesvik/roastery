@@ -21,11 +21,9 @@ PACKAGE_DIR = Path(roastery.__file__).parent
 AWAITING = (
     'api',
     'bootstrap',
-    'checkout',
     'cli',
     'idempotency',
     'middleware',
-    'payments',
 )
 
 

@@ -263,6 +263,12 @@ class OrderRepository(Protocol):
         (a cancel). UnknownId if there is no such order."""
         ...
 
+    def deleted_at(self, order_id: OrderId) -> dt.datetime | None:
+        """When a cancel marked the order's lines deleted, or None.
+
+        UnknownId if there is no such order."""
+        ...
+
     def lines(self) -> tuple[ExportLine, ...]:
         """Every line of every order with its deletion flag,
         sorted by line id."""

@@ -707,6 +707,9 @@ class MemoryOrders(_MemoryRepo):
         row = self._row(order_id)
         self._t.orders[str(order_id)] = replace(row, deleted_at=at)
 
+    def deleted_at(self, order_id: OrderId) -> dt.datetime | None:
+        return self._row(order_id).deleted_at
+
     def lines(self) -> tuple[ExportLine, ...]:
         found = [
             ExportLine(
@@ -1434,6 +1437,16 @@ class SqliteOrders(_SqliteRepo):
             ' WHERE order_id = ?',
             (moment_text(at), key),
         )
+
+    def deleted_at(self, order_id: OrderId) -> dt.datetime | None:
+        key = str(order_id)
+        self._missing('order', 'orders', 'order_id', key)
+        (stamp,) = self._db.execute(
+            'SELECT MAX(updated_at) FROM line_stamps'
+            ' WHERE order_id = ? AND is_deleted = 1',
+            (key,),
+        ).fetchone()
+        return None if stamp is None else moment_from(stamp)
 
     def lines(self) -> tuple[ExportLine, ...]:
         rows = self._rows(
