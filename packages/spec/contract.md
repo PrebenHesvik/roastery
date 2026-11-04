@@ -376,7 +376,7 @@ The files, the web, the till and the rest of the teaching week. Each row has a j
 | on_hand | INTEGER |
 | counted_at | TIMESTAMP |
 
-**What it is.** The stock count at close of each working day, sent a whole day at a time. The export writer sends 7 October twice: the count at close, and a recount next morning.
+**What it is.** The shop's stock count at close of each working day, from the app's stock service (S10), sent a whole day at a time. The export writer sends 7 October twice: the count at close, and a recount next morning.
 
 **Lessons**
 
@@ -1088,14 +1088,15 @@ live in `full` only, and the pages show their totals, never their rows.
 
 <!-- tables:tier-3:end -->
 
-## New in 1.0 (a draft for the owner to revise)
+## New in 1.0 (editable until roastery-data 1.0)
 
 The signals later lessons need. None is in `tiny`. Two more changes come with them:
 
 - `customers` gets the column `kind` (consumer or business) in `month` and `full`; it is
   shown in the `customers` block above.
 - a scripted drop: in one week, Finland's orders fall to below half the mean of the four
-  weeks around it. It is a setting of the simulator, not a table.
+  weeks around it. No table names it: an alert must find it in the orders. Its day and
+  size are in the release's answer key (`scripted_events`, beside the defect log) (S11).
 
 <!-- tables:new:start -->
 
@@ -1239,7 +1240,7 @@ The signals later lessons need. None is in `tiny`. Two more changes come with th
 | promised_by | DATE |
 | delivered_on | DATE |
 
-**What it is.** One parcel of a web order. deliveries is derived from it for order_values' web orders: days = delivered_on minus shipped_on (S8).
+**What it is.** One parcel of a web order. deliveries is derived from it for order_values' web orders, through lesson_ids: days = delivered_on minus shipped_on (S8, S9).
 
 **Lessons**
 
@@ -1332,5 +1333,27 @@ The signals later lessons need. None is in `tiny`. Two more changes come with th
 **Lessons**
 
 - `stats/correlation`: The receipts in shop_days come from here.
+
+### `lesson_ids`
+
+- **grain:** One row per row of a tier 3 lesson set (order_values, subscribers), with the shop's own id it stands for.
+- **key:** `lesson_set, row_no`
+- **system:** derived: the lesson sets of tier 3 and the shop ids they stand for
+- **tiny:** none
+- **lives in:** not in tiny
+- **extracts:** month, full
+- **since:** 1.0
+
+| column | type |
+|---|---|
+| lesson_set | VARCHAR |
+| row_no | INTEGER |
+| shop_id | VARCHAR |
+
+**What it is.** Tier 3 keeps its integer row numbers (order 300 is the refund, 297 the lost parcel, 600 the café); this map ties each to the shop's text id, O-... or S-... (S9).
+
+**Lessons**
+
+- `later: modeling/keys-and-relationships`: A sample's row number against the shop's own id: two keys, one row.
 
 <!-- tables:new:end -->

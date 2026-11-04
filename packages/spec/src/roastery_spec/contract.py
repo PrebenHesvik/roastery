@@ -369,8 +369,9 @@ _TIER_2 = (
         extracts=ALL,
         since='baseline',
         definition=(
-            'The stock count at close of each working day, sent a whole day at a time. The'
-            ' export writer sends 7 October twice: the count at close, and a recount next morning.'
+            "The shop's stock count at close of each working day, from the app's stock service"
+            ' (S10), sent a whole day at a time. The export writer sends 7 October twice: the'
+            ' count at close, and a recount next morning.'
         ),
         lessons=(
             ('modeling/grain', "A periodic snapshot: the week's stock is Friday's, not a sum."),
@@ -1146,7 +1147,7 @@ _NEW = (
         since='1.0',
         definition=(
             "One parcel of a web order. deliveries is derived from it for order_values' web"
-            ' orders: days = delivered_on minus shipped_on (S8).'
+            ' orders, through lesson_ids: days = delivered_on minus shipped_on (S8, S9).'
         ),
         lessons=(('stats/percentiles', 'Late delivery as a fact: order 297 takes 21 days.'),),
     ),
@@ -1216,6 +1217,32 @@ _NEW = (
             ' not in the data (D12).'
         ),
         lessons=(('stats/correlation', 'The receipts in shop_days come from here.'),),
+    ),
+    Table(
+        name='lesson_ids',
+        tier='new',
+        system='derived: the lesson sets of tier 3 and the shop ids they stand for',
+        grain=(
+            'One row per row of a tier 3 lesson set (order_values, subscribers), with the'
+            " shop's own id it stands for."
+        ),
+        key=('lesson_set', 'row_no'),
+        columns=_cols('lesson_set VARCHAR, row_no INTEGER, shop_id VARCHAR'),
+        cut='none',
+        lives_in=None,
+        extracts=LATER,
+        since='1.0',
+        definition=(
+            'Tier 3 keeps its integer row numbers (order 300 is the refund, 297 the lost'
+            " parcel, 600 the café); this map ties each to the shop's text id, O-... or S-..."
+            ' (S9).'
+        ),
+        lessons=(
+            (
+                'later: modeling/keys-and-relationships',
+                "A sample's row number against the shop's own id: two keys, one row.",
+            ),
+        ),
     ),
 )
 
