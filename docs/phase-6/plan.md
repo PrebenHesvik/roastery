@@ -50,6 +50,8 @@ Notes:
   `budget` targets web consumer sales, like `daily_sales` (S16); a stock count is the
   day's closing balance and 7 October's 26 is the planted fault (S19). §4.3 is updated.
 
+- 2026-11-04 (6.2): the Statistics session reports that data-docs v0.12.1 (`bd68d8f`) already words `visits` as the newsletter and ad visits and `order_values` as a sample of the year's orders on the Statistics pages; 6.6's sweep for those two (6.1 Notes) still covers the other routes.
+
 ---
 
 ## 0. Context
