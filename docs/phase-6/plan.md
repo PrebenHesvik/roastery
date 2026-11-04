@@ -21,7 +21,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | step | state |
 |---|---|
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
-| 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed 2026-11-04 |
+| 6.1 contract A: data | [~] [6.1-contract.md](6.1-contract.md); done locally 2026-11-04, CI on push |
 | 6.2 contract C: architecture | [ ] |
 | 6.3 app core and service layer | [ ] |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
@@ -41,6 +41,14 @@ Notes:
   wording names this test, its decision is unchanged. (2) "Skipped by data folder" broke the
   rule that nothing is skipped: claims whose tables are missing are deselected and listed
   under "awaiting data" (S6). `CLAUDE.md` and this "Start here" were added.
+- 2026-11-04 (6.1): the contract is in `packages/spec` (50 tables: 38 of the baseline and
+  12 new, `lesson_ids` and `web_visits` among them). Decisions S9 to S19 in
+  6.1-contract.md change this plan: the customer column is `account_kind` (S17); unpaid
+  orders are on invoice, so the order states are placed, paid **or invoiced**, shipped,
+  delivered (S13, for 6.2 and 6.3); order 300 is a return with a credit line and a
+  negative payment (S14); no customer with orders in the volume window is erased (S15);
+  `budget` targets web consumer sales, like `daily_sales` (S16); a stock count is the
+  day's closing balance and 7 October's 26 is the planted fault (S19). §4.3 is updated.
 
 ---
 
@@ -83,7 +91,7 @@ the dashboard, the groundwork project.
 | D10 | Faults are injected by the export writer after a correct app, with a defect log (master plan, decision 7) | plan | 2026-10-28 |
 | D11 | Subscription bags ship as their own table `subscription_shipments`, not as `orders` rows (reverses gap fix G7 in `map-patterns-devops.md`): orders rows would break tiny's exact 8 orders and `customer_months` | Claude + Fable | 2026-11-03 |
 | D12 | The till story: the old till left only day totals (`shop_days.receipts`); the new till, with line detail, starts on 6 October 2026 (R-5001). Account customers at the counter are app orders (channel `shop`) throughout; only anonymous walk-ins went through the old till. What the old till sold is not in the data, and the pages say so | Claude + Fable | 2026-11-03 |
-| D13 | **Frozen columns stay frozen.** `tiny` keeps its exact columns. The new columns live in the app database and in `month` and `full`, and the extracts test (each tiny table against the extract its `lives_in` names) compares on tiny's columns only:<br>• `customers.kind` (D7);<br>• `source` (`scripted`, `simulator`, `visitor`), which is a live-shop need: it lives in the app database and the live shop, and the frozen extracts carry it only where a page needs it.<br>Each cut is exact per table: `stock_daily` in tiny is the day window **and** P-10/P-20 only, so the warehouse's count of every product is projected | Claude + Fable | 2026-11-03 |
+| D13 | **Frozen columns stay frozen.** `tiny` keeps its exact columns. The new columns live in the app database and in `month` and `full`, and the extracts test (each tiny table against the extract its `lives_in` names) compares on tiny's columns only:<br>• `customers.account_kind` (D7; named so in S17);<br>• `source` (`scripted`, `simulator`, `visitor`), which is a live-shop need: it lives in the app database and the live shop, and the frozen extracts carry it only where a page needs it.<br>Each cut is exact per table: `stock_daily` in tiny is the day window **and** P-10/P-20 only, so the warehouse's count of every product is projected | Claude + Fable | 2026-11-03 |
 | D14 | D4 holds as written: `test_roastery_tier3.py` asserts no header text, so a changed grain sentence (D7, D8) does not break it | checked | 2026-11-03 |
 | D15 | **`daily_sales` is the web shop's consumer sales**: counter sales stay out, as today's pages say ("the web shop only"). Found by the stats-polars session: `statistics/correlation` teaches a confounder (walk-ins against bags, r = 0.83, about 0.12 without the Decembers); with counter sales inside, walk-ins would cause part of the bags and the lesson would be false. A channel column was rejected: it changes the grain and the exact row counts | Claude, on the stats session's finding | 2026-11-03 |
 
@@ -105,7 +113,7 @@ agreed before the code it binds.
 - **Data → app.** Every app-made row needs an app feature:
   - caller-supplied ids for scripted rows (O-101, PAY-1…);
   - channel `web | shop`;
-  - the customer `kind` (D7);
+  - the customer `account_kind` (D7, S17);
   - `log_event` with source, variant and step;
   - stock movements with a reason;
   - promised and actual delivery;
@@ -182,8 +190,11 @@ Whatever is scripted is exact by construction.
 | `product_costs` | cost per product and period (green, bag, roasting) | margin |
 | `shipments` | one parcel, promised and actual day | late delivery as a fact |
 | `pricing_rules` | the subscriber discount, campaign percentages | closes gap G3 (strategy, composition, registries pages) |
-| `customers.kind` | a column, consumer or business (D7) | D7; B2B and margin lessons |
-| scripted country drop | a known day when Finland's orders drop | the anomaly alert (later) |
+| `customers.account_kind` | a column in month and full, consumer or business (D7, S17) | D7; B2B and margin lessons |
+| `lesson_ids` | one row of a tier 3 lesson set and the shop id it stands for (S9) | keeps the integer row numbers of `order_values` and `subscribers` |
+| `web_visits` | one visit: visitor, day, country, referrer, A/B variant (S18); `web_events` gains `visit_id` | the definitions of `visits` and `checkout_test` |
+| `weather_days`, `door_counts`, `till_day_totals` | the three outside series behind `shop_days` (D12) | correlation |
+| scripted country drop | a known week when Finland's orders halve; no table, only the release's answer key (S11) | the anomaly alert (later) |
 
 Each new table gets a grain, columns (at most 6) and a claim in `packages/spec` before the
 simulator writes it.
