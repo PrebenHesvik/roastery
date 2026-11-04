@@ -446,6 +446,21 @@ class Payment:
     paid_on: dt.date
 
 
+@dataclass(frozen=True)
+class PaymentMessage:
+    """One message of the provider: a row of payments.
+
+    The provider writes it and the app reads it, so it lives in
+    core: `payments` handles it and `fakes` sends it, and an
+    adapter may not import a service (A32).
+    """
+
+    payment_id: PaymentId
+    order_id: OrderId
+    amount: Money  # negative for a refund (S14)
+    paid_on: dt.date
+
+
 def _by_invoice(order: Order) -> bool:
     """Settled, or to be settled, by an invoice."""
     match order:
