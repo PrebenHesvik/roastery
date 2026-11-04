@@ -23,15 +23,9 @@ AWAITING = (
     'bootstrap',
     'checkout',
     'cli',
-    'customers',
-    'fulfilment',
     'idempotency',
-    'listing',
     'middleware',
     'payments',
-    'reports',
-    'stock',
-    'subscriptions',
 )
 
 
