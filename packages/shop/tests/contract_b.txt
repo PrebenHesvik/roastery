@@ -1,3 +1,4 @@
+AccountKind = 'consumer', 'business'
 AlreadyCredited.__init__(self, line_id: LineId) -> None
 App.__init__(self, customers: Customers, catalogue: Catalogue, checkout: Checkout, payments: Payments, fulfilment: Fulfilment, subscriptions: Subscriptions, stock: Stock, jobs: Jobs, events: CollectingBus) -> None
 App.failures(self) -> tuple[HandlerFailure, ...]
@@ -10,6 +11,10 @@ App.fields[05] subscriptions: Subscriptions
 App.fields[06] stock: Stock
 App.fields[07] jobs: Jobs
 App.fields[08] events: CollectingBus
+BeanDetails.fields[00] weight_g: int
+BeanDetails.fields[01] origin: str
+BeanDetails.fields[02] roast: str
+BeanDetails.fields[03] process: str
 Catalogue.__init__(self, uow: UnitOfWork, ids: Ids) -> None
 Catalogue.add_campaign(self, name: str, *, discount_pct: int, first_day: dt.date, last_day: dt.date, product_ids: tuple[ProductId, ...]) -> None
 Catalogue.add_category(self, name: str, *, parent_id: CategoryId | None, sort_order: int) -> CategoryId
@@ -17,6 +22,8 @@ Catalogue.add_product(self, name: str, *, category_id: CategoryId, details: Bean
 Catalogue.set_cost(self, product_id: ProductId, *, valid_from: dt.date, green: Money, packaging: Money, roasting: Money) -> None
 Catalogue.set_price(self, product_id: ProductId, *, price: Money, valid_from: dt.date) -> None
 Catalogue.set_subscriber_discount(self, percent: int | None, *, valid_from: dt.date) -> None
+CategoryId.fields[00] value: str
+Channel = 'web', 'shop'
 Checkout.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, events: CollectingBus, rules: Mapping[str, Rule]) -> None
 Checkout.cancel(self, order_id: OrderId, *, reason: str) -> None
 Checkout.credit_for(self, order_id: OrderId, *, line_id: LineId) -> OrderId
@@ -24,11 +31,17 @@ Checkout.place(self, command: PlaceOrder) -> Placed | Invoiced
 CollectingBus.__init__(self, bus: EventBus) -> None
 CollectingBus.failures(self) -> tuple[HandlerFailure, ...]
 CollectingBus.publish(self, event: object) -> None
+Country = 'DK', 'FI', 'NO', 'SE'
+CustomerId.fields[00] value: str
 Customers.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
 Customers.change(self, customer_id: CustomerId, *, email: Email | None, country: Country | None, postal_code: PostalCode | None) -> None
 Customers.erase(self, customer_id: CustomerId) -> None
 Customers.register(self, name: str, *, email: Email | None, country: Country | None, postal_code: PostalCode | None, account_kind: AccountKind = 'consumer') -> CustomerId
 DuplicateId.__init__(self, kind: str, value: str) -> None
+Email.fields[00] value: str
+EquipmentDetails.fields[00] warranty_months: int
+EquipmentDetails.fields[01] material: str
+EventId.fields[00] value: str
 FakeClock.__init__(self, start: dt.datetime) -> None
 FakeClock.advance(self, by: dt.timedelta) -> None
 FakeClock.now(self) -> dt.datetime
@@ -51,9 +64,16 @@ Fulfilment.ship(self, order_id: OrderId, *, promised_by: dt.date) -> ShipmentId
 HandlerFailure.fields[00] handler: str
 HandlerFailure.fields[01] event: str
 HandlerFailure.fields[02] error: str
+Head.fields[00] order_id: OrderId
+Head.fields[01] customer_id: CustomerId
+Head.fields[02] channel: Channel
+Head.fields[03] country: Country
+Head.fields[04] lines: tuple[OrderLine, ...]
+Head.fields[05] credit_of: OrderId | None
 IdKind = 'customer', 'order', 'line', 'event', 'product', 'category', 'campaign', 'subscription', 'sub_event', 'shipment', 'bag', 'movement', 'purchase', 'rule'
 IllegalSubscriptionMove.__init__(self, subscription_id: SubscriptionId, state: str, action: str) -> None
 IllegalTransition.__init__(self, order_id: OrderId, state: str, action: str) -> None
+Invoiced.fields[00] head: Head
 Item.fields[00] product_id: ProductId
 Item.fields[01] qty: Qty
 Item.fields[02] price: Money | None = None
@@ -66,6 +86,9 @@ Jobs.relay(self) -> Relayed
 Jobs.ship_subscription_bags(self) -> int
 KeyReused.__init__(self, key: str) -> None
 Labels.request(self, order_id: OrderId, *, postal_code: PostalCode) -> None
+LineId.fields[00] value: str
+Money.fields[00] amount: Decimal
+Money.fields[01] currency: str
 NoAddress.__init__(self, order_id: OrderId) -> None
 NoOpenInvoice.__init__(self, order_id: OrderId) -> None
 NoPrice.__init__(self, product_id: ProductId, on: dt.date) -> None
@@ -74,7 +97,13 @@ NotCreditable.__init__(self, order_id: OrderId, state: str) -> None
 NotShippable.__init__(self, order_id: OrderId) -> None
 NothingToRefund.__init__(self, order_id: OrderId) -> None
 Notifier.send(self, to: Email, *, subject: str, body: str) -> None
+OrderId.fields[00] value: str
+OrderLine.fields[00] line_id: LineId
+OrderLine.fields[01] product_id: ProductId
+OrderLine.fields[02] qty: Qty
+OrderLine.fields[03] unit_price: Money
 OutOfStock.__init__(self, product_id: ProductId, wanted: int, on_hand: int) -> None
+PaymentId.fields[00] value: str
 PaymentMessage.fields[00] payment_id: PaymentId
 PaymentMessage.fields[01] order_id: OrderId
 PaymentMessage.fields[02] amount: Money
@@ -90,9 +119,13 @@ PeriodOverlap.__init__(self, table: str, key: str, valid_from: dt.date) -> None
 PlaceOrder.fields[00] customer_id: CustomerId
 PlaceOrder.fields[01] channel: Channel
 PlaceOrder.fields[02] items: tuple[Item, ...]
+Placed.fields[00] head: Head
 Positive = NewType(int)
+PostalCode.fields[00] value: str
+ProductId.fields[00] value: str
 ProviderRefused.__init__(self, /, *args, **kwargs)
 ProviderUnavailable.__init__(self, /, *args, **kwargs)
+Qty.fields[00] value: int
 Receipt.fields[00] payment_id: PaymentId
 Receipt.fields[01] order_id: OrderId
 Receipt.fields[02] status: str
@@ -112,8 +145,10 @@ Settings.fields[02] provider_key: Secret
 Settings.fields[03] price_ttl: int = 300
 Settings.fields[04] shop_zone: ZoneInfo
 Settings.fields[05] relay_batch: Positive = 5
+ShipmentId.fields[00] value: str
 ShopError.__init__(self, /, *args, **kwargs)
 Source = 'scripted', 'simulator', 'visitor'
+Status = 'placed', 'paid', 'invoiced', 'shipped', 'delivered', 'cancelled'
 StatusChanged.fields[00] event_id: EventId
 StatusChanged.fields[01] order_id: OrderId
 StatusChanged.fields[02] status: Status
@@ -124,6 +159,7 @@ Stock.buy_green(self, *, origin: str, kg: Decimal, nok_per_kg: Money) -> None
 Stock.roast(self, product_id: ProductId, *, bags: Qty) -> None
 Stock.stocktake(self, product_id: ProductId, *, on_hand: int) -> None
 Stock.write_off(self, product_id: ProductId, *, qty: Qty) -> None
+SubscriptionId.fields[00] value: str
 Subscriptions.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
 Subscriptions.cancel(self, subscription_id: SubscriptionId, *, reason: str) -> None
 Subscriptions.pause(self, subscription_id: SubscriptionId, *, reason: str) -> None

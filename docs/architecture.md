@@ -405,8 +405,10 @@ class Item:
     """One line asked for.
 
     price None: the list price on the order's day, with the
-    rules that hold. A price given: set by hand, as the till
-    rang it (L-06 at 549.00) or a free sample (L-12 at 0.00).
+    rules that hold; a web line only. A price given: set by
+    hand, as the till rang it (L-06 at 549.00) or a free sample
+    (L-12 at 0.00). A counter line (channel 'shop') always
+    gives its price: ValueError without one (6.4, U12).
     """
 
     product_id: ProductId

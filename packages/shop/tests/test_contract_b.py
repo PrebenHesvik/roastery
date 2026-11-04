@@ -24,7 +24,9 @@ from roastery.bootstrap import (
     sqlite_store,
     wire,
 )
+from roastery.catalogue import BeanDetails, EquipmentDetails
 from roastery.checkout import Checkout, Item, PlaceOrder
+from roastery.customer import AccountKind, Email
 from roastery.customers import Customers
 from roastery.errors import ShopError
 from roastery.events import CollectingBus, HandlerFailure, StatusChanged
@@ -35,7 +37,29 @@ from roastery.fakes import (
     FakeProvider,
 )
 from roastery.fulfilment import Fulfilment
+from roastery.ids import (
+    CategoryId,
+    Country,
+    CustomerId,
+    EventId,
+    LineId,
+    OrderId,
+    PaymentId,
+    PostalCode,
+    ProductId,
+    ShipmentId,
+    SubscriptionId,
+)
 from roastery.listing import Catalogue
+from roastery.money import Money, Qty
+from roastery.order import (
+    Channel,
+    Head,
+    Invoiced,
+    OrderLine,
+    Placed,
+    Status,
+)
 from roastery.payments import PaymentMessage, Payments, Receipt
 from roastery.pipeline import Rows
 from roastery.ports import (
@@ -91,8 +115,38 @@ DATACLASSES = (
     Relayed,
     Rows,
     Settings,
+    BeanDetails,
+    EquipmentDetails,
+    Money,
+    Qty,
+    Email,
+    PostalCode,
+    Head,
+    OrderLine,
+    Placed,
+    Invoiced,
+    CategoryId,
+    CustomerId,
+    EventId,
+    LineId,
+    OrderId,
+    PaymentId,
+    ProductId,
+    ShipmentId,
+    SubscriptionId,
 )
-LITERALS = (('Source', Source), ('IdKind', IdKind))
+"""Every class a contract B signature or field names, with the
+fields of those it reaches (Head, OrderLine): the ids and Qty
+hold one `value`, which pins what the simulator builds by
+position."""
+LITERALS = (
+    ('Source', Source),
+    ('IdKind', IdKind),
+    ('Country', Country),
+    ('AccountKind', AccountKind),
+    ('Channel', Channel),
+    ('Status', Status),
+)
 NEW_TYPES = (Url, Secret, Positive)
 """The constructors of Settings' field types, which the simulator
 calls: each is pinned with the type it wraps."""
