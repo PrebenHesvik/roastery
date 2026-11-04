@@ -1,4 +1,7 @@
-"""The export writer's faults: the log names what was planted, and the faulted play is tiny."""
+"""The export writer's faults: the log names what was planted, in the app's rows and the writer's.
+
+That the faulted play is tiny, cell for cell, is the gate's test (`test_gate.py`).
+"""
 
 from __future__ import annotations
 
@@ -8,14 +11,10 @@ import io
 from collections import Counter
 from collections.abc import Mapping
 from functools import cache
-from pathlib import Path
 
-import duckdb
 from roastery.pipeline import Rows
-from roastery_sim import dataset_sql, faults, play, tiny
-from roastery_spec import baseline
+from roastery_sim import faults, play, tiny
 
-BASELINE = (Path(baseline.__file__).parent / 'baseline' / 'dataset.sql').read_text(encoding='utf-8')
 ADDED = ('duplicate', 'orphan', 'resent')
 """The kinds whose row the app has not got."""
 
@@ -115,50 +114,3 @@ def test_csv_text_tells_null_from_empty() -> None:
     assert tuple(found[0]) == rows.columns
     assert [tuple(row) for row in found[1:]] == list(rows.rows)
     assert '\r' not in faults.csv_text(rows)
-
-
-# The gate's mechanics, one unit early (U9 makes it gate.py) -----------------
-
-
-def _load(con: duckdb.DuckDBPyConnection, schema: str, text: str) -> list[str]:
-    con.execute(f'CREATE SCHEMA {schema}')
-    con.execute(f'SET schema = {schema}')
-    found = baseline.tables(text)
-    baseline.database(found, con=con)
-    return [t['name'] for t in found]
-
-
-def _count(con: duckdb.DuckDBPyConnection, sql: str) -> int:
-    row = con.execute(sql).fetchone()
-    assert row is not None
-    return row[0]
-
-
-def _differences(mine: str, theirs: str) -> list[str]:
-    """Each table where the two texts differ: its names, its columns or its rows."""
-    con = duckdb.connect()
-    try:
-        names = _load(con, 'mine', mine)
-        if names != _load(con, 'theirs', theirs):
-            return [f'tables: {names}']
-        out = []
-        for name in names:
-            if con.execute(f'DESCRIBE mine.{name}').fetchall() != (
-                con.execute(f'DESCRIBE theirs.{name}').fetchall()
-            ):
-                out.append(f'{name}: columns')
-                continue
-            for one, two in (('mine', 'theirs'), ('theirs', 'mine')):
-                left = f'SELECT * FROM {one}.{name} EXCEPT ALL SELECT * FROM {two}.{name}'
-                if _count(con, f'SELECT count(*) FROM ({left})'):
-                    out.append(f'{name}: only in {one}: {con.execute(left).fetchall()}')
-        return out
-    finally:
-        con.close()
-
-
-def test_the_faulted_play_is_the_baseline() -> None:
-    _, faulted, _ = _faulted()
-    text = dataset_sql.render(tiny.assemble(faulted), seed=0)
-    assert len(baseline.tables(text)) == 30
-    assert _differences(text, BASELINE) == []
