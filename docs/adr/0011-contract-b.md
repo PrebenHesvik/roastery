@@ -17,7 +17,7 @@ Four things shape it:
 
 ### The surface
 
-Contract B is the fenced block in `architecture.md` §5, with the table of what each call raises. In numbers: 7 services and 27 calls; 2 commands, plus 2 frozen records (`Item` and `Receipt`); 5 jobs; `App.failures()`; and 18 members of `ShopError`.
+Contract B is the fenced block in `architecture.md` §5, with the table of what each call raises. In numbers: 7 services and 27 calls; 2 commands, plus 2 frozen records (`Item` and `Receipt`); 6 jobs (`app_tables` added in 6.4, W2); `App.failures()`; and 18 members of `ShopError`.
 
 **It is the whole surface the simulator imports** (C27), not only the services. A name the simulator imports and the snapshot does not cover could change under 6.4's tag. So the block also holds:
 
@@ -43,7 +43,7 @@ Contract B is the fenced block in `architecture.md` §5, with the table of what 
 | `Fulfilment` | `fulfilment` | `ship`, `deliver` |
 | `Subscriptions` | `subscriptions` | `subscribe`, `skip`, `pause`, `resume`, `cancel` |
 | `Stock` | `stock` | `roast`, `write_off`, `stocktake`, `buy_green` |
-| `App.jobs` | `bootstrap` | `relay`, `ship_subscription_bags`, `count_at_close`, `nightly_extract`, `csv_export` |
+| `App.jobs` | `bootstrap` | `relay`, `ship_subscription_bags`, `count_at_close`, `nightly_extract`, `csv_export`, `app_tables` |
 
 `Catalogue` lives in a new service module, `listing.py`. `catalogue.py` is a core module of ADR 0001 (`Product`, `Kind`), and a service that writes through the unit of work cannot be core. ADR 0001's service row needs this module (see Consequences).
 
@@ -122,7 +122,7 @@ O-106's cancel does put its bag back. L-10 left at `place` (E-11, 6 Oct 21:30 UT
 
 **Customers.** `register` sets `joined` to today and keeps the customer's e-mail when there is one (C25, C37; C-05 has none), which reaches contract A only in `raw_customers`. `change` takes the customer's whole contact after the change: country, postal code and e-mail, never optional fields. The data's changes are moves, and `customer_changes` records the country and postal code after each update (ADR 0003). `erase` writes a tombstone. The customers store writes the change rows (ADR 0003). The `line_stamps` stamps are written by `place`, `credit_for` and `cancel`, never by a job.
 
-**Jobs** take no argument and no clock. `wire` binds them to the store, the feed and the settings (ADR 0013). `nightly_extract` replaces tonight's `customer_extracts` copy. `csv_export` returns the two files' text, and the caller saves them; the export writer adds the faults after it (D10).
+**Jobs** take no argument and no clock. `wire` binds them to the store, the feed and the settings (ADR 0013). `nightly_extract` replaces tonight's `customer_extracts` copy. `csv_export` returns the two files' text, and the caller saves them; the export writer adds the faults after it (D10). `app_tables` returns every app-database table of contract A as `pipeline.Rows`, with `source` last, so the simulator reads the app back through contract B alone (6.4, W2).
 
 **Handlers** (C39): `confirm` hears `OrderPaid` and `OrderInvoiced`, never for a credit order, and sends the confirmation e-mail through `Notifier` when the customer has an e-mail; `label` hears the same, for web orders with a postal code only, and asks for the shipping label through `Labels`. An order without an address gets no label, and `Fulfilment.ship` refuses it (`NoAddress`): O-105 (C-05, paid, never shipped in the week).
 
@@ -162,7 +162,7 @@ It compares that text with the committed `packages/shop/tests/contract_b.txt`. A
 
 ## Consequences
 
-- The simulator never writes an app table. It calls these 27 calls and 5 jobs, writes the outside systems' tables, and runs the derived queries in its extract writer.
+- The simulator never writes an app table. It calls these 27 calls and 6 jobs, writes the outside systems' tables, and runs the derived queries in its extract writer.
 - The simulator's provider must answer each refund it is asked for with a negative message, so the simulator can write it to `payments` and deliver it. `FakeProvider` is that provider: `take` gives it each payment the simulator makes, `refund` refuses more than is left, and `messages()` gives the negative messages. The snapshot covers it (C27).
 - The API maps the port errors too: `ProviderRefused` to 402 and `ProviderUnavailable` to 503, beside ADR 0006's `STATUS`.
 - 6.4's script must give L-10 a product other than P-10 and P-20, roast 24 bags of P-10 on 8 October, and keep cancels away from midnight UTC. Order 300's customer must be a consumer, and no credit order of a business account may fall before the week: the claim "each business order invoiced once, never paid" would see the credit order's `paid` event. The `subscribers` claim reads `event_at::DATE`, and `ended` is a local date; near midnight the two can differ.

@@ -37,6 +37,7 @@ from roastery.fakes import (
 from roastery.fulfilment import Fulfilment
 from roastery.listing import Catalogue
 from roastery.payments import PaymentMessage, Payments, Receipt
+from roastery.pipeline import Rows
 from roastery.ports import (
     FeedDown,
     IdKind,
@@ -88,6 +89,7 @@ DATACLASSES = (
     StatusChanged,
     HandlerFailure,
     Relayed,
+    Rows,
     Settings,
 )
 LITERALS = (('Source', Source), ('IdKind', IdKind))

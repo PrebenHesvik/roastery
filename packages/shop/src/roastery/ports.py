@@ -27,6 +27,7 @@ from roastery.events import StatusChanged
 from roastery.ids import (
     BagId,
     CampaignId,
+    CategoryId,
     Country,
     CustomerId,
     MovementId,
@@ -37,6 +38,7 @@ from roastery.ids import (
     PurchaseId,
     RuleId,
     ShipmentId,
+    SubEventId,
     SubscriptionId,
 )
 from roastery.money import Money
@@ -222,6 +224,11 @@ class CustomerRepository(Protocol):
         """The source the customer was written under."""
         ...
 
+    def change_source(self, seq: int) -> Source:
+        """The source of the unit that wrote the log row `seq`;
+        UnknownId if there is none."""
+        ...
+
 
 class OrderRepository(Protocol):
     """Orders by id, with their lines and their stamps."""
@@ -323,9 +330,34 @@ class CatalogueRepository(Protocol):
         """Every product, sorted by product id."""
         ...
 
+    def details(
+        self, product_id: ProductId
+    ) -> BeanDetails | EquipmentDetails:
+        """The product's subtype row; UnknownId if none."""
+        ...
+
     def add_campaign(self, campaign: Campaign) -> None:
         """Keep a campaign and one `campaign_products` row for
         each product. DuplicateId if its id is taken."""
+        ...
+
+    def campaigns(self) -> tuple[Campaign, ...]:
+        """Every campaign, sorted by campaign id, each with its
+        products once, sorted by product id."""
+        ...
+
+    def category_source(self, category_id: CategoryId) -> Source:
+        """The source the category was written under."""
+        ...
+
+    def product_source(self, product_id: ProductId) -> Source:
+        """The source the product and its details were written
+        under."""
+        ...
+
+    def campaign_source(self, campaign_id: CampaignId) -> Source:
+        """The source the campaign and its products were written
+        under."""
         ...
 
 
@@ -344,6 +376,13 @@ class PriceRepository(Protocol):
         """End the product's open row on `valid_to`."""
         ...
 
+    def source_of(
+        self, product_id: ProductId, valid_from: dt.date
+    ) -> Source:
+        """The source the row was written under; UnknownId if
+        there is none."""
+        ...
+
 
 class CostRepository(Protocol):
     """What a product cost, by product and period (half-open)."""
@@ -358,6 +397,13 @@ class CostRepository(Protocol):
 
     def close(self, product_id: ProductId, valid_to: dt.date) -> None:
         """End the product's open row on `valid_to`."""
+        ...
+
+    def source_of(
+        self, product_id: ProductId, valid_from: dt.date
+    ) -> Source:
+        """The source the row was written under; UnknownId if
+        there is none."""
         ...
 
 
@@ -380,6 +426,10 @@ class RuleRepository(Protocol):
     def all(self) -> tuple[Discount, ...]:
         """Every rule, sorted by rule id. A campaign's rule comes
         back with the products of its campaign."""
+        ...
+
+    def source_of(self, rule_id: RuleId) -> Source:
+        """The source the rule was written under."""
         ...
 
 
@@ -427,6 +477,18 @@ class SubscriptionRepository(Protocol):
         """Keep a shipped bag; DuplicateId if its id is taken."""
         ...
 
+    def source_of(self, subscription_id: SubscriptionId) -> Source:
+        """The source the subscription was written under."""
+        ...
+
+    def event_source(self, event_id: SubEventId) -> Source:
+        """The source the event was written under."""
+        ...
+
+    def bag_source(self, bag_id: BagId) -> Source:
+        """The source the bag was written under."""
+        ...
+
 
 class StockRepository(Protocol):
     """Stock movements and the daily counts."""
@@ -458,8 +520,22 @@ class StockRepository(Protocol):
         """The day's counts, sorted by product then stamp."""
         ...
 
+    def all_counts(self) -> tuple[Count, ...]:
+        """Every count, sorted by product, day, then stamp."""
+        ...
+
     def source_of(self, movement_id: MovementId) -> Source:
         """The source the movement was written under."""
+        ...
+
+    def count_source(
+        self,
+        product_id: ProductId,
+        stock_date: dt.date,
+        counted_at: dt.datetime,
+    ) -> Source:
+        """The source the count was written under; UnknownId if
+        there is none."""
         ...
 
 
@@ -478,6 +554,14 @@ class ShipmentRepository(Protocol):
         """Keep the new state (`delivered_on`) over the old."""
         ...
 
+    def all(self) -> tuple[Shipment, ...]:
+        """Every shipment, sorted by shipment id."""
+        ...
+
+    def source_of(self, shipment_id: ShipmentId) -> Source:
+        """The source the shipment was first written under."""
+        ...
+
 
 class PurchaseRepository(Protocol):
     """Green coffee bought."""
@@ -488,6 +572,10 @@ class PurchaseRepository(Protocol):
 
     def all(self) -> tuple[GreenPurchase, ...]:
         """Every purchase, sorted by purchase id."""
+        ...
+
+    def source_of(self, purchase_id: PurchaseId) -> Source:
+        """The source the purchase was written under."""
         ...
 
 
@@ -508,6 +596,17 @@ class ExtractRepository(Protocol):
 
     def on(self, day: dt.date) -> tuple[ExtractRow, ...]:
         """The day's copy, sorted by customer id."""
+        ...
+
+    def all(self) -> tuple[ExtractRow, ...]:
+        """Every night's copy, sorted by day then customer id."""
+        ...
+
+    def source_of(
+        self, extract_date: dt.date, customer_id: CustomerId
+    ) -> Source:
+        """The source the row was written under; UnknownId if
+        there is none."""
         ...
 
 

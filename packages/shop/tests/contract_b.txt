@@ -58,6 +58,7 @@ Item.fields[00] product_id: ProductId
 Item.fields[01] qty: Qty
 Item.fields[02] price: Money | None = None
 Jobs.__init__(self, uow: UnitOfWork, *, clock: Clock, ids: Ids, feed: StatusFeed, settings: Settings) -> None
+Jobs.app_tables(self) -> Mapping[str, Rows]
 Jobs.count_at_close(self) -> int
 Jobs.csv_export(self) -> Mapping[str, str]
 Jobs.nightly_extract(self) -> int
@@ -96,6 +97,9 @@ Receipt.fields[01] order_id: OrderId
 Receipt.fields[02] status: str
 Relayed.fields[00] sent: tuple[int, ...]
 Relayed.fields[01] waiting: tuple[int, ...]
+Rows.fields[00] name: str
+Rows.fields[01] columns: tuple[str, ...]
+Rows.fields[02] rows: tuple[tuple[object, ...], ...]
 ScriptedIds.__init__(self, script: Mapping[IdKind, Sequence[str]], then: Ids) -> None
 ScriptedIds.next(self, kind: IdKind) -> str
 SequentialIds.__init__(self, start: Mapping[IdKind, int], skip: frozenset[str] = frozenset()) -> None

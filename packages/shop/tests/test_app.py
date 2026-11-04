@@ -46,6 +46,7 @@ from roastery.ids import (
 )
 from roastery.money import Money, Qty
 from roastery.order import PaymentMessage, status
+from roastery.pipeline import Rows
 from roastery.ports import (
     IdKind,
     Ids,
@@ -235,6 +236,70 @@ def test_o106_cancelled_then_shipped_is_refused(
     assert (refused.value.state, refused.value.action) == (
         'cancelled',
         'ship',
+    )
+
+
+APP_TABLES = frozenset(
+    {
+        'customers',
+        'products',
+        'orders',
+        'order_lines',
+        'prices',
+        'stock_daily',
+        'customer_extracts',
+        'customer_changes',
+        'line_stamps',
+        'subscriptions',
+        'categories',
+        'kinds',
+        'campaign_products',
+        'campaigns',
+        'bean_details',
+        'equipment_details',
+        'subscription_events',
+        'subscription_shipments',
+        'stock_movements',
+        'green_purchases',
+        'product_costs',
+        'shipments',
+        'pricing_rules',
+    }
+)
+"""Contract A's tables whose system is the app database (W2)."""
+
+
+def _by_column(
+    table: Rows, key: str, value: object
+) -> list[dict[str, object]]:
+    """The table's rows whose `key` cell is `value`, as dicts."""
+    rows = [
+        dict(zip(table.columns, row, strict=True)) for row in table.rows
+    ]
+    return [row for row in rows if row[key] == value]
+
+
+def test_app_tables_drop_o106_s_cancelled_line_and_stamp_it(
+    store: Store, clock: FakeClock
+) -> None:
+    script: dict[IdKind, Sequence[str]] = {
+        'order': ('O-106',),
+        'line': ('L-10',),
+        'event': ('E-11', 'E-12'),
+    }
+    app = _wire(store, clock, _ids(script)).app
+    _set_up(app, clock)
+    clock.set(_at(6, 21, 30))
+    app.checkout.place(PlaceOrder(C04, 'web', (Item(P10, Qty(1)),)))
+    clock.set(_at(7, 6))
+    app.checkout.cancel(O106, reason='changed their mind')
+    tables = app.jobs.app_tables()
+    assert set(tables) == APP_TABLES
+    assert _by_column(tables['order_lines'], 'line_id', 'L-10') == []
+    [stamp] = _by_column(tables['line_stamps'], 'line_id', 'L-10')
+    assert (stamp['is_deleted'], stamp['updated_at']) == (
+        True,
+        _at(7, 6),
     )
 
 

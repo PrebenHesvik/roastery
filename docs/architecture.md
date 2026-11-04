@@ -391,6 +391,7 @@ from roastery.ids import (
 )
 from roastery.money import Money, Qty
 from roastery.order import Channel, Invoiced, Placed, Status
+from roastery.pipeline import Rows
 from roastery.ports import Clock, Ids, Store
 from roastery.settings import Settings
 from roastery.uow import InMemoryStore, SqliteStore
@@ -697,6 +698,12 @@ class Jobs:
 
     def csv_export(self) -> Mapping[str, str]:
         """raw_customers and raw_lines: file name to text."""
+        ...
+
+    def app_tables(self) -> Mapping[str, Rows]:
+        """Every app-database table of contract A, by name: its
+        columns, then source; the app db's own columns projected
+        away (A33, 6.4 W2). Writes nothing."""
         ...
 
 
@@ -1075,7 +1082,7 @@ Every member is in `roastery/errors.py` (C20). `DuplicateId` can come from any c
 | `Catalogue.set_subscriber_discount` | `PeriodOverlap` | |
 | `jobs.relay` | none: a batch the feed refuses (`FeedDown`) waits | E-09's batch, E-08's batch (ADR 0009) |
 | `jobs.ship_subscription_bags` | `OutOfStock`; nothing is shipped in that run | |
-| `jobs.count_at_close`, `.nightly_extract`, `.csv_export` | none | |
+| `jobs.count_at_close`, `.nightly_extract`, `.csv_export`, `.app_tables` | none | |
 
 `KeyReused` belongs to the API's key store (`idempotency.py`): the same key sent again with another body. No call of contract B raises it.
 
@@ -1186,7 +1193,7 @@ These are reads the pages call. The simulator never needs them, so they are not 
 
 - for each class in the block (`App`, `Jobs`, the seven services, `CollectingBus`, `PaymentProvider`, `StatusFeed`, `Notifier`, `Labels`, `SequentialIds`, `ScriptedIds`, `FakeClock`, `FakeProvider`, `FakeNotifier`, `FakeLabels`): each public method, and `__init__`, as `Class.method` and `str(inspect.signature(...))`;
 - the functions `wire`, `memory_store` and `sqlite_store`, with their signatures;
-- for each dataclass (`Item`, `PlaceOrder`, `PaymentMessage`, `Receipt`, `App`, `StatusChanged`, `HandlerFailure`, `Relayed`, `Settings`): its fields, with their names and annotations, in order;
+- for each dataclass (`Item`, `PlaceOrder`, `PaymentMessage`, `Receipt`, `App`, `StatusChanged`, `HandlerFailure`, `Relayed`, `Settings`, and `Rows`, added in 6.4 W2): its fields, with their names and annotations, in order;
 - `Source` and `IdKind`, as their members;
 - the family: every subclass of `ShopError`, followed recursively, by name, with the signature of its `__init__`; and `FeedDown`. A second assertion checks that no module of `roastery` other than `errors.py` defines a `ShopError`.
 

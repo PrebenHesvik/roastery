@@ -28,10 +28,10 @@ from types import MappingProxyType
 from typing import Any, Final
 
 from roastery.catalogue import (
+    KIND_NAMES,
     BeanDetails,
     Category,
     EquipmentDetails,
-    Kind,
     Product,
 )
 from roastery.commands import (
@@ -100,11 +100,6 @@ from roastery.ports import (
 from roastery.pricing import Discount, Price
 from roastery.subscription import Subscription
 from roastery.vat import SEED_RATES, VatRate
-
-KIND_NAMES: Final[Mapping[Kind, str]] = MappingProxyType(
-    {'beans': 'Coffee beans', 'equipment': 'Brewing equipment'}
-)
-"""`kinds.kind_name` of each product kind, as the baseline has it."""
 
 WIDTHS: Final[Mapping[IdKind, int]] = MappingProxyType(
     {
@@ -614,6 +609,18 @@ class _MemoryRepo:
         self._source = source
 
 
+def _source_in(
+    table: Mapping[Any, tuple[Any, ...]],
+    key: object,
+    kind: str,
+    value: str,
+) -> Source:
+    """The source a held row was written under: its last item."""
+    if key not in table:
+        raise UnknownId(kind, value)
+    return table[key][-1]
+
+
 class MemoryCustomers(_MemoryRepo):
     def add(self, customer: Customer, at: dt.datetime) -> None:
         key = str(customer.customer_id)
@@ -650,6 +657,9 @@ class MemoryCustomers(_MemoryRepo):
 
     def source_of(self, customer_id: CustomerId) -> Source:
         return self._held(customer_id)[1]
+
+    def change_source(self, seq: int) -> Source:
+        return _source_in(self._t.changes, seq, 'change', str(seq))
 
     def _held(self, customer_id: CustomerId) -> tuple[Customer, Source]:
         key = str(customer_id)
@@ -799,11 +809,40 @@ class MemoryCatalogue(_MemoryRepo):
         keys = sorted(self._t.products)
         return tuple(self._t.products[key][0] for key in keys)
 
+    def details(
+        self, product_id: ProductId
+    ) -> BeanDetails | EquipmentDetails:
+        key = str(product_id)
+        if key not in self._t.products:
+            raise UnknownId('product', key)
+        return self._t.products[key][1]
+
     def add_campaign(self, campaign: Campaign) -> None:
         key = str(campaign.campaign_id)
         if key in self._t.campaigns:
             raise DuplicateId('campaign', key)
         self._t.campaigns[key] = (campaign, self._source)
+
+    def campaigns(self) -> tuple[Campaign, ...]:
+        found = []
+        for key in sorted(self._t.campaigns):
+            campaign = self._t.campaigns[key][0]
+            held = {str(each): each for each in campaign.product_ids}
+            products = tuple(held[each] for each in sorted(held))
+            found.append(replace(campaign, product_ids=products))
+        return tuple(found)
+
+    def category_source(self, category_id: CategoryId) -> Source:
+        key = str(category_id)
+        return _source_in(self._t.categories, key, 'category', key)
+
+    def product_source(self, product_id: ProductId) -> Source:
+        key = str(product_id)
+        return _source_in(self._t.products, key, 'product', key)
+
+    def campaign_source(self, campaign_id: CampaignId) -> Source:
+        key = str(campaign_id)
+        return _source_in(self._t.campaigns, key, 'campaign', key)
 
 
 class MemoryPrices(_MemoryRepo):
@@ -835,6 +874,13 @@ class MemoryPrices(_MemoryRepo):
             replace(price, valid_to=valid_to),
             source,
         )
+
+    def source_of(
+        self, product_id: ProductId, valid_from: dt.date
+    ) -> Source:
+        key = (str(product_id), valid_from)
+        value = f'{key[0]} {valid_from}'
+        return _source_in(self._t.prices, key, 'price', value)
 
 
 def _one_currency(cost: Cost) -> str:
@@ -877,6 +923,13 @@ class MemoryCosts(_MemoryRepo):
         cost, source = self._t.costs[key]
         _check_period(cost.valid_from, valid_to)
         self._t.costs[key] = (replace(cost, valid_to=valid_to), source)
+
+    def source_of(
+        self, product_id: ProductId, valid_from: dt.date
+    ) -> Source:
+        key = (str(product_id), valid_from)
+        value = f'{key[0]} {valid_from}'
+        return _source_in(self._t.costs, key, 'cost', value)
 
 
 def _check_period(valid_from: dt.date, valid_to: dt.date) -> None:
@@ -924,6 +977,10 @@ class MemoryRules(_MemoryRepo):
                 rule = replace(rule, product_ids=frozenset(held))
             found.append(rule)
         return tuple(found)
+
+    def source_of(self, rule_id: RuleId) -> Source:
+        key = str(rule_id)
+        return _source_in(self._t.rules, key, 'rule', key)
 
 
 class MemorySubscriptions(_MemoryRepo):
@@ -994,6 +1051,20 @@ class MemorySubscriptions(_MemoryRepo):
             raise DuplicateId('bag', key)
         self._t.bags[key] = (bag, self._source)
 
+    def source_of(self, subscription_id: SubscriptionId) -> Source:
+        key = str(subscription_id)
+        return _source_in(
+            self._t.subscriptions, key, 'subscription', key
+        )
+
+    def event_source(self, event_id: SubEventId) -> Source:
+        key = str(event_id)
+        return _source_in(self._t.sub_events, key, 'sub_event', key)
+
+    def bag_source(self, bag_id: BagId) -> Source:
+        key = str(bag_id)
+        return _source_in(self._t.bags, key, 'bag', key)
+
     def _started(self) -> list[Subscription]:
         keys = sorted(self._t.subscriptions)
         return [self._t.subscriptions[key][0] for key in keys]
@@ -1054,11 +1125,30 @@ class MemoryStock(_MemoryRepo):
             )
         )
 
+    def all_counts(self) -> tuple[Count, ...]:
+        found = [count for count, _ in self._t.counts.values()]
+        return tuple(sorted(found, key=_count_key))
+
     def source_of(self, movement_id: MovementId) -> Source:
         key = str(movement_id)
         if key not in self._t.movements:
             raise UnknownId('movement', key)
         return self._t.movements[key][1]
+
+    def count_source(
+        self,
+        product_id: ProductId,
+        stock_date: dt.date,
+        counted_at: dt.datetime,
+    ) -> Source:
+        key = (str(product_id), stock_date, counted_at)
+        value = f'{key[0]} {stock_date} {moment_text(counted_at)}'
+        return _source_in(self._t.counts, key, 'count', value)
+
+
+def _count_key(count: Count) -> tuple[str, dt.date, dt.datetime]:
+    """A count's key, in the order `stock_daily` sorts by."""
+    return (str(count.product_id), count.stock_date, count.counted_at)
 
 
 class MemoryShipments(_MemoryRepo):
@@ -1081,6 +1171,14 @@ class MemoryShipments(_MemoryRepo):
         source = self._t.shipments[key][1]
         self._t.shipments[key] = (shipment, source)
 
+    def all(self) -> tuple[Shipment, ...]:
+        keys = sorted(self._t.shipments)
+        return tuple(self._t.shipments[key][0] for key in keys)
+
+    def source_of(self, shipment_id: ShipmentId) -> Source:
+        key = str(shipment_id)
+        return _source_in(self._t.shipments, key, 'shipment', key)
+
 
 class MemoryPurchases(_MemoryRepo):
     def add(self, purchase: GreenPurchase) -> None:
@@ -1092,6 +1190,10 @@ class MemoryPurchases(_MemoryRepo):
     def all(self) -> tuple[GreenPurchase, ...]:
         keys = sorted(self._t.purchases)
         return tuple(self._t.purchases[key][0] for key in keys)
+
+    def source_of(self, purchase_id: PurchaseId) -> Source:
+        key = str(purchase_id)
+        return _source_in(self._t.purchases, key, 'purchase', key)
 
 
 class MemoryVatRates(_MemoryRepo):
@@ -1131,6 +1233,17 @@ class MemoryExtracts(_MemoryRepo):
             if when == day
         ]
         return tuple(sorted(found, key=lambda r: str(r.customer_id)))
+
+    def all(self) -> tuple[ExtractRow, ...]:
+        keys = sorted(self._t.extracts)
+        return tuple(self._t.extracts[key][0] for key in keys)
+
+    def source_of(
+        self, extract_date: dt.date, customer_id: CustomerId
+    ) -> Source:
+        key = (extract_date, str(customer_id))
+        value = f'{extract_date} {key[1]}'
+        return _source_in(self._t.extracts, key, 'extract', value)
 
 
 # Sqlite adapters ------------------------------------------------------
@@ -1174,6 +1287,23 @@ class _SqliteRepo:
     ) -> None:
         if not self._exists(table, f'{column} = ?', (value,)):
             raise UnknownId(kind, value)
+
+    def _source_where(
+        self,
+        kind: str,
+        value: str,
+        table: str,
+        where: str,
+        params: Sequence[object],
+    ) -> Source:
+        """The source of the one row `where` finds; UnknownId if
+        it finds none."""
+        found = self._db.execute(
+            f'SELECT source FROM {table} WHERE {where}', params
+        ).fetchone()
+        if found is None:
+            raise UnknownId(kind, value)
+        return found[0]
 
 
 class SqliteCustomers(_SqliteRepo):
@@ -1273,6 +1403,11 @@ class SqliteCustomers(_SqliteRepo):
         if not rows:
             raise UnknownId('customer', key)
         return rows[0][0]
+
+    def change_source(self, seq: int) -> Source:
+        return self._source_where(
+            'change', str(seq), 'customer_changes', 'seq = ?', (seq,)
+        )
 
     def _log(
         self,
@@ -1667,6 +1802,70 @@ class SqliteCatalogue(_SqliteRepo):
                 (key, product_id, self._source),
             )
 
+    def details(
+        self, product_id: ProductId
+    ) -> BeanDetails | EquipmentDetails:
+        key = str(product_id)
+        rows = self._rows(
+            'SELECT p.weight_g, b.origin, b.roast, b.process,'
+            ' e.warranty_months, e.material FROM products AS p'
+            ' LEFT JOIN bean_details AS b'
+            ' ON b.product_id = p.product_id'
+            ' LEFT JOIN equipment_details AS e'
+            ' ON e.product_id = p.product_id'
+            ' WHERE p.product_id = ? ORDER BY p.product_id',
+            (key,),
+        )
+        if not rows:
+            raise UnknownId('product', key)
+        weight, origin, roast, process, months, material = rows[0]
+        if origin is not None:
+            return BeanDetails(weight, origin, roast, process)
+        return EquipmentDetails(months, material)
+
+    def campaigns(self) -> tuple[Campaign, ...]:
+        rows = self._rows(
+            'SELECT campaign_id, campaign_name, discount_pct,'
+            ' first_day, last_day FROM campaigns'
+            ' ORDER BY campaign_id'
+        )
+        return tuple(
+            Campaign(
+                CampaignId(campaign_id),
+                name,
+                pct,
+                _date(first),
+                _date(last),
+                tuple(
+                    ProductId(product_id)
+                    for (product_id,) in self._rows(
+                        'SELECT product_id FROM campaign_products'
+                        ' WHERE campaign_id = ? ORDER BY product_id',
+                        (campaign_id,),
+                    )
+                ),
+            )
+            for campaign_id, name, pct, first, last in rows
+        )
+
+    def category_source(self, category_id: CategoryId) -> Source:
+        key = str(category_id)
+        return self._source_where(
+            'category', key, 'categories', 'category_id = ?', (key,)
+        )
+
+    def product_source(self, product_id: ProductId) -> Source:
+        key = str(product_id)
+        return self._source_where(
+            'product', key, 'products', 'product_id = ?', (key,)
+        )
+
+    def campaign_source(self, campaign_id: CampaignId) -> Source:
+        key = str(campaign_id)
+        return self._source_where(
+            'campaign', key, 'campaigns', 'campaign_id = ?', (key,)
+        )
+
 
 def _product(row: tuple[Any, ...]) -> Product:
     product_id, name, kind, category_id, weight = row
@@ -1722,6 +1921,18 @@ class SqlitePrices(_SqliteRepo):
             'UPDATE prices SET valid_to = ?'
             ' WHERE product_id = ? AND valid_from = ?',
             (valid_to.isoformat(), key, price.valid_from.isoformat()),
+        )
+
+    def source_of(
+        self, product_id: ProductId, valid_from: dt.date
+    ) -> Source:
+        key = (str(product_id), valid_from.isoformat())
+        return self._source_where(
+            'price',
+            ' '.join(key),
+            'prices',
+            'product_id = ? AND valid_from = ?',
+            key,
         )
 
 
@@ -1786,6 +1997,18 @@ class SqliteCosts(_SqliteRepo):
             'UPDATE product_costs SET valid_to = ?'
             ' WHERE product_id = ? AND valid_from = ?',
             (valid_to.isoformat(), key, start.isoformat()),
+        )
+
+    def source_of(
+        self, product_id: ProductId, valid_from: dt.date
+    ) -> Source:
+        key = (str(product_id), valid_from.isoformat())
+        return self._source_where(
+            'cost',
+            ' '.join(key),
+            'product_costs',
+            'product_id = ? AND valid_from = ?',
+            key,
         )
 
 
@@ -1875,6 +2098,12 @@ class SqliteRules(_SqliteRepo):
                 )
             )
         return tuple(found)
+
+    def source_of(self, rule_id: RuleId) -> Source:
+        key = str(rule_id)
+        return self._source_where(
+            'rule', key, 'pricing_rules', 'rule_id = ?', (key,)
+        )
 
 
 _COMMANDS: Final[Mapping[str, type[Command]]] = MappingProxyType(
@@ -2014,6 +2243,32 @@ class SqliteSubscriptions(_SqliteRepo):
             ),
         )
 
+    def source_of(self, subscription_id: SubscriptionId) -> Source:
+        key = str(subscription_id)
+        return self._source_where(
+            'subscription',
+            key,
+            'subscriptions',
+            'subscription_id = ?',
+            (key,),
+        )
+
+    def event_source(self, event_id: SubEventId) -> Source:
+        key = str(event_id)
+        return self._source_where(
+            'sub_event',
+            key,
+            'subscription_events',
+            'event_id = ?',
+            (key,),
+        )
+
+    def bag_source(self, bag_id: BagId) -> Source:
+        key = str(bag_id)
+        return self._source_where(
+            'bag', key, 'subscription_shipments', 'bag_id = ?', (key,)
+        )
+
     def _built(self, row: tuple[Any, ...]) -> Subscription:
         sub_id, customer_id, product_id, started = row
         begun = Subscription.begin(
@@ -2102,12 +2357,15 @@ class SqliteStock(_SqliteRepo):
             ' ORDER BY product_id, counted_at',
             (stock_date.isoformat(),),
         )
-        return tuple(
-            Count(
-                ProductId(pid), _date(day), on_hand, moment_from(stamp)
-            )
-            for pid, day, on_hand, stamp in rows
+        return tuple(_count(row) for row in rows)
+
+    def all_counts(self) -> tuple[Count, ...]:
+        rows = self._rows(
+            'SELECT product_id, stock_date, on_hand, counted_at'
+            ' FROM stock_daily'
+            ' ORDER BY product_id, stock_date, counted_at'
         )
+        return tuple(_count(row) for row in rows)
 
     def source_of(self, movement_id: MovementId) -> Source:
         key = str(movement_id)
@@ -2119,6 +2377,32 @@ class SqliteStock(_SqliteRepo):
         if not rows:
             raise UnknownId('movement', key)
         return rows[0][0]
+
+    def count_source(
+        self,
+        product_id: ProductId,
+        stock_date: dt.date,
+        counted_at: dt.datetime,
+    ) -> Source:
+        key = (
+            str(product_id),
+            stock_date.isoformat(),
+            moment_text(counted_at),
+        )
+        return self._source_where(
+            'count',
+            ' '.join(key),
+            'stock_daily',
+            'product_id = ? AND stock_date = ? AND counted_at = ?',
+            key,
+        )
+
+
+def _count(row: tuple[Any, ...]) -> Count:
+    product_id, day, on_hand, stamp = row
+    return Count(
+        ProductId(product_id), _date(day), on_hand, moment_from(stamp)
+    )
 
 
 class SqliteShipments(_SqliteRepo):
@@ -2147,14 +2431,7 @@ class SqliteShipments(_SqliteRepo):
         )
         if not rows:
             raise UnknownId('shipment', key)
-        shipment, order, shipped, promised, delivered = rows[0]
-        return Shipment(
-            ShipmentId(shipment),
-            OrderId(order),
-            _date(shipped),
-            _date(promised),
-            _date_or_none(delivered),
-        )
+        return _shipment(rows[0])
 
     def save(self, shipment: Shipment) -> None:
         key = str(shipment.shipment_id)
@@ -2170,6 +2447,30 @@ class SqliteShipments(_SqliteRepo):
                 key,
             ),
         )
+
+    def all(self) -> tuple[Shipment, ...]:
+        rows = self._rows(
+            'SELECT shipment_id, order_id, shipped_on, promised_by,'
+            ' delivered_on FROM shipments ORDER BY shipment_id'
+        )
+        return tuple(_shipment(row) for row in rows)
+
+    def source_of(self, shipment_id: ShipmentId) -> Source:
+        key = str(shipment_id)
+        return self._source_where(
+            'shipment', key, 'shipments', 'shipment_id = ?', (key,)
+        )
+
+
+def _shipment(row: tuple[Any, ...]) -> Shipment:
+    shipment, order, shipped, promised, delivered = row
+    return Shipment(
+        ShipmentId(shipment),
+        OrderId(order),
+        _date(shipped),
+        _date(promised),
+        _date_or_none(delivered),
+    )
 
 
 class SqlitePurchases(_SqliteRepo):
@@ -2203,6 +2504,16 @@ class SqlitePurchases(_SqliteRepo):
                 _money(price, cur),
             )
             for purchase_id, bought_on, origin, kg, price, cur in rows
+        )
+
+    def source_of(self, purchase_id: PurchaseId) -> Source:
+        key = str(purchase_id)
+        return self._source_where(
+            'purchase',
+            key,
+            'green_purchases',
+            'purchase_id = ?',
+            (key,),
         )
 
 
@@ -2252,15 +2563,37 @@ class SqliteExtracts(_SqliteRepo):
             ' ORDER BY customer_id',
             (day.isoformat(),),
         )
-        return tuple(
-            ExtractRow(
-                _date(when),
-                CustomerId(customer_id),
-                country,
-                _postal_code(postal),
-            )
-            for when, customer_id, country, postal in rows
+        return tuple(_extract(row) for row in rows)
+
+    def all(self) -> tuple[ExtractRow, ...]:
+        rows = self._rows(
+            'SELECT extract_date, customer_id, country, postal_code'
+            ' FROM customer_extracts'
+            ' ORDER BY extract_date, customer_id'
         )
+        return tuple(_extract(row) for row in rows)
+
+    def source_of(
+        self, extract_date: dt.date, customer_id: CustomerId
+    ) -> Source:
+        key = (extract_date.isoformat(), str(customer_id))
+        return self._source_where(
+            'extract',
+            ' '.join(key),
+            'customer_extracts',
+            'extract_date = ? AND customer_id = ?',
+            key,
+        )
+
+
+def _extract(row: tuple[Any, ...]) -> ExtractRow:
+    when, customer_id, country, postal = row
+    return ExtractRow(
+        _date(when),
+        CustomerId(customer_id),
+        country,
+        _postal_code(postal),
+    )
 
 
 # The Ids adapters (ADR 0007, C30) -------------------------------

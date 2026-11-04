@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Final, Literal
 
 from roastery.ids import CategoryId, ProductId
@@ -12,6 +13,11 @@ Kind = Literal['beans', 'equipment']
 """As `products.kind` holds it."""
 
 KINDS: Final[tuple[Kind, ...]] = ('beans', 'equipment')
+
+KIND_NAMES: Final[Mapping[Kind, str]] = MappingProxyType(
+    {'beans': 'Coffee beans', 'equipment': 'Brewing equipment'}
+)
+"""`kinds.kind_name` of each product kind, as the baseline has it."""
 
 
 @dataclass(frozen=True)

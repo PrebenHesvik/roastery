@@ -18,12 +18,23 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from typing import Final
 
+from roastery.catalogue import (
+    BeanDetails,
+    Category,
+    EquipmentDetails,
+    Product,
+)
+from roastery.commands import Skip
 from roastery.customer import Customer, Email
 from roastery.errors import DuplicateId, ShopError, UnknownId
 from roastery.events import StatusChanged
 from roastery.ids import (
+    BagId,
+    CampaignId,
+    CategoryId,
     Country,
     CustomerId,
     EventId,
@@ -33,7 +44,11 @@ from roastery.ids import (
     PaymentId,
     PostalCode,
     ProductId,
+    PurchaseId,
+    RuleId,
     ShipmentId,
+    SubEventId,
+    SubscriptionId,
 )
 from roastery.money import Money
 from roastery.order import (
@@ -48,12 +63,20 @@ from roastery.order import (
     ship,
 )
 from roastery.ports import (
+    BagShipment,
     Booking,
+    Campaign,
+    Cost,
     Count,
+    ExtractRow,
+    GreenPurchase,
     Movement,
     MovementReason,
+    Shipment,
     UnitOfWork,
 )
+from roastery.pricing import Discount, Price
+from roastery.subscription import Subscription
 
 
 @dataclass(frozen=True)
@@ -843,11 +866,338 @@ def the_source_outlives_the_commit(uow: UnitOfWork) -> str:
     return f'after the commit the rows still read back as {uow.source}'
 
 
+def _day(day: int) -> dt.date:
+    """A day of October 2026."""
+    return dt.date(2026, 10, day)
+
+
+def _nok(amount: str) -> Money:
+    return Money.of(amount, 'NOK')
+
+
+def _p10() -> ProductId:
+    """The product the checks write their rows about."""
+    return ProductId('P-10')
+
+
+def _write_one_of_each(uow: UnitOfWork) -> None:
+    """One row of every table whose source the export reads."""
+    uow.customers.add(_customer(1), _moment())
+    uow.catalogue.add_category(
+        Category(CategoryId('CAT-1'), 'Beans', None, 1)
+    )
+    uow.catalogue.add_product(
+        Product(
+            _p10(), 'Morning roast', 'beans', CategoryId('CAT-1'), 250
+        ),
+        BeanDetails(250, 'Brazil', 'medium', 'dry'),
+    )
+    uow.catalogue.add_campaign(
+        Campaign(
+            CampaignId('K-1'), 'Autumn', 10, _day(5), _day(9), (_p10(),)
+        )
+    )
+    uow.prices.add(Price(_p10(), _nok('129.00'), _day(1), None))
+    uow.costs.add(
+        Cost(_p10(), _day(1), None, _nok('40'), _nok('5'), _nok('10'))
+    )
+    uow.rules.add(
+        Discount(RuleId('PR-1'), 'subscriber', 10, _day(1), None)
+    )
+    sub = SubscriptionId('S-1')
+    uow.subscriptions.add(
+        Subscription.begin(sub, CustomerId('C-01'), _p10(), _day(1))
+    )
+    uow.subscriptions.record(
+        Skip(SubEventId('SE-1'), sub, 'away', _moment(), _day(5))
+    )
+    uow.subscriptions.add_bag(
+        BagShipment(BagId('SB-1'), sub, _p10(), _day(5), 1)
+    )
+    uow.stock.add_count(Count(_p10(), _day(5), 40, _moment(5, 16)))
+    uow.shipments.add(
+        Shipment(
+            ShipmentId('SH-1'), OrderId('O-101'), _day(6), _day(8), None
+        )
+    )
+    uow.purchases.add(
+        GreenPurchase(
+            PurchaseId('GP-1'),
+            _day(2),
+            'Brazil',
+            Decimal('60.00'),
+            _nok('85.00'),
+        )
+    )
+    extract = ExtractRow(
+        _day(5), CustomerId('C-01'), 'NO', PostalCode('7010')
+    )
+    uow.extracts.replace(_day(5), (extract,))
+
+
+def _every_source(uow: UnitOfWork) -> list[str]:
+    """The source of each row `_write_one_of_each` wrote."""
+    return [
+        uow.customers.change_source(1),
+        uow.catalogue.category_source(CategoryId('CAT-1')),
+        uow.catalogue.product_source(_p10()),
+        uow.catalogue.campaign_source(CampaignId('K-1')),
+        uow.prices.source_of(_p10(), _day(1)),
+        uow.costs.source_of(_p10(), _day(1)),
+        uow.rules.source_of(RuleId('PR-1')),
+        uow.subscriptions.source_of(SubscriptionId('S-1')),
+        uow.subscriptions.event_source(SubEventId('SE-1')),
+        uow.subscriptions.bag_source(BagId('SB-1')),
+        uow.stock.count_source(_p10(), _day(5), _moment(5, 16)),
+        uow.shipments.source_of(ShipmentId('SH-1')),
+        uow.purchases.source_of(PurchaseId('GP-1')),
+        uow.extracts.source_of(_day(5), CustomerId('C-01')),
+    ]
+
+
+def every_table_reads_back_its_source(uow: UnitOfWork) -> str:
+    with uow:
+        _write_one_of_each(uow)
+        uow.commit()
+    with uow:
+        seen = _every_source(uow)
+    if seen != [uow.source] * len(seen):
+        raise Broken(
+            f'{uow.source} wrote rows that read back as {seen}'
+        )
+    return f'{len(seen)} tables read back as {uow.source}'
+
+
+def the_source_of_a_missing_row_is_refused(uow: UnitOfWork) -> str:
+    p99 = ProductId('P-99')
+    late = _moment(9, 16)
+    with uow:
+        reads: tuple[tuple[Callable[[], object], str, str], ...] = (
+            (lambda: uow.customers.change_source(9), 'change', '9'),
+            (
+                lambda: uow.catalogue.category_source(
+                    CategoryId('CAT-9')
+                ),
+                'category',
+                'CAT-9',
+            ),
+            (
+                lambda: uow.catalogue.product_source(p99),
+                'product',
+                'P-99',
+            ),
+            (
+                lambda: uow.catalogue.campaign_source(
+                    CampaignId('K-9')
+                ),
+                'campaign',
+                'K-9',
+            ),
+            (
+                lambda: uow.prices.source_of(p99, _day(1)),
+                'price',
+                'P-99 2026-10-01',
+            ),
+            (
+                lambda: uow.costs.source_of(p99, _day(1)),
+                'cost',
+                'P-99 2026-10-01',
+            ),
+            (
+                lambda: uow.rules.source_of(RuleId('PR-9')),
+                'rule',
+                'PR-9',
+            ),
+            (
+                lambda: uow.subscriptions.source_of(
+                    SubscriptionId('S-9')
+                ),
+                'subscription',
+                'S-9',
+            ),
+            (
+                lambda: uow.subscriptions.event_source(
+                    SubEventId('SE-9')
+                ),
+                'sub_event',
+                'SE-9',
+            ),
+            (
+                lambda: uow.subscriptions.bag_source(BagId('SB-9')),
+                'bag',
+                'SB-9',
+            ),
+            (
+                lambda: uow.stock.count_source(p99, _day(9), late),
+                'count',
+                'P-99 2026-10-09 2026-10-09T16:00:00+00:00',
+            ),
+            (
+                lambda: uow.shipments.source_of(ShipmentId('SH-9')),
+                'shipment',
+                'SH-9',
+            ),
+            (
+                lambda: uow.purchases.source_of(PurchaseId('GP-9')),
+                'purchase',
+                'GP-9',
+            ),
+            (
+                lambda: uow.extracts.source_of(
+                    _day(9), CustomerId('C-09')
+                ),
+                'extract',
+                '2026-10-09 C-09',
+            ),
+        )
+        for call, kind, value in reads:
+            _missing(call, kind, value)
+    return f'{len(reads)} source reads: UnknownId naming the row'
+
+
 SOURCE: Final = (
     rows_read_back_with_the_source,
     the_source_outlives_the_commit,
+    every_table_reads_back_its_source,
+    the_source_of_a_missing_row_is_refused,
 )
 """Every source check, in the order a table of them sorts."""
+
+
+# The listings the export reads (W2) -----------------------------
+
+
+def _campaign(number: int, *products: str) -> Campaign:
+    return Campaign(
+        CampaignId(f'K-{number}'),
+        f'Campaign {number}',
+        10 * number,
+        _day(5),
+        _day(9),
+        tuple(ProductId(each) for each in products),
+    )
+
+
+def campaigns_are_listed_with_their_products(uow: UnitOfWork) -> str:
+    with uow:
+        uow.catalogue.add_campaign(_campaign(2, 'P-20', 'P-10'))
+        uow.catalogue.add_campaign(_campaign(1, 'P-11'))
+        uow.commit()
+    with uow:
+        listed = uow.catalogue.campaigns()
+    if listed != (_campaign(1, 'P-11'), _campaign(2, 'P-10', 'P-20')):
+        raise Broken(f'listed {listed}')
+    return 'K-1, then K-2 with P-10 before P-20'
+
+
+def details_come_back_by_kind(uow: UnitOfWork) -> str:
+    beans = BeanDetails(250, 'Brazil', 'medium', 'dry')
+    kettle = EquipmentDetails(12, 'steel')
+    category = CategoryId('CAT-1')
+    with uow:
+        uow.catalogue.add_product(
+            Product(_p10(), 'Morning roast', 'beans', category, 250),
+            beans,
+        )
+        uow.catalogue.add_product(
+            Product(
+                ProductId('P-21'), 'Kettle', 'equipment', category, None
+            ),
+            kettle,
+        )
+        uow.commit()
+    with uow:
+        held = [
+            uow.catalogue.details(_p10()),
+            uow.catalogue.details(ProductId('P-21')),
+        ]
+        _missing(
+            lambda: uow.catalogue.details(ProductId('P-99')),
+            'product',
+            'P-99',
+        )
+    if held != [beans, kettle]:
+        raise Broken(f'the details came back as {held}')
+    return 'P-10 its bean details, P-21 its equipment; P-99 UnknownId'
+
+
+def _shipment(number: int, delivered: dt.date | None) -> Shipment:
+    return Shipment(
+        ShipmentId(f'SH-{number}'),
+        OrderId(f'O-10{number}'),
+        _day(6),
+        _day(8),
+        delivered,
+    )
+
+
+def shipments_are_listed_by_id(uow: UnitOfWork) -> str:
+    with uow:
+        uow.shipments.add(_shipment(2, None))
+        uow.shipments.add(_shipment(1, None))
+        uow.shipments.save(_shipment(1, _day(8)))
+        uow.commit()
+    with uow:
+        listed = uow.shipments.all()
+    if listed != (_shipment(1, _day(8)), _shipment(2, None)):
+        raise Broken(f'listed {listed}')
+    return 'SH-1 delivered on 8 October, then SH-2'
+
+
+def all_counts_are_listed_by_product_day_and_stamp(
+    uow: UnitOfWork,
+) -> str:
+    p20 = ProductId('P-20')
+    counts = (
+        Count(_p10(), _day(5), 40, _moment(5, 16)),
+        Count(_p10(), _day(5), 41, _moment(6, 6)),
+        Count(_p10(), _day(6), 37, _moment(6, 16)),
+        Count(p20, _day(5), 4, _moment(5, 16)),
+    )
+    with uow:
+        for count in reversed(counts):
+            uow.stock.add_count(count)
+        uow.commit()
+    with uow:
+        listed = uow.stock.all_counts()
+    if listed != counts:
+        raise Broken(f'listed {listed}')
+    return 'P-10 on 5 October twice, P-10 on 6 October, then P-20'
+
+
+def _extract(day: int, customer: str) -> ExtractRow:
+    return ExtractRow(_day(day), CustomerId(customer), 'NO', None)
+
+
+def all_extracts_are_listed_by_day_then_customer(
+    uow: UnitOfWork,
+) -> str:
+    with uow:
+        uow.extracts.replace(
+            _day(6), (_extract(6, 'C-02'), _extract(6, 'C-01'))
+        )
+        uow.extracts.replace(_day(5), (_extract(5, 'C-03'),))
+        uow.commit()
+    with uow:
+        listed = uow.extracts.all()
+    expected = (
+        _extract(5, 'C-03'),
+        _extract(6, 'C-01'),
+        _extract(6, 'C-02'),
+    )
+    if listed != expected:
+        raise Broken(f'listed {listed}')
+    return '5 October C-03, then 6 October C-01 and C-02'
+
+
+READS: Final = (
+    campaigns_are_listed_with_their_products,
+    details_come_back_by_kind,
+    shipments_are_listed_by_id,
+    all_counts_are_listed_by_product_day_and_stamp,
+    all_extracts_are_listed_by_day_then_customer,
+)
+"""Every check of a listing the export reads, in table order."""
 
 
 # The suites -----------------------------------------------------
@@ -896,3 +1246,8 @@ def check_stock(make: Callable[[], UnitOfWork]) -> list[Check]:
 def check_source(make: Callable[[], UnitOfWork]) -> list[Check]:
     """Run every source check on a new, empty store."""
     return _run(SOURCE, make)
+
+
+def check_reads(make: Callable[[], UnitOfWork]) -> list[Check]:
+    """Run every check of the export's listings on a new store."""
+    return _run(READS, make)

@@ -43,6 +43,7 @@ from roastery.fakes import (
 from roastery.fulfilment import Fulfilment
 from roastery.listing import Catalogue
 from roastery.payments import Payments
+from roastery.pipeline import Rows
 from roastery.ports import (
     Clock,
     IdKind,
@@ -152,6 +153,11 @@ class Jobs:
     def csv_export(self) -> Mapping[str, str]:
         """raw_customers and raw_lines: file name to text."""
         return exports.csv_export(self._uow)
+
+    def app_tables(self) -> Mapping[str, Rows]:
+        """Contract A's app-database tables as the app holds them:
+        table name to its rows, sorted by key (W2)."""
+        return exports.app_tables(self._uow)
 
 
 @dataclass(frozen=True)

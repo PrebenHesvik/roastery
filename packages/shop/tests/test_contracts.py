@@ -20,6 +20,7 @@ from roastery.contracts import (
     check_customers,
     check_orders,
     check_outbox,
+    check_reads,
     check_source,
     check_stock,
     check_unit_of_work,
@@ -38,6 +39,7 @@ SUITES: Mapping[str, Suite] = {
     'unit_of_work': check_unit_of_work,
     'stock': check_stock,
     'source': check_source,
+    'reads': check_reads,
 }
 
 SOURCES: tuple[Source, ...] = ('scripted', 'simulator', 'visitor')
