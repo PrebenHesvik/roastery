@@ -3,8 +3,12 @@ name = 'roastery-sim'
 version = '0.0.0'
 description = 'The simulator, the outside systems and the export writer.'
 requires-python = '>=3.13'
-dependencies = []
+dependencies = ['roastery', 'roastery-spec']
 
 [build-system]
 requires = ['uv_build>=0.8.22,<0.9']
 build-backend = 'uv_build'
+
+[tool.uv.sources]
+roastery = { workspace = true }
+roastery-spec = { workspace = true }

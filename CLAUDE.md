@@ -7,7 +7,7 @@ and the commands; `docs/phase-6/plan.md` is the plan.
 ## Start here
 
 1. Read **Status** at the top of `docs/phase-6/plan.md`; the first unticked step is current.
-2. Read that step's plan file (none yet for 6.4; 6.3's is `docs/phase-6/6.3-app.md`) and work from its first
+2. Read that step's plan file (6.4's is `docs/phase-6/6.4-week.md`) and work from its first
    unticked unit.
 3. The record lives in files, not in a session:
    - a step's box is ticked, with its commit hash, in the commit that finishes the step;

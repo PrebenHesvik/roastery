@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from roastery_spec.claims import claim
 from roastery_spec.contract import TABLES
+from roastery_spec.derivations import C01_YEAR, DATED_LINES, LATEST_STOCK
 
 TINY = [t for t in TABLES if t.lives_in]
 
@@ -71,13 +72,11 @@ def test_every_tiny_row_of_a_landing_table_is_in_its_extract(month, tiny, table)
 DERIVATIONS = {
     'dated_lines': (
         'month',
-        """SELECT l.line_id, l.product_id, o.order_date, l.qty, l.unit_price
-        FROM order_lines l JOIN orders o USING (order_id)""",
+        DATED_LINES,
     ),
     'latest_stock': (
         'month',
-        """SELECT product_id, stock_date, on_hand FROM (SELECT * FROM stock_daily QUALIFY
-        row_number() OVER (PARTITION BY product_id, stock_date ORDER BY counted_at DESC) = 1)""",
+        LATEST_STOCK,
     ),
     # C-01's months: whether S-1 ran on the first, and, in the month the tiny orders cover,
     # the orders and the line spend (the earlier months' orders are not in tiny's tables)
@@ -120,28 +119,6 @@ def test_every_tiny_row_of_a_derived_table_follows_from_its_extract(request, tin
 # C-01's year from the orders and lines of full: every month, all five columns. The baseline
 # holds only October's orders, so this waits for the simulator's full, which alone writes
 # lesson_ids; the October check above runs now.
-C01_YEAR = """
-    WITH months AS (
-        SELECT unnest(generate_series(DATE '2025-11-01', DATE '2026-10-01',
-            INTERVAL 1 MONTH))::DATE AS month
-    ),
-    bought AS (
-        SELECT date_trunc('month', o.order_date)::DATE AS month,
-            count(DISTINCT o.order_id) AS orders, sum(l.qty * l.unit_price) AS spend
-        FROM orders o LEFT JOIN order_lines l USING (order_id)
-        WHERE o.customer_id = 'C-01'
-        GROUP BY ALL
-    )
-    SELECT 'C-01' AS customer_id, m.month,
-        coalesce(b.orders, 0)::INTEGER AS orders,
-        coalesce(b.spend, 0)::DECIMAL(7, 2) AS spend_nok,
-        EXISTS (SELECT 1 FROM subscriptions s WHERE s.customer_id = 'C-01'
-            AND s.started <= m.month AND (s.ended IS NULL OR m.month < s.ended)) AS subscribed
-    FROM months m LEFT JOIN bought b USING (month)
-    ORDER BY m.month
-"""
-
-
 @claim('full', ['orders', 'order_lines', 'subscriptions', 'lesson_ids'])
 def test_customer_months_is_c_01s_year_recomputed_from_full(tiny, full):
     """All twelve months of tiny's customer_months follow from full's orders and lines."""

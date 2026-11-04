@@ -108,6 +108,16 @@ requires-dist = [{ name = "tzdata", specifier = ">=2026.6" }]
 name = "roastery-sim"
 version = "0.0.0"
 source = { editable = "packages/sim" }
+dependencies = [
+    { name = "roastery" },
+    { name = "roastery-spec" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "roastery", editable = "packages/shop" },
+    { name = "roastery-spec", editable = "packages/spec" },
+]
 
 [[package]]
 name = "roastery-spec"
