@@ -24,7 +24,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
 | 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
 | 6.3 app core and service layer | [x] [6.3-app.md](6.3-app.md); closed 2026-11-04 |
-| 6.4 the teaching week through the simulator (contract B frozen) | [ ] [6.4-week.md](6.4-week.md); U0 done |
+| 6.4 the teaching week through the simulator (contract B frozen) | [x] [6.4-week.md](6.4-week.md); closed 2026-11-05; the gate holds; the tag `shop 0.1.0` waits for the owner's word |
 | 6.5 the volume, `roastery-data 1.0` | [ ] |
 | 6.6 data-docs reads the release | [ ] |
 
@@ -57,6 +57,8 @@ Notes:
 - 2026-11-04 (6.3): the step's plan is [6.3-app.md](6.3-app.md), decisions A1 to A26. The owner settled that pricing rules do not stack: one rule per line, the larger percent wins, and the subscriber rule prices beans lines of a running subscription (A14); 6.5 keeps subscriber-rule periods off the cast's list-price orders (D4).
 
 - 2026-11-04 (6.3): the shop app is built (`packages/shop`, 37 modules; the four api modules wait, C14) and tested on both stores; decisions A1 to A42 in [6.3-app.md](6.3-app.md). What 6.4 must know: a credit order's VAT follows its sale, an amendment to C10 for credit orders only (A40); a subscription move is dated in the customer's zone and the command carries its `day`, replacing A30's UTC day (A41); the app db has app-only columns the export writer must project around (`payments.status`, `subscription_events.day`, `orders.credit_of`, `vat_amount`; `product_costs` keeps one `currency`, `subscription_shipments` keys on `bag_id`: A33); the contract B snapshot also pins the services' and fakes' constructors as built, which 6.4 confirms before the tag (A39, §5); and 6.3-app.md §4: the refund currency on a sale paid in another currency, the column projections, `FakeFeed`'s rule, the batch size. The independent review found 14 defects, one a blocker (A40), all fixed (A40 to A42).
+
+- 2026-11-05 (6.4): the simulator plays the teaching week and C-01's year through contract B, and the gate holds: `python -m roastery_sim tiny` gives a tiny equal to `dataset.sql` cell for cell in all 30 tables, on both stores, and the spec's ported claims pass on it (449, with 46 awaiting 1.0's tables); CI runs both, and tiny's sha256 is committed. Decisions W1 to W41 in [6.4-week.md](6.4-week.md). Contract B changed three times, each a row and a snapshot commit: `Jobs.app_tables()` and `Rows`, every app-database table of contract A with `source` last (W2); `Url`, `Secret`, `Positive` (W38); the fields of its value types and the members of its literals (W41). The constructors stay as built (A39, W25). What 6.5 inherits: `month` and `full` are written from `Rows` straight to parquet and played on sqlite (W37, C32); a credit is refunded only from a sale paid in the lines' currency, so order 300 is a Norwegian consumer's NOK sale (W16); weather, the door counter, the old till's totals, `budget` and `web_visits` are 6.5's writers (W17, the owner); the bag job and the pre-week stock that follows from it (W9); the landing csv's quoting and its reader's NULL rule (W39); a malformed amount is refused at the call (W34). The plan's §4.2 named O-106 among the plants; the app's own cancel makes it (W19). Two independent reviews found 20 points between them, none in a tiny cell; all are fixed or rows. Not pushed: the 6.3 and 6.4 commits wait for the owner.
 
 ---
 
@@ -185,7 +187,7 @@ Whatever is scripted is exact by construction.
 - The scripted rows carry their hand-written ids.
 - C-01's year (November 2025 to September 2026) is scripted at the old prices.
 - The till rings only R-5001 on 6 October.
-- The export writer drops the events of O-103, O-105 and O-107, sends the 7 October stock twice, and plants L-04/L-05, L-07, L-09 and O-106. All are listed in the defect log.
+- The export writer drops the events of O-103, O-105 and O-107, sends the 7 October stock twice, and plants L-04/L-05, L-07 and L-09. All are listed in the defect log. (O-106 needs no plant: its cancel takes L-10 out of `order_lines`, 6.4 W19.)
 
 ### 4.3 New tables (the signals the later ideas need; adding one after 1.0 is a new version)
 
