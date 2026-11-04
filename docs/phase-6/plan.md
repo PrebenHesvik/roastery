@@ -22,7 +22,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 |---|---|
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
 | 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
-| 6.2 contract C: architecture | [ ] [6.2-architecture.md](6.2-architecture.md) |
+| 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
 | 6.3 app core and service layer | [ ] |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
 | 6.5 the volume, `roastery-data 1.0` | [ ] |
@@ -51,6 +51,8 @@ Notes:
   day's closing balance and 7 October's 26 is the planted fault (S19). §4.3 is updated.
 
 - 2026-11-04 (6.2): the Statistics session reports that data-docs v0.12.1 (`bd68d8f`) already words `visits` as the newsletter and ad visits and `order_values` as a sample of the year's orders on the Statistics pages; 6.6's sweep for those two (6.1 Notes) still covers the other routes.
+
+- 2026-11-04 (6.2): contract C is `docs/architecture.md` with ADRs 0001-0015; decisions C1 to C39 in 6.2-architecture.md change this plan: ids come through an `Ids` port, not from the caller (C7, §2); web tracking is an outside system and the app has no `log_event` (C11, §2); `tzdata` is the shop's one runtime dependency (C19); the API modules have their layer now and are built before phase 7 (C14); `month` and `full` run on sqlite (C32); the stock count runs after the day and stamps the close (C23, C34, S19). Contract B (§5 of architecture.md) is the candidate 6.3 builds and 6.4 freezes.
 
 ---
 
