@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (now [6.2-architecture.md](6.2-architecture.md)), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row (now [6.3-app.md](6.3-app.md)), and work from its first unticked unit.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
@@ -23,7 +23,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.0 set up | [x] `e912b0e`; public repo and first green CI 2026-11-03 |
 | 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
 | 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
-| 6.3 app core and service layer | [ ] |
+| 6.3 app core and service layer | [ ] [6.3-app.md](6.3-app.md); planned 2026-11-04 |
 | 6.4 the teaching week through the simulator (contract B frozen) | [ ] |
 | 6.5 the volume, `roastery-data 1.0` | [ ] |
 | 6.6 data-docs reads the release | [ ] |
@@ -53,6 +53,8 @@ Notes:
 - 2026-11-04 (6.2): the Statistics session reports that data-docs v0.12.1 (`bd68d8f`) already words `visits` as the newsletter and ad visits and `order_values` as a sample of the year's orders on the Statistics pages; 6.6's sweep for those two (6.1 Notes) still covers the other routes.
 
 - 2026-11-04 (6.2): contract C is `docs/architecture.md` with ADRs 0001-0015; decisions C1 to C39 in 6.2-architecture.md change this plan: ids come through an `Ids` port, not from the caller (C7, §2); web tracking is an outside system and the app has no `log_event` (C11, §2); `tzdata` is the shop's one runtime dependency (C19); the API modules have their layer now and are built before phase 7 (C14); `month` and `full` run on sqlite (C32); the stock count runs after the day and stamps the close (C23, C34, S19). Contract B (§5 of architecture.md) is the candidate 6.3 builds and 6.4 freezes.
+
+- 2026-11-04 (6.3): the step's plan is [6.3-app.md](6.3-app.md), decisions A1 to A26. The owner settled that pricing rules do not stack: one rule per line, the larger percent wins, and the subscriber rule prices beans lines of a running subscription (A14); 6.5 keeps subscriber-rule periods off the cast's list-price orders (D4).
 
 ---
 
