@@ -88,8 +88,8 @@ after a correct app, and listed in a defect log.
 
 - **D4**: the answers stay the same. The existing tests pass unchanged on the simulator's
   output.
-- **D7**: customers get a `kind`, consumer or business. The large `order_values` orders
-  are business.
+- **D7**: customers get an `account_kind`, consumer or business (named so by S17, so it
+  cannot meet `products.kind` in a join). The large `order_values` orders are business.
 - **D8**: `subscribers` holds the subscriptions of everyone outside the week's cast.
 - **D11**: subscription bags ship in their own table, not as orders.
 - **D12**: the old till left day totals only; the new till starts on 6 October 2026.
@@ -129,9 +129,9 @@ The four tables every page uses, and the lines with their order's day.
 | country | VARCHAR |
 | postal_code | VARCHAR |
 | joined | DATE |
-| kind | VARCHAR, month and full only (1.0) |
+| account_kind | VARCHAR, month and full only (1.0) |
 
-**What it is.** The shop's customers as the app holds them at the end of the teaching week. C-07 was erased on 9 October, so no row names them. From 1.0, month and full add `kind`: consumer or business (D7).
+**What it is.** The shop's customers as the app holds them at the end of the teaching week. C-07 was erased on 9 October, so no row names them; no customer with an order between 1 October 2024 and 30 September 2026 is erased (S15). From 1.0, month and full add `account_kind`: consumer or business (D7, S17).
 
 **Lessons**
 
@@ -185,7 +185,7 @@ The four tables every page uses, and the lines with their order's day.
 | order_date | DATE |
 | channel | VARCHAR |
 
-**What it is.** Every order placed in the app, on the web or at the counter (channel `shop`), dated on the customer's own clock.
+**What it is.** Every order placed in the app, on the web or at the counter (channel `shop`), dated on the customer's own clock. A return is a credit order at the counter, with a negative line for the product returned (S14).
 
 **Lessons**
 
@@ -322,7 +322,7 @@ The files, the web, the till and the rest of the teaching week. Each row has a j
 | amount | DECIMAL(9,2) |
 | paid_on | DATE |
 
-**What it is.** Every message the payment provider sent, in the currency the customer paid. The provider redelivered PAY-1; O-107 was never paid.
+**What it is.** Every message the payment provider sent, in the currency the customer paid. The provider redelivered PAY-1; O-107 was never paid. A refund is a negative payment (S14); an order on invoice is paid when its invoice is (S13).
 
 **Lessons**
 
@@ -349,7 +349,7 @@ The files, the web, the till and the rest of the teaching week. Each row has a j
 | event_at | TIMESTAMP |
 | loaded_at | TIMESTAMP |
 
-**What it is.** The app's status changes (placed, paid, shipped, delivered, cancelled), sent through its outbox. The export writer drops the events of O-103, O-105 and O-107.
+**What it is.** The app's status changes (placed, paid or invoiced, shipped, delivered, cancelled), sent through its outbox. An invoiced order ships before it is paid (S13). The export writer drops the events of O-103, O-105 and O-107.
 
 **Lessons**
 
@@ -376,7 +376,7 @@ The files, the web, the till and the rest of the teaching week. Each row has a j
 | on_hand | INTEGER |
 | counted_at | TIMESTAMP |
 
-**What it is.** The shop's stock count at close of each working day, from the app's stock service (S10), sent a whole day at a time. The export writer sends 7 October twice: the count at close, and a recount next morning.
+**What it is.** The shop's stock at close of each working day, from the app's stock service (S10), sent a whole day at a time. on_hand is the day's closing balance, counting every sale of that day; counted_at stamps the count job, not the last sale: O-108 at 19:30 UTC is in 9 October's 59, counted at 16:00 UTC (S19). The export writer sends 7 October twice: the 26 is its fault (in the defect log), the recount of 36 is the true count.
 
 **Lessons**
 
@@ -557,8 +557,9 @@ The files, the web, the till and the rest of the teaching week. Each row has a j
 | customer_id | VARCHAR |
 | event | VARCHAR |
 | event_at | TIMESTAMP |
+| visit_id | INTEGER, month and full only (1.0) |
 
-**What it is.** What visitors did on the web shop: a view, a cart, a checkout. A checkout is followed within two minutes by a placed event.
+**What it is.** What visitors did on the web shop: a view of the product page, a cart, a checkout. A checkout is followed within two minutes by a placed event. From 1.0, month and full add `visit_id`: the web_visits row the event belongs to (S18).
 
 **Lessons**
 
@@ -585,7 +586,7 @@ The files, the web, the till and the rest of the teaching week. Each row has a j
 | started | DATE |
 | ended | DATE |
 
-**What it is.** The cast's subscriptions: one bag a month, from a first day to the day it stopped (null while it runs). Everyone else's are subscribers (D8).
+**What it is.** Subscriptions: one bag a month, from a first day to the day it stopped (null while it runs). Tiny holds the cast's, full every customer's; subscribers is everyone's but the cast's (D8).
 
 **Lessons**
 
@@ -932,7 +933,7 @@ live in `full` only, and the pages show their totals, never their rows.
 | amount | DECIMAL(7,2) |
 | status | VARCHAR |
 
-**What it is.** A lesson set: 600 scripted orders of 2026, consumer and business, played inside the wider trade. The large orders (10 bags, the café's 48) are business (D7).
+**What it is.** A lesson set: 600 scripted orders of 2026, consumer and business, played inside the wider trade. The large orders (10 bags, the café's 48) are business (D7). amount is the sum of the order's lines. status is paid (a payment by 30 September 2026), unpaid (an invoice still open that day: the order went on invoice, S13) or refund (order 300, a return: a credit order at the counter with a negative line and a negative payment, S14).
 
 **Lessons**
 
@@ -956,12 +957,13 @@ live in `full` only, and the pages show their totals, never their rows.
 | kind | VARCHAR |
 | budget_nok | INTEGER |
 
-**What it is.** What the owner planned to sell, per month and kind, in whole kroner. Hand-set like prices; never simulated.
+**What it is.** The owner's target for the web shop's consumer sales, per month and kind, in whole kroner: the same scope as daily_sales (D15, S16). Hand-set like prices; never simulated.
 
 **Lessons**
 
 - `dax/relationships`: Budget by month and kind; actuals by day and product.
 - `dax/patterns`: Actual against budget: some months beat it, some miss.
+- `dax/patterns`: Like with like: the budget and daily_sales are both web consumer sales (S16).
 
 ### `checkout_test`
 
@@ -980,7 +982,7 @@ live in `full` only, and the pages show their totals, never their rows.
 | variant | VARCHAR |
 | converted | BOOLEAN |
 
-**What it is.** Every visitor of the product page during a scripted A/B test. `variant` sits on the web event; converted means reached the checkout, not an order placed.
+**What it is.** Every visitor of the product page during a scripted 40-day A/B test: the web_visits with a variant. `variant` sits on the visit (S18); test_day counts from the test's first day, at the visitor's first visit in it; converted means one of the visitor's test visits reached the checkout, not an order placed.
 
 **Lessons**
 
@@ -1030,7 +1032,7 @@ live in `full` only, and the pages show their totals, never their rows.
 | source | VARCHAR |
 | reached | INTEGER |
 
-**What it is.** The attributed panel: visits with a source (newsletter, ads). Direct traffic has no source and is outside it.
+**What it is.** The attributed panel: the web_visits with a referrer (newsletter, ads), which this table calls source. Direct traffic has no referrer and is outside it. reached is the furthest step of the visit's events: 1 a view, 2 a cart, 3 a checkout, 4 an order the visit's customer placed within two minutes of its checkout (S18).
 
 **Lessons**
 
@@ -1090,10 +1092,12 @@ live in `full` only, and the pages show their totals, never their rows.
 
 ## New in 1.0 (editable until roastery-data 1.0)
 
-The signals later lessons need. None is in `tiny`. Two more changes come with them:
+The signals later lessons need. None is in `tiny`. Three more changes come with them:
 
-- `customers` gets the column `kind` (consumer or business) in `month` and `full`; it is
-  shown in the `customers` block above.
+- `customers` gets the column `account_kind` (consumer or business) in `month` and `full`;
+  it is shown in the `customers` block above (D7, S17).
+- `web_events` gets the column `visit_id` in `month` and `full`: the `web_visits` row each
+  event belongs to (S18). It is shown in the `web_events` block above.
 - a scripted drop: in one week, Finland's orders fall to below half the mean of the four
   weeks around it. No table names it: an alert must find it in the orders. Its day and
   size are in the release's answer key (`scripted_events`, beside the defect log) (S11).
@@ -1333,6 +1337,34 @@ The signals later lessons need. None is in `tiny`. Two more changes come with th
 **Lessons**
 
 - `stats/correlation`: The receipts in shop_days come from here.
+
+### `web_visits`
+
+- **grain:** One row per visit to the web shop: a visitor's events, until more than 30 minutes pass without one, with where the visit came from and its test variant.
+- **key:** `visit_id`
+- **system:** web tracking
+- **tiny:** none
+- **lives in:** not in tiny
+- **extracts:** month, full
+- **since:** 1.0
+
+| column | type |
+|---|---|
+| visit_id | INTEGER |
+| visitor_id | VARCHAR |
+| visit_date | DATE |
+| country | VARCHAR |
+| referrer | VARCHAR |
+| variant | VARCHAR |
+
+**What it is.** Every visit, direct traffic included. visit_date is the day of its first event (UTC). referrer is newsletter or ads, null for a direct visit; it is not called source, which D13 keeps for a row's provenance. variant is A or B for a product page visit during the 40-day test, null outside it. web_events.visit_id names the visit of each event; visits and checkout_test are derived from it (S18).
+
+**Lessons**
+
+- `sql/lag-and-lead`: A visit is the 30-minute gap rule, written down by the tracker.
+- `stats/funnels`: visits' furthest step comes from the visit's events.
+- `stats/simpsons-paradox`: The referrer splits the panel into its sources.
+- `stats/ab-tests`: The variant sits on the visit; direct and test visits alike.
 
 ### `lesson_ids`
 

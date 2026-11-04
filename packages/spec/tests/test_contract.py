@@ -81,10 +81,21 @@ def test_a_table_has_a_cut_and_a_home_exactly_when_tiny_holds_it(table):
         )
 
 
-def test_only_customers_adds_a_column_and_only_in_month_and_full():
+def test_only_customers_and_web_events_add_a_column_and_only_in_month_and_full():
     added = {t.name: [c.name for c in t.added] for t in TABLES if t.added}
-    assert added == {'customers': ['kind']}
-    assert set(contract.by_name()['customers'].extracts) >= {'month', 'full'}
+    # account_kind, not kind: it must not meet products.kind or kinds in a USING (kind) (S17)
+    assert added == {'customers': ['account_kind'], 'web_events': ['visit_id']}
+    for name in added:
+        assert set(contract.by_name()[name].extracts) >= {'month', 'full'}
+
+
+def test_web_visits_names_its_referrer_so_it_cannot_meet_the_provenance_source():
+    columns = [c.name for c in contract.by_name()['web_visits'].columns]
+    assert 'referrer' in columns
+    assert 'source' not in columns
+    events = {c.name: c.type for c in contract.by_name()['web_events'].added}
+    visits = {c.name: c.type for c in contract.by_name()['web_visits'].columns}
+    assert events['visit_id'] == visits['visit_id']
 
 
 def test_daily_sales_carries_the_lesson_that_walk_ins_do_not_cause_it():

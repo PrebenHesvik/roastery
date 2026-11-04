@@ -2,7 +2,9 @@
 
 A claim whose tables are not in its extract's data folder is not skipped: the plugin in
 `tests/conftest_claims.py` deselects it and lists it under "awaiting data". A need is a table
-name (`shipments`) or a table and a column (`customers.kind`), for the columns 1.0 adds.
+name (`shipments`) or a table and a column (`customers.account_kind`), for the columns 1.0
+adds. Data may await only on the baseline: a real extract owes every table and column the
+contract gives it (`owed`), and a run on it fails where one is missing.
 """
 
 from __future__ import annotations
@@ -96,4 +98,29 @@ def awaiting(needs: Iterable[str], folder: Path | None) -> tuple[str, ...]:
                 columns[table] = _parquet_columns(folder, table) if folder else set()
             if column not in columns[table]:
                 missing.append(need)
+    return tuple(sorted(missing))
+
+
+def owed(folder: Path) -> tuple[str, ...]:
+    """The tables and added columns a real extract's folder lacks, sorted; none for the baseline.
+
+    The manifest's `extract` names the extract. It owes every contract table whose `extracts`
+    include it, whatever its `since`; month and full owe each such table's `added` columns too,
+    read from the parquet file (DESCRIBE). The baseline owes nothing: it is today's data, and
+    its claims on 1.0 tables and columns await data.
+    """
+    manifest = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
+    extract = manifest['extract']
+    if extract == 'baseline':
+        return ()
+    listed = set(manifest['tables'])
+    missing = []
+    for table in TABLES:
+        if extract not in table.extracts:
+            continue
+        if table.name not in listed:
+            missing.append(table.name)
+        elif extract != 'tiny' and table.added:
+            columns = _parquet_columns(folder, table.name)
+            missing += [f'{table.name}.{c.name}' for c in table.added if c.name not in columns]
     return tuple(sorted(missing))

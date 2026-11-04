@@ -1,13 +1,21 @@
 """The claims of the tables roastery-data 1.0 adds (6.1 section 5), and the definition claims.
 
-No data folder holds these tables yet, so every claim here is deselected and listed under
-"awaiting data"; they run first in step 6.5, on the simulator's `full`. A definition claim
+No data folder holds these tables yet, so a claim that needs one is deselected and listed
+under "awaiting data"; they run first in step 6.5, on the simulator's `full`. A definition claim
 recomputes a tier 3 table from the world's tables, cell for cell (D15).
+
+The claims on the teaching week inside the volume (plan 4.2) and on the erased customers (S15)
+need only baseline tables: they run now, where they hold trivially, and bite on month and full.
+The export writer's faults, the defect log and `scripted_events` (S11) are tested in 6.4's
+simulator tests, not here.
 
 The teaching week is 5 to 9 October 2026 (plan section 4.2). The cast is C-01 to C-07.
 """
 
 from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
 
 from roastery_spec.claims import claim
 
@@ -15,6 +23,9 @@ CAST = ('C-01', 'C-02', 'C-03', 'C-04', 'C-05', 'C-06', 'C-07')
 CAST_SQL = ', '.join(f"'{c}'" for c in CAST)
 WEEK = "DATE '2026-10-05'"
 COUNTED_ON = "DATE '2026-09-30'"
+WEEK_END = "DATE '2026-10-09'"
+WINDOW = "DATE '2024-10-01' AND DATE '2026-09-30'"
+LESSON_ORDER = "JOIN lesson_ids l ON l.lesson_set = 'order_values' AND l.row_no = v.order_no"
 
 
 def rows(con, sql: str) -> list[tuple]:
@@ -214,6 +225,21 @@ def test_stock_movements_balance_is_never_negative(full):
     assert rows(full, sql) == []
 
 
+@claim('full', ['stock_movements'])
+def test_stock_movements_count_nothing_for_p10_p20_from_5_to_9_october(full):
+    """No `counted` movement for P-10 or P-20 in the teaching week (S19).
+
+    Each day's on_hand is the closing balance of the movements; the 26 sent on 7 October is the
+    export writer's fault, and no count moved the stock to 36.
+    """
+    sql = f"""
+        SELECT movement_id FROM stock_movements
+        WHERE reason = 'counted' AND product_id IN ('P-10', 'P-20')
+          AND moved_at::DATE BETWEEN {WEEK} AND {WEEK_END}
+    """
+    assert rows(full, sql) == []
+
+
 # green_purchases
 
 
@@ -267,6 +293,11 @@ def test_product_costs_below_list_price_in_every_prices_period(full):
             AND (p.valid_to IS NULL OR c.valid_from < p.valid_to)
         WHERE c.green_nok + c.packaging_nok + c.roasting_nok >= p.price
     """
+    nulls = """
+        SELECT product_id, valid_from FROM product_costs
+        WHERE green_nok IS NULL OR packaging_nok IS NULL OR roasting_nok IS NULL
+    """
+    assert rows(full, nulls) == []
     assert rows(full, sql) == []
     priced = (
         'SELECT count(*) FROM prices WHERE product_id IN (SELECT product_id FROM product_costs)'
@@ -359,23 +390,30 @@ def test_pricing_rules_at_most_one_subscriber_rule_on_any_day(full):
     assert rows(full, sql) == []
 
 
-# customers.kind
+# customers.account_kind (D7, S17)
 
 
-@claim('full', ['customers.kind'])
-def test_customers_kind_is_consumer_or_business(full):
-    found = {r[0] for r in rows(full, 'SELECT DISTINCT kind FROM customers')}
+@claim('full', ['customers.account_kind'])
+def test_customers_account_kind_is_consumer_or_business(full):
+    found = {r[0] for r in rows(full, 'SELECT DISTINCT account_kind FROM customers')}
     assert found == {'consumer', 'business'}
 
 
 @claim(
     'full',
-    ['customers.kind', 'order_values', 'lesson_ids', 'orders', 'order_lines', 'products'],
+    [
+        'customers.account_kind',
+        'order_values',
+        'lesson_ids',
+        'orders',
+        'order_lines',
+        'products',
+    ],
 )
-def test_customers_kind_large_order_values_orders_are_business(full):
+def test_customers_account_kind_large_order_values_orders_are_business(full):
     """The 10-bag orders and the café's 48 (order 600) are business (D7); bags are beans."""
     sql = """
-        SELECT v.order_no, sum(li.qty) AS bags, any_value(c.kind) AS kind
+        SELECT v.order_no, sum(li.qty) AS bags, any_value(c.account_kind) AS kind
         FROM order_values v
         JOIN lesson_ids l ON l.lesson_set = 'order_values' AND l.row_no = v.order_no
         JOIN orders o ON o.order_id = l.shop_id
@@ -494,21 +532,124 @@ def test_lesson_ids_order_values_match_their_orders(full):
     assert rows(full, sql) == []
 
 
+# order_values: the amount, the status (S13) and order 300 (S14), through lesson_ids
+
+
+@claim('full', ['order_values', 'lesson_ids', 'order_lines'])
+def test_order_values_amount_is_the_sum_of_the_orders_lines(full):
+    sql = f"""
+        SELECT v.order_no, v.amount, sum(li.qty * li.unit_price) FROM order_values v
+        {LESSON_ORDER}
+        LEFT JOIN order_lines li ON li.order_id = l.shop_id
+        GROUP BY v.order_no, v.amount
+        HAVING sum(li.qty * li.unit_price) IS DISTINCT FROM v.amount
+        ORDER BY v.order_no LIMIT 10
+    """
+    assert rows(full, sql) == []
+    assert one(full, f'SELECT count(*) FROM order_values v {LESSON_ORDER}') == 600
+
+
+@claim('full', ['order_values', 'lesson_ids', 'payments', 'order_events'])
+def test_order_values_status_follows_from_payments_and_invoices(full):
+    """refund: a negative payment; paid: a payment by 30 September 2026; unpaid: an invoice
+    still open that day, an `invoiced` event and no payment by then (S13, S14).
+
+    Payments are in the customer's currency, so only their sign and day are read, never their
+    amount against `amount`; a redelivered message changes nothing (EXISTS, not a sum).
+    """
+    sql = f"""
+        WITH derived AS (
+            SELECT v.order_no, v.status, CASE
+                WHEN EXISTS (SELECT 1 FROM payments p
+                    WHERE p.order_id = l.shop_id AND p.amount < 0) THEN 'refund'
+                WHEN EXISTS (SELECT 1 FROM payments p
+                    WHERE p.order_id = l.shop_id AND p.paid_on <= {COUNTED_ON}) THEN 'paid'
+                WHEN EXISTS (SELECT 1 FROM order_events e
+                    WHERE e.order_id = l.shop_id AND e.status = 'invoiced'
+                      AND e.event_at::DATE <= {COUNTED_ON}) THEN 'unpaid'
+            END AS found
+            FROM order_values v {LESSON_ORDER}
+        )
+        SELECT order_no, status, found FROM derived
+        WHERE found IS DISTINCT FROM status ORDER BY order_no LIMIT 10
+    """
+    assert rows(full, sql) == []
+    assert one(full, f'SELECT count(*) FROM order_values v {LESSON_ORDER}') == 600
+
+
+@claim('full', ['customers.account_kind', 'orders', 'order_events'])
+def test_orders_of_a_business_account_go_on_invoice(full):
+    """A business account always pays by invoice: each order is invoiced once, never paid (S13).
+
+    Before the teaching week, where the export writer drops no event; an order cancelled
+    before it was invoiced is left out.
+    """
+    sql = f"""
+        SELECT o.order_id FROM orders o
+        JOIN customers c USING (customer_id)
+        LEFT JOIN order_events e USING (order_id)
+        WHERE c.account_kind = 'business' AND o.order_date < {WEEK}
+          AND NOT EXISTS (SELECT 1 FROM order_events x
+              WHERE x.order_id = o.order_id AND x.status = 'cancelled')
+        GROUP BY o.order_id
+        HAVING count(*) FILTER (WHERE e.status = 'invoiced') <> 1
+            OR count(*) FILTER (WHERE e.status = 'paid') > 0
+        ORDER BY o.order_id LIMIT 10
+    """
+    business = f"""
+        SELECT count(*) FROM orders JOIN customers USING (customer_id)
+        WHERE account_kind = 'business' AND order_date < {WEEK}
+    """
+    assert rows(full, sql) == []
+    assert one(full, business) > 0
+
+
+@claim('full', ['order_values', 'lesson_ids', 'orders', 'order_lines', 'payments'])
+def test_order_values_300_is_a_return_at_the_counter(full):
+    """Order 300's refund is a credit order: at the counter, one negative line for the product
+    returned and a negative payment, after a sale of that product to the same customer (the
+    original sale it is linked to) (S14).
+    """
+    order = one(
+        full, "SELECT shop_id FROM lesson_ids WHERE lesson_set = 'order_values' AND row_no = 300"
+    )
+    held = f"SELECT channel, order_date FROM orders WHERE order_id = '{order}'"
+    assert rows(full, held) == [('shop', date(2026, 5, 18))]
+    lines = rows(
+        full, f"SELECT product_id, qty, unit_price FROM order_lines WHERE order_id = '{order}'"
+    )
+    assert len(lines) == 1
+    product, qty, price = lines[0]
+    assert qty < 0
+    assert qty * price == Decimal('-899.00')
+    paid = f"SELECT DISTINCT currency, amount FROM payments WHERE order_id = '{order}'"
+    assert rows(full, paid) == [('NOK', Decimal('-899.00'))]
+    original = f"""
+        SELECT count(*) FROM orders o
+        JOIN order_lines li USING (order_id)
+        WHERE o.customer_id = (SELECT customer_id FROM orders WHERE order_id = '{order}')
+          AND o.order_id <> '{order}' AND o.order_date <= DATE '2026-05-18'
+          AND li.product_id = '{product}' AND li.qty > 0
+    """
+    assert one(full, original) > 0
+
+
 # Finland's drop (S11): no table names it; the claim finds it in the orders.
 
 
-@claim('full', ['orders', 'customers.kind'])
+@claim('full', ['orders', 'customers.account_kind'])
 def test_orders_finland_drops_below_half_in_one_week(full):
     """A week of Finland's consumer orders below half the mean of the four weeks around it.
 
     Consumer orders only: a business account's bulk order would blur a weekly count (D7).
     The weeks are ISO weeks; the four around a week are the two before and the two after.
+    Their mean is at least 10 orders, so a sparse week of none cannot pass for the drop.
     """
     sql = """
         WITH weeks AS (
             SELECT date_trunc('week', o.order_date) AS week, count(*) AS n
             FROM orders o JOIN customers c USING (customer_id)
-            WHERE c.country = 'FI' AND c.kind = 'consumer'
+            WHERE c.country = 'FI' AND c.account_kind = 'consumer'
             GROUP BY ALL
         ),
         span AS (
@@ -525,7 +666,7 @@ def test_orders_finland_drops_below_half_in_one_week(full):
                     / 4 AS mean
             FROM filled WINDOW w AS (ORDER BY week)
         )
-        SELECT week, n, mean FROM around WHERE mean > 0 AND n < mean / 2 ORDER BY week
+        SELECT week, n, mean FROM around WHERE mean >= 10 AND n < mean / 2 ORDER BY week
     """
     assert rows(full, sql) != []
     named = """
@@ -538,7 +679,7 @@ def test_orders_finland_drops_below_half_in_one_week(full):
 # Definition claims: a tier 3 table recomputed from the world (6.1 section 5, D15).
 
 
-@claim('full', ['daily_sales', 'orders', 'order_lines', 'customers.kind', 'prices'])
+@claim('full', ['daily_sales', 'orders', 'order_lines', 'customers.account_kind', 'prices'])
 def test_daily_sales_equals_the_web_consumer_lines_at_list_price(full):
     """Per day and product with a price: the web consumer lines' bags, at list price (D7, D15).
 
@@ -559,7 +700,7 @@ def test_daily_sales_equals_the_web_consumer_lines_at_list_price(full):
             FROM orders o
             JOIN customers c USING (customer_id)
             JOIN order_lines li USING (order_id)
-            WHERE o.channel = 'web' AND c.kind = 'consumer'
+            WHERE o.channel = 'web' AND c.account_kind = 'consumer'
             GROUP BY ALL
         )
         SELECT p.sale_date, p.product_id, coalesce(s.qty, 0)::INTEGER,
@@ -570,7 +711,7 @@ def test_daily_sales_equals_the_web_consumer_lines_at_list_price(full):
         SELECT o.order_date, li.product_id FROM orders o
         JOIN customers c USING (customer_id)
         JOIN order_lines li USING (order_id)
-        WHERE o.channel = 'web' AND c.kind = 'consumer'
+        WHERE o.channel = 'web' AND c.account_kind = 'consumer'
           AND o.order_date BETWEEN DATE '2024-10-01' AND DATE '2026-09-30'
           AND NOT EXISTS (
             SELECT 1 FROM prices p WHERE p.product_id = li.product_id
@@ -600,4 +741,192 @@ def test_subscribers_are_the_subscriptions_outside_the_cast(full):
         JOIN lesson_ids l ON l.lesson_set = 'subscribers' AND l.row_no = s.subscription_id
     """
     assert one(full, 'SELECT count(*) FROM subscribers') == 240
+    assert same_rows(full, table, world) == ([], [])
+
+
+# The teaching week inside the volume (plan 4.2), on month and on full: from 5 to 9 October
+# no customer outside the cast buys P-10 or P-20, the till sells neither, and the till rings
+# only R-5001, on 6 October, before it goes live on 7 October.
+
+OUTSIDE_CAST_BUYS = f"""
+    SELECT li.line_id FROM order_lines li JOIN orders o USING (order_id)
+    WHERE (o.customer_id IS NULL OR o.customer_id NOT IN ({CAST_SQL}))
+      AND li.product_id IN ('P-10', 'P-20')
+      AND o.order_date BETWEEN {WEEK} AND {WEEK_END}
+    ORDER BY 1 LIMIT 10
+"""
+
+TILL_SELLS = f"""
+    SELECT t.receipt_id, t.line_no FROM till_lines t
+    JOIN till_receipts h USING (receipt_id)
+    JOIN product_codes p USING (ean)
+    WHERE p.product_id IN ('P-10', 'P-20')
+      AND h.sold_at::DATE BETWEEN {WEEK} AND {WEEK_END}
+    ORDER BY ALL
+"""
+
+TILL_BEFORE_LIVE = """
+    SELECT receipt_id, sold_at::DATE FROM till_receipts
+    WHERE sold_at < TIMESTAMP '2026-10-07 00:00' ORDER BY ALL
+"""
+R_5001 = [('R-5001', date(2026, 10, 6))]
+
+
+@claim('month', ['orders', 'order_lines'])
+def test_week_no_customer_outside_the_cast_buys_p10_or_p20_in_month(month):
+    assert rows(month, OUTSIDE_CAST_BUYS) == []
+
+
+@claim('full', ['orders', 'order_lines'])
+def test_week_no_customer_outside_the_cast_buys_p10_or_p20_in_full(full):
+    assert rows(full, OUTSIDE_CAST_BUYS) == []
+
+
+@claim('month', ['till_lines', 'till_receipts', 'product_codes'])
+def test_week_the_till_sells_no_p10_or_p20_in_month(month):
+    assert rows(month, TILL_SELLS) == []
+
+
+@claim('full', ['till_lines', 'till_receipts', 'product_codes'])
+def test_week_the_till_sells_no_p10_or_p20_in_full(full):
+    assert rows(full, TILL_SELLS) == []
+
+
+@claim('month', ['till_receipts'])
+def test_week_the_till_rings_only_r_5001_before_7_october_in_month(month):
+    assert rows(month, TILL_BEFORE_LIVE) == R_5001
+
+
+@claim('full', ['till_receipts'])
+def test_week_the_till_rings_only_r_5001_before_7_october_in_full(full):
+    assert rows(full, TILL_BEFORE_LIVE) == R_5001
+
+
+# The erased customers (S15)
+
+
+@claim('full', ['orders', 'customers', 'customer_changes'])
+def test_customers_none_with_an_order_in_the_volume_window_is_erased(full):
+    """Only C-07 is erased, on 9 October 2026; every order of the volume window keeps its
+    customer, so a join to the end-of-week customers loses none (S15).
+    """
+    erased = "SELECT customer_id, changed_at::DATE FROM customer_changes WHERE op = 'delete'"
+    assert rows(full, erased) == [('C-07', date(2026, 10, 9))]
+    orphans = f"""
+        SELECT o.order_id FROM orders o
+        LEFT JOIN customers c USING (customer_id)
+        WHERE o.order_date BETWEEN {WINDOW} AND c.customer_id IS NULL
+        ORDER BY 1 LIMIT 10
+    """
+    assert rows(full, orphans) == []
+
+
+# web_visits (S18): the visits of web_events, and the two tier 3 tables derived from them
+
+
+@claim('full', ['web_visits', 'web_events.visit_id'])
+def test_web_visits_hold_their_events_by_the_30_minute_rule(full):
+    """Every event names a visit of its visitor; a visit starts after more than 30 minutes
+    without an event (the rule of `sql/lag-and-lead`) and is dated by its first event.
+    """
+    orphans = """
+        SELECT e.event_id FROM web_events e LEFT JOIN web_visits v USING (visit_id)
+        WHERE v.visit_id IS NULL OR v.visitor_id <> e.visitor_id
+        ORDER BY 1 LIMIT 10
+    """
+    empty = """
+        SELECT v.visit_id FROM web_visits v
+        WHERE NOT EXISTS (SELECT 1 FROM web_events e WHERE e.visit_id = v.visit_id)
+        ORDER BY 1 LIMIT 10
+    """
+    gaps = """
+        WITH ordered AS (
+            SELECT event_id, visit_id, event_at,
+                lag(event_at) OVER w AS before_at, lag(visit_id) OVER w AS before_visit
+            FROM web_events WINDOW w AS (PARTITION BY visitor_id ORDER BY event_at, event_id)
+        )
+        SELECT event_id FROM ordered
+        WHERE before_at IS NOT NULL
+          AND (event_at - before_at > INTERVAL 30 MINUTE) <> (visit_id <> before_visit)
+        ORDER BY 1 LIMIT 10
+    """
+    dated = """
+        SELECT v.visit_id FROM web_visits v
+        JOIN (SELECT visit_id, min(event_at)::DATE AS first_day FROM web_events GROUP BY 1)
+            USING (visit_id)
+        WHERE first_day <> v.visit_date
+        ORDER BY 1 LIMIT 10
+    """
+    kinds = """
+        SELECT count(*) FROM web_visits
+        WHERE referrer NOT IN ('newsletter', 'ads') OR variant NOT IN ('A', 'B')
+    """
+    assert rows(full, orphans) == []
+    assert rows(full, empty) == []
+    assert rows(full, gaps) == []
+    assert rows(full, dated) == []
+    assert one(full, kinds) == 0
+
+
+@claim('full', ['visits', 'web_visits', 'web_events.visit_id', 'orders', 'order_events'])
+def test_visits_are_the_web_visits_with_a_referrer(full):
+    """visits = the web_visits of the window with a referrer, called source there (S18).
+
+    reached is the visit's furthest step: 1 a view, 2 a cart, 3 a checkout, and 4 when the
+    visit's customer placed an order within two minutes of the visit's checkout (the `placed`
+    event of order_events, as web_events' definition has it).
+    """
+    world = f"""
+        WITH steps AS (
+            SELECT visit_id, max(CASE event WHEN 'view' THEN 1 WHEN 'cart' THEN 2
+                WHEN 'checkout' THEN 3 END) AS step
+            FROM web_events GROUP BY visit_id
+        ),
+        ordered AS (
+            SELECT DISTINCT e.visit_id FROM web_events e
+            JOIN orders o ON o.customer_id = e.customer_id
+            JOIN order_events p ON p.order_id = o.order_id AND p.status = 'placed'
+            WHERE e.event = 'checkout'
+              AND p.event_at BETWEEN e.event_at AND e.event_at + INTERVAL 2 MINUTE
+        )
+        SELECT v.visit_id, v.visit_date, v.country, v.referrer,
+            (CASE WHEN d.visit_id IS NOT NULL THEN 4 ELSE s.step END)::INTEGER
+        FROM web_visits v
+        JOIN steps s USING (visit_id)
+        LEFT JOIN ordered d USING (visit_id)
+        WHERE v.referrer IS NOT NULL AND v.visit_date BETWEEN {WINDOW}
+    """
+    table = 'SELECT visit_id, visit_date, country, source, reached FROM visits'
+    assert same_rows(full, table, world) == ([], [])
+
+
+@claim('full', ['checkout_test', 'web_visits', 'web_events.visit_id'])
+def test_checkout_test_is_the_product_page_visitors_with_a_variant(full):
+    """checkout_test = one row per visitor with a variant visit, over the 40 test days (S18).
+
+    test_day counts from the test's first day to the visitor's first test visit; variant is the
+    visitor's one variant; converted is a checkout in one of their test visits. checkout_test's
+    visitor_no is a row number with no map, so the rows are compared without it.
+    """
+    test = """
+        SELECT v.visit_id, v.visitor_id, v.visit_date, v.variant,
+            EXISTS (SELECT 1 FROM web_events e
+                WHERE e.visit_id = v.visit_id AND e.event = 'checkout') AS checked_out,
+            EXISTS (SELECT 1 FROM web_events e
+                WHERE e.visit_id = v.visit_id AND e.event = 'view') AS viewed
+        FROM web_visits v WHERE v.variant IS NOT NULL
+    """
+    span = f'SELECT max(visit_date) - min(visit_date) + 1 FROM ({test})'
+    unviewed = f'SELECT count(*) FROM ({test}) WHERE NOT viewed'
+    two = f'SELECT visitor_id FROM ({test}) GROUP BY 1 HAVING count(DISTINCT variant) > 1'
+    world = f"""
+        WITH test AS ({test})
+        SELECT (min(visit_date) - (SELECT min(visit_date) FROM test) + 1)::INTEGER,
+            any_value(variant), bool_or(checked_out)
+        FROM test GROUP BY visitor_id
+    """
+    table = 'SELECT test_day, variant, converted FROM checkout_test'
+    assert one(full, span) == 40
+    assert one(full, unviewed) == 0
+    assert rows(full, two) == []
     assert same_rows(full, table, world) == ([], [])

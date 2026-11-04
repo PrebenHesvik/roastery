@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 
 import pytest
+from roastery_spec import baseline
+from roastery_spec.claims import owed
 from roastery_spec.contract import TABLES, by_name
 
 ROWS = {
@@ -106,6 +108,23 @@ def test_a_manifest_lists_the_contract_tables_of_its_extract(folders, extract):
         if t.since == 'baseline' and (manifest['extract'] == 'baseline' or extract in t.extracts)
     }
     assert {n for n in listed if by_name()[n].since == 'baseline'} == here
+    # only the baseline awaits data: a real extract holds every table and column it is owed
+    assert manifest['extract'] in ('baseline', extract)
+    assert owed(folders[extract]) == ()
+
+
+def test_a_real_extract_that_lacks_a_new_table_or_column_owes_it(tmp_path):
+    baseline.build(tmp_path)
+    path = tmp_path / 'manifest.json'
+    manifest = json.loads(path.read_text(encoding='utf-8'))
+    assert owed(tmp_path) == ()
+    path.write_text(json.dumps({**manifest, 'extract': 'full'}), encoding='utf-8')
+    new = {t.name for t in TABLES if t.since == '1.0' and 'full' in t.extracts}
+    assert 'web_visits' in new
+    assert set(owed(tmp_path)) == new | {'customers.account_kind', 'web_events.visit_id'}
+    # tiny owes no 1.0 table and no added column; the baseline holds all its tables
+    path.write_text(json.dumps({**manifest, 'extract': 'tiny'}), encoding='utf-8')
+    assert owed(tmp_path) == ()
 
 
 def test_every_table_holds_its_rows(tiny):

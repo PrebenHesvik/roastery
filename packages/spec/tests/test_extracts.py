@@ -7,6 +7,7 @@ extracts are one folder, so these are identity checks there; they bite on month 
 from __future__ import annotations
 
 import pytest
+from roastery_spec.claims import claim
 from roastery_spec.contract import TABLES
 
 TINY = [t for t in TABLES if t.lives_in]
@@ -114,3 +115,37 @@ def test_every_tiny_row_of_a_derived_table_follows_from_its_extract(request, tin
         )
         return
     assert _missing(tiny, other, table, query) == []
+
+
+# C-01's year from the orders and lines of full: every month, all five columns. The baseline
+# holds only October's orders, so this waits for the simulator's full, which alone writes
+# lesson_ids; the October check above runs now.
+C01_YEAR = """
+    WITH months AS (
+        SELECT unnest(generate_series(DATE '2025-11-01', DATE '2026-10-01',
+            INTERVAL 1 MONTH))::DATE AS month
+    ),
+    bought AS (
+        SELECT date_trunc('month', o.order_date)::DATE AS month,
+            count(DISTINCT o.order_id) AS orders, sum(l.qty * l.unit_price) AS spend
+        FROM orders o LEFT JOIN order_lines l USING (order_id)
+        WHERE o.customer_id = 'C-01'
+        GROUP BY ALL
+    )
+    SELECT 'C-01' AS customer_id, m.month,
+        coalesce(b.orders, 0)::INTEGER AS orders,
+        coalesce(b.spend, 0)::DECIMAL(7, 2) AS spend_nok,
+        EXISTS (SELECT 1 FROM subscriptions s WHERE s.customer_id = 'C-01'
+            AND s.started <= m.month AND (s.ended IS NULL OR m.month < s.ended)) AS subscribed
+    FROM months m LEFT JOIN bought b USING (month)
+    ORDER BY m.month
+"""
+
+
+@claim('full', ['orders', 'order_lines', 'subscriptions', 'lesson_ids'])
+def test_customer_months_is_c_01s_year_recomputed_from_full(tiny, full):
+    """All twelve months of tiny's customer_months follow from full's orders and lines."""
+    cols = 'customer_id, month, orders, spend_nok, subscribed'
+    mine = _rows(tiny, f'SELECT {cols} FROM customer_months ORDER BY month')
+    assert len(mine) == 12
+    assert _rows(full, C01_YEAR) == mine

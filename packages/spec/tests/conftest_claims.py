@@ -2,6 +2,9 @@
 
 Nothing is skipped. A claim (`roastery_spec.claims.claim`) whose extract's data folder lacks a
 table it needs leaves the run and is printed under "awaiting data" with the tables it waits for.
+Only the baseline may lack them: on a real extract a table or column the contract owes it
+(`roastery_spec.claims.owed`) is not awaited, so the claim runs and fails, and so does the
+manifest test in `test_structure.py`.
 
 `conftest.py` imports the hooks into its own namespace: a `pytest_plugins` line is refused in a
 conftest that is not the rootdir's, and `--import-mode=importlib` puts no test folder on the path.
@@ -13,7 +16,7 @@ import os
 from pathlib import Path
 
 import pytest
-from roastery_spec.claims import awaiting, claim_of
+from roastery_spec.claims import awaiting, claim_of, owed
 
 EXTRACTS = ('tiny', 'month', 'full')
 AWAITING = pytest.StashKey[list[tuple[str, tuple[str, ...]]]]()
@@ -28,12 +31,14 @@ def _folder(config: pytest.Config, extract: str) -> Path | None:
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     folders = {extract: _folder(config, extract) for extract in EXTRACTS}
+    debts = {e: set(owed(f)) if f else set() for e, f in folders.items()}
     kept: list[pytest.Item] = []
     gone: list[pytest.Item] = []
     waits: list[tuple[str, tuple[str, ...]]] = []
     for item in items:
         found = claim_of(getattr(item, 'function', None))
         missing = awaiting(found.tables, folders[found.extract]) if found else ()
+        missing = tuple(m for m in missing if found and m not in debts[found.extract])
         if missing:
             gone.append(item)
             waits.append((item.name, missing))
