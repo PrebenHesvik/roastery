@@ -35,7 +35,6 @@ AWAITING = (
     'outbox',
     'payments',
     'ports',
-    'pricing',
     'provider',
     'provider_sdk',
     'reports',
@@ -44,7 +43,6 @@ AWAITING = (
     'stock',
     'subscriptions',
     'uow',
-    'vat',
 )
 
 
