@@ -98,10 +98,10 @@ imports the other. Only adapters and bootstrap see the vendor.
 | `catalogue` | core | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails`, the category path | [0004](adr/0004-domain-types.md) |
 | `clock` | core | `local_date(now, zone)` and the zone of each country: days from moments, as a pure function | [0008](adr/0008-the-clock.md) |
 | `commands` | core | the subscription commands as data, each the `subscription_events` row it becomes; `apply`, `replay` | [0011](adr/0011-contract-b.md) |
-| `customer` | core | `Customer` (with its e-mail, C25) and `CustomerChange`: the customer as the app holds it, and its change log's row | [0004](adr/0004-domain-types.md) |
-| `errors` | core | `ShopError` and its 17 members, the one closed family | [0006](adr/0006-errors.md) |
+| `customer` | core | `Customer`, `Email` (optional on the customer, C37) and `CustomerChange`: the customer as the app holds it, and its change log's row | [0004](adr/0004-domain-types.md) |
+| `errors` | core | `ShopError` and its 18 members, the one closed family | [0006](adr/0006-errors.md) |
 | `events` | core | `OrderPlaced`, `OrderPaid`, `OrderInvoiced`, `StatusChanged`; the in-process `EventBus`; `CollectingBus` and `HandlerFailure` (C29) | [0009](adr/0009-events-outbox-relay.md) |
-| `ids` | core | the id value types, one per kind of ADR 0007 and the provider's: `CustomerId`, `OrderId`, `LineId`, `EventId`, `ProductId`, `CategoryId`, `CampaignId`, `SubscriptionId`, `SubEventId`, `ShipmentId`, `BagId`, `MovementId`, `PurchaseId`, `RuleId`, `PaymentId`; and `Country`, `PostalCode`, `Email`, `AccountKind` | [0004](adr/0004-domain-types.md) |
+| `ids` | core | the id value types, one per kind of ADR 0007 and the provider's: `CustomerId`, `OrderId`, `LineId`, `EventId`, `ProductId`, `CategoryId`, `CampaignId`, `SubscriptionId`, `SubEventId`, `ShipmentId`, `BagId`, `MovementId`, `PurchaseId`, `RuleId`, `PaymentId`; and `Country`, `PostalCode`, `AccountKind` | [0004](adr/0004-domain-types.md) |
 | `money` | core | `Money(amount, currency)` on `Decimal`, `Qty`, rounding to the øre | [0004](adr/0004-domain-types.md) |
 | `order` | core | `OrderLine`, one class per feed status, `TRANSITIONS` | [0005](adr/0005-order-states.md) |
 | `parsing` | core | payloads and till rows into `ParsedLine` or `Reject` | [0012](adr/0012-outside-systems-and-the-till.md) |
@@ -168,7 +168,7 @@ The rows of `pricing_rules`, `subscription_events`, `stock_movements` and `shipm
 | value-objects | `money` | `Money`, `Qty`; `ids.ProductId`, `ids.PostalCode`, `ids._check_id` | Money adds only to money of its currency: PAY-2 (SEK) plus PAY-3 (DKK) raises. `Qty` refuses 0; only `Checkout.credit_for` makes a negative line (C4, S14). `PostalCode` keeps C-01's 0150. The twin sums bare floats across currencies | strong |
 | parse-dont-validate | `parsing` | `ParsedLine`, `Reject`, `parse_till`; `reports.reconcile_till` | The till's file is parsed once into sales (C13). Code 2000000000992 has no product: a `Reject`. Grams only for loose beans (R-5002's 250 g). `reconcile_till` matches R-5001 to O-104's L-06 by moment and product, and never moves stock. The twin checks grams in three callers and forgets one | strong |
 | illegal-states | `order` | `Placed`, `Paid`, `Invoiced`, `Shipped`, `Delivered`, `Cancelled`, `describe` | One class per feed status (C5). `Shipped` and `Delivered` carry how the order is settled, so only a paid order has a payment and an invoiced one ships first (S13). O-106 had a line, L-10, deleted at its cancel (E-12, `line_stamps`). The twin has flags and Optionals | strong |
-| factories | `order` | `OrderLine.of`, `.from_payload`, `.at_counter`, `.credit`; `line_for(channel)` | Two real channels: O-101 from the web payload, O-104 at the counter. `at_counter` takes the price rung, so L-06 sells at 549 the day before P-21's list price starts. `credit` is the one way to a negative line (S14). The twin's `__init__(source=...)` branches | strong |
+| factories | `order` | `OrderLine.of`, `.from_payload`, `.at_counter`, `.credit`; `line_for(channel)` | Two real channels: O-101 from the web payload, O-104 at the counter. Each factory has its own input (ADR 0004): `from_payload` parses the web shop's JSON line at the API's edge, `at_counter` requires the price rung (L-06 sells at 549 the day before P-21's list price starts), `of` takes text for tests and walks, and `credit` is the one way to a negative line (S14). The twin's `__init__(source=...)` branches | partial: the simulator places both channels through `Item`s, so inside contract B one shape reaches `place`, and the pick by source happens only at the API's edge (`api.place_handler`). The walk runs there |
 | registries-and-plugins | `pricing` | `Registry`, `standard_rules`, `RULES`, `DuplicateRule`, `UnknownRule` | Rules registered by `pricing_rules.rule_kind`: `list`, `subscriber`, `campaign`. `wire` builds the registry with `standard_rules()`, one per wiring; `RULES` is the read-only standard three, and no registry is module state (the page's "what goes wrong"; ADR 0013). A campaign plugin registers into the registry it is given. A name twice raises | strong: `pricing_rules` closes G3 |
 
 ### Where do I put a seam?
@@ -194,7 +194,7 @@ The rows of `pricing_rules`, `subscription_events`, `stock_movements` and `shipm
 
 | page | module | parts | requirement | fit |
 |---|---|---|---|---|
-| observer-and-events | `events` | `Event`, `OrderPaid`, `EventBus`, `HandlersFailed`, `CollectingBus`; `fulfilment.confirm`, `fulfilment.label`; `Payments.handle_message` | PAY-1 makes O-101 paid (E-02). Two handlers subscribed in `bootstrap` hear `OrderPaid`: `confirm` sends the confirmation e-mail through `Notifier`, and `label` asks for the shipping label through `Labels`; each port's fake records (C26). The `StatusChanged` outbox row is not a handler: `handle_message` writes it in its unit of work, the page's "not every reaction should be an event". Stock is not a handler either: it moved at `place` (O-107, never paid, took a P-10 bag on 7 October). One handler raises; the others run; `EventBus.publish` raises `HandlersFailed`. In the app, `CollectingBus` keeps it for `App.failures()`, so `handle_message` still returns (C29). The twin's `handle_message` imports every handler | strong |
+| observer-and-events | `events` | `Event`, `OrderPaid`, `EventBus`, `HandlersFailed`, `CollectingBus`; `fulfilment.confirm`, `fulfilment.label`; `Payments.handle_message` | PAY-1 makes O-101 paid (E-02). Two handlers are subscribed in `bootstrap` (C26, C39): `confirm` hears `OrderPaid` and `OrderInvoiced`, never for a credit order, and sends the confirmation e-mail through `Notifier` when the customer has an e-mail; `label` hears the same, for web orders with a postal code only, and asks for the shipping label through `Labels`. An order without an address gets no label, and `Fulfilment.ship` refuses it (`NoAddress`): O-105 (C-05, paid, never shipped in the week). Each port's fake records. The `StatusChanged` outbox row is not a handler: `handle_message` writes it in its unit of work, the page's "not every reaction should be an event". Stock is not a handler either: it moved at `place` (O-107, never paid, took a P-10 bag on 7 October). One handler raises; the others run; `EventBus.publish` raises `HandlersFailed`. In the app, `CollectingBus` keeps it for `App.failures()`, so `handle_message` still returns (C29). The twin's `handle_message` imports every handler | strong |
 | outbox | `outbox` | `SqliteOutbox`, `relay`; `uow.SqliteUnitOfWork`; `ports.StatusFeed`; `fakes.FakeFeed` | The status change and its outbox row commit together (C3). `relay` sends batches of `RELAY_BATCH` rows; the feed stamps `loaded_at` (C9). E-08's batch failed on 8 and 9 October and went on the 10th, while later batches went (E-04, E-13). E-09's batch failed and went after E-10's, so E-10 loaded first (G15) | strong |
 | idempotency | `payments` | `Payments.handle_message`, `PaymentMessage`, `Receipt`; `errors.PaymentMismatch`; `idempotency.digest`, `IdempotencyStore`, `KeyReused` | The provider redelivered PAY-1. `handle_message` keyed on `payment_id` records it once and returns the stored `Receipt` (C12). PAY-1 again with another amount raises `PaymentMismatch` (C6), compared with the stored payment, never with the order's total. `KeyReused` belongs to the API's key store in `idempotency.py`; both live in `errors.py` (C20) | strong (G5 pinned) |
 | cache-aside | `cache` | `ports.PriceRepository`, `CachedPrices`, `price_key`, `DictCache`; `fakes.FakeClock` | A list price read often, changed rarely (`prices`). `CachedPrices` is a concrete class in front of the store's `PriceRepository`, one per store, built by `sqlite_store` and `memory_store` (C31): both of the simulator's wirings read through it, and `set_price` evicts the entry on commit. The TTL is `PRICE_TTL` (C15). P-10 changes on 1 October; a stale entry prices a cart at 119. The twin's cache is never told of `set_price` | weak: a small shop has no load that needs a cache. It stays weak: the stale price at checkout is the honest reason |
@@ -214,7 +214,7 @@ The rows of `pricing_rules`, `subscription_events`, `stock_movements` and `shipm
 
 | page | module | parts | requirement | fit |
 |---|---|---|---|---|
-| fakes-over-mocks | `fakes` | `FakeProvider`, `FakeClock`; `repository.InMemoryOrderRepository`; `Fulfilment.late_shipments` | `FakeProvider` declines one refund and keeps each one it is asked for, as the simulator needs (ADR 0011). A mock passes wrongly: it takes kroner where the SDK wants minor units | strong |
+| fakes-over-mocks | `fakes` | `FakeProvider`, `FakeClock`; `repository.InMemoryOrderRepository`; `Fulfilment.late_shipments` | `FakeProvider` is a working fake at the `PaymentProvider` port: it holds the payments it took, refuses a refund for more than is left or for a payment it does not hold (`ProviderRefused`), gives the same refund id for the same key, can be set down (`ProviderUnavailable`), and makes the negative message the simulator delivers (order 300's -899). The minor-units mistake sits under the adapter: a mock of `provider_sdk.ProviderClient` behind `ProviderPayments` accepts 899 where the SDK wants 89900, and the test passes wrongly. A fake at the port takes `Money`, so it cannot make that mistake | strong |
 | contract-tests | `contracts` | `check_orders`, `all_is_ordered`; `ports.OrderRepository` | The same suite on the memory and sqlite stores (C17). A fake that lists in insertion order fails `all_is_ordered`. The provider fake against a sandbox is said in words | strong |
 
 ### Why does it hurt?
@@ -319,7 +319,9 @@ Phase 7 writes these walks anew, not only renamed:
 - **errors**: `NoCountry` answered with Norway's rate by the caller.
 - **facade** and **unit-of-work**: the `Ids` port, the VAT share stored, the `sold` movement.
 - **outbox**: batches, and a failed batch that waits while later ones go.
-- **observer-and-events**: the handlers are the confirmation e-mail and the shipping label; the outbox row is the service's; stock moves at `place`; a failed handler is collected for `App.failures()`.
+- **observer-and-events**: `confirm` hears `OrderPaid` and `OrderInvoiced`, never for a credit order, and sends the confirmation e-mail through `Notifier` when the customer has an e-mail; `label` hears the same, for web orders with a postal code only, and asks for the shipping label through `Labels`. An order without an address gets no label, and `Fulfilment.ship` refuses it (`NoAddress`): O-105 (C-05, paid, never shipped in the week). The outbox row is the service's; stock moves at `place`; a failed handler is collected for `App.failures()`.
+- **factories**: strong becomes partial: one input shape (`Item`) inside contract B.
+- **fakes-over-mocks**: the fake at the port is a working provider; the minor-units mistake is a mock under the adapter.
 - **pipelines-and-generators**: the dropping stage drops deleted lines, not lines with no hours.
 - **depend-on-abstractions**: the ABC is a twin in data-docs, not a port in the app.
 - **strategy**, **registries-and-plugins**, **composition-over-inheritance**: percents from `pricing_rules`, not constants.
@@ -372,12 +374,12 @@ from decimal import Decimal
 from typing import Literal, Protocol
 
 from roastery.catalogue import BeanDetails, EquipmentDetails
+from roastery.customer import Email
 from roastery.ids import (
     AccountKind,
     CategoryId,
     Country,
     CustomerId,
-    Email,
     EventId,
     LineId,
     OrderId,
@@ -407,7 +409,7 @@ class Item:
     """
 
     product_id: ProductId
-    qty: Qty                     # 1 or more
+    qty: Qty  # 1 or more
     price: Money | None = None
 
 
@@ -417,7 +419,7 @@ class PlaceOrder:
 
     customer_id: CustomerId
     channel: Channel
-    items: tuple[Item, ...]      # one or more
+    items: tuple[Item, ...]  # one or more
 
 
 class Checkout:
@@ -452,7 +454,7 @@ class PaymentMessage:
 
     payment_id: PaymentId
     order_id: OrderId
-    amount: Money                # negative for a refund (S14)
+    amount: Money  # negative for a refund (S14)
     paid_on: dt.date
 
 
@@ -462,7 +464,7 @@ class Receipt:
 
     payment_id: PaymentId
     order_id: OrderId
-    status: str                  # the order's feed word after it
+    status: str  # the order's feed word after it
 
 
 class Payments:
@@ -497,7 +499,8 @@ class Fulfilment:
         self, order_id: OrderId, *, promised_by: dt.date
     ) -> ShipmentId:
         """Shipped, and a shipments row. No stock movement:
-        the bags left at place."""
+        the bags left at place. NoAddress for an order whose
+        customer has no postal code (C39)."""
         ...
 
     def deliver(self, shipment_id: ShipmentId) -> None:
@@ -513,20 +516,21 @@ class Customers:
         self,
         name: str,
         *,
-        email: Email,
+        email: Email | None,
         country: Country | None,
         postal_code: PostalCode | None,
         account_kind: AccountKind = 'consumer',
     ) -> CustomerId:
-        """A customer, joined today; an insert change row. The
-        e-mail ends in example.invalid (C25)."""
+        """A customer, joined today; an insert change row. An
+        e-mail ends in example.invalid (C25); C-05 has none
+        (C37)."""
         ...
 
     def change(
         self,
         customer_id: CustomerId,
         *,
-        email: Email,
+        email: Email | None,
         country: Country | None,
         postal_code: PostalCode | None,
     ) -> None:
@@ -564,8 +568,7 @@ class Subscriptions:
 
     def resume(
         self, subscription_id: SubscriptionId, *, reason: str
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def cancel(
         self, subscription_id: SubscriptionId, *, reason: str
@@ -582,15 +585,11 @@ class Stock:
         """A roasted movement: bags in."""
         ...
 
-    def write_off(
-        self, product_id: ProductId, *, qty: Qty
-    ) -> None:
+    def write_off(self, product_id: ProductId, *, qty: Qty) -> None:
         """A written_off movement: qty out."""
         ...
 
-    def stocktake(
-        self, product_id: ProductId, *, on_hand: int
-    ) -> None:
+    def stocktake(self, product_id: ProductId, *, on_hand: int) -> None:
         """A counted movement of the difference found, if any.
         Equipment comes in this way (no reason fits better)."""
         ...
@@ -612,8 +611,7 @@ class Catalogue:
         *,
         parent_id: CategoryId | None,
         sort_order: int,
-    ) -> CategoryId:
-        ...
+    ) -> CategoryId: ...
 
     def add_product(
         self,
@@ -712,7 +710,7 @@ class App:
     subscriptions: Subscriptions
     stock: Stock
     jobs: Jobs
-    events: CollectingBus        # the wiring's one bus (C29)
+    events: CollectingBus  # the wiring's one bus (C29)
 
     def failures(self) -> tuple[HandlerFailure, ...]:
         """What the handlers raised since wire, in order (C29):
@@ -723,7 +721,7 @@ class App:
 
 def memory_store(*, clock: Clock, price_ttl: int) -> InMemoryStore:
     """The app's tables as dicts, with their one price cache
-    (C31). For tests, walks and tiny (C32)."""
+    (C31, C38). For tests, walks and the week alone (C32)."""
     ...
 
 
@@ -731,7 +729,7 @@ def sqlite_store(
     connection: sqlite3.Connection, *, clock: Clock, price_ttl: int
 ) -> SqliteStore:
     """The app's tables on the connection, with their one price
-    cache. For month and full (C32)."""
+    cache (C38). For month and full (C32)."""
     ...
 
 
@@ -748,7 +746,9 @@ def wire(
     labels: Labels,
 ) -> App:
     """The services on the store, the same for every caller
-    (ADR 0013). The simulator calls it twice over one store."""
+    (ADR 0013). No TTL: the cache came with the store, built
+    from the same clock and Settings (C38). The simulator
+    calls it twice over one store."""
     ...
 
 
@@ -769,9 +769,9 @@ class StatusChanged:
 class HandlerFailure:
     """One handler that raised after its call was kept."""
 
-    handler: str                 # the handler's qualified name
-    event: str                   # the event's class name
-    error: str                   # repr of what it raised
+    handler: str  # the handler's qualified name
+    event: str  # the event's class name
+    error: str  # repr of what it raised
 
 
 class CollectingBus:
@@ -792,9 +792,20 @@ class CollectingBus:
 Source = Literal['scripted', 'simulator', 'visitor']
 
 IdKind = Literal[
-    'customer', 'order', 'line', 'event', 'product',
-    'category', 'campaign', 'subscription', 'sub_event',
-    'shipment', 'bag', 'movement', 'purchase', 'rule',
+    'customer',
+    'order',
+    'line',
+    'event',
+    'product',
+    'category',
+    'campaign',
+    'subscription',
+    'sub_event',
+    'shipment',
+    'bag',
+    'movement',
+    'purchase',
+    'rule',
 ]
 
 
@@ -827,9 +838,9 @@ class Notifier(Protocol):
 
 class Labels(Protocol):
     def request(
-        self, order_id: OrderId, *, postal_code: PostalCode | None
+        self, order_id: OrderId, *, postal_code: PostalCode
     ) -> None:
-        """A shipping label for a web order (C26)."""
+        """A shipping label for a web order (C26, C39)."""
         ...
 
 
@@ -896,29 +907,36 @@ class FakeClock:
 
 
 class FakeProvider:
-    """The provider the simulator plays: keeps each refund."""
+    """A working provider: the payments it holds, refunds by
+    its rules, and the messages it would send."""
 
-    def __init__(
-        self,
-        *,
-        refund_ids: Sequence[PaymentId],
-        declines: frozenset[PaymentId] = frozenset(),
-    ) -> None: ...
+    def __init__(self, *, refund_ids: Sequence[PaymentId]) -> None: ...
+
+    def take(self, message: PaymentMessage) -> None:
+        """A payment the provider now holds."""
+        ...
+
+    def set_down(self, down: bool) -> None:
+        """While down, every call raises ProviderUnavailable."""
+        ...
 
     def refund(
         self, payment_id: PaymentId, amount: Money, *, key: str
-    ) -> PaymentId: ...
+    ) -> PaymentId:
+        """ProviderRefused for a payment it does not hold or
+        more than is left; the same key gives the same id."""
+        ...
 
-    def refunds(self) -> tuple[tuple[str, PaymentId, Money], ...]:
-        """(key, refund id, amount), in the order asked."""
+    def messages(self) -> tuple[PaymentMessage, ...]:
+        """The refunds' negative messages, in order: what the
+        simulator writes to payments and delivers."""
         ...
 
 
 class FakeNotifier:
     """Keeps what it is asked to send; sends nothing."""
 
-    def send(self, to: Email, *, subject: str, body: str) -> None:
-        ...
+    def send(self, to: Email, *, subject: str, body: str) -> None: ...
 
     def sent(self) -> tuple[tuple[Email, str], ...]:
         """(to, subject), in the order asked."""
@@ -929,7 +947,7 @@ class FakeLabels:
     """Keeps the labels it is asked for."""
 
     def request(
-        self, order_id: OrderId, *, postal_code: PostalCode | None
+        self, order_id: OrderId, *, postal_code: PostalCode
     ) -> None: ...
 
     def requested(self) -> tuple[OrderId, ...]: ...
@@ -958,6 +976,10 @@ class IllegalSubscriptionMove(ShopError):
 
 
 class NotShippable(ShopError):
+    def __init__(self, order_id: OrderId) -> None: ...
+
+
+class NoAddress(ShopError):
     def __init__(self, order_id: OrderId) -> None: ...
 
 
@@ -1036,7 +1058,7 @@ Every member is in `roastery/errors.py` (C20). `DuplicateId` can come from any c
 | `Payments.invoice` | `UnknownId`, `IllegalTransition` | |
 | `Payments.settle` | `UnknownId`, `PaymentMismatch`, `NoOpenInvoice` | a paid order, or an invoice already paid |
 | `Payments.refund` | `UnknownId`, `NothingToRefund`; the port's `ProviderRefused` and `ProviderUnavailable`, which are not in the family | O-106 was never paid; a decline (402) is never retried |
-| `Fulfilment.ship` | `UnknownId`, `NotShippable`, `IllegalTransition` | O-104 is a counter sale; O-106 was cancelled at E-12 |
+| `Fulfilment.ship` | `UnknownId`, `NotShippable`, `NoAddress`, `IllegalTransition` | O-104 is a counter sale; O-105's customer, C-05, has no postal code (C39); O-106 was cancelled at E-12 |
 | `Fulfilment.deliver` | `UnknownId`, `IllegalTransition` | |
 | `Customers.register` | none | |
 | `Customers.change` | `NoSuchCustomer` | |

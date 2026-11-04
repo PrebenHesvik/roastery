@@ -1,6 +1,6 @@
 # 0006. Errors
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C6, C20 and C29)
+Status: accepted, 2026-11-04 (step 6.2, decisions C6, C20, C29 and C39)
 
 ## Context
 
@@ -37,13 +37,14 @@ Five kinds of failure, five ways to report them:
 
 **The family.** `roastery/errors.py`, a core module (C20), holds `ShopError` and every subclass
 of it; no other module defines one. Every layer raises from it, and the API maps it. The family
-is the 17 members that contract B lists (ADR 0011):
+is the 18 members that contract B lists (ADR 0011):
 
 | member | raised when | row |
 |---|---|---|
 | `IllegalTransition` | a move `TRANSITIONS` does not have (ADR 0005) | shipping O-106 |
 | `IllegalSubscriptionMove` | a subscription call its state does not allow | a resume of a subscription not paused |
 | `NotShippable` | `ship` on a counter sale (ADR 0005) | O-104 |
+| `NoAddress` | `ship` on an order whose customer has no postal code (C39) | O-105 (C-05), paid and never shipped |
 | `NotCreditable` | `credit_for` on a sale that is not `Paid` or `Delivered` | O-107 was never paid |
 | `AlreadyCredited` | `credit_for` on a line already credited | a second credit of one line |
 | `NoOpenInvoice` | `settle` on an order with no open invoice | a paid order |
@@ -110,25 +111,28 @@ def country_of(
 `ValueError` from its parse step is a 400. Anything else is a 500.
 
 ```python
-STATUS: Final[Mapping[type[ShopError], int]] = MappingProxyType({
-    IllegalTransition: 409,
-    IllegalSubscriptionMove: 409,
-    NotShippable: 409,
-    NotCreditable: 409,
-    AlreadyCredited: 409,
-    NoOpenInvoice: 409,
-    NothingToRefund: 409,
-    PaymentMismatch: 409,
-    KeyReused: 409,
-    DuplicateId: 409,
-    OutOfStock: 409,
-    PeriodOverlap: 409,
-    UnknownId: 404,
-    NoSuchCustomer: 404,
-    UnknownProduct: 422,
-    WrongKind: 422,
-    NoPrice: 422,
-})
+STATUS: Final[Mapping[type[ShopError], int]] = MappingProxyType(
+    {
+        IllegalTransition: 409,
+        IllegalSubscriptionMove: 409,
+        NotShippable: 409,
+        NoAddress: 409,
+        NotCreditable: 409,
+        AlreadyCredited: 409,
+        NoOpenInvoice: 409,
+        NothingToRefund: 409,
+        PaymentMismatch: 409,
+        KeyReused: 409,
+        DuplicateId: 409,
+        OutOfStock: 409,
+        PeriodOverlap: 409,
+        UnknownId: 404,
+        NoSuchCustomer: 404,
+        UnknownProduct: 422,
+        WrongKind: 422,
+        NoPrice: 422,
+    }
+)
 ```
 
 ## Alternatives refused

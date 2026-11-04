@@ -57,9 +57,9 @@ class ParsedLine:
     receipt_id: str
     line_no: int
     product_id: ProductId
-    grams: int | None            # loose beans only
+    grams: int | None  # loose beans only
     amount: Money
-    sold_at: dt.datetime         # UTC, from Bergen time
+    sold_at: dt.datetime  # UTC, from Bergen time
 
 
 def parse_till(
@@ -84,8 +84,8 @@ def parse_till(
 @dataclass(frozen=True)
 class Reconciliation:
     matched: tuple[tuple[ParsedLine, LineId], ...]
-    walk_ins: tuple[ParsedLine, ...]     # no shop order matches
-    unmatched: tuple[LineId, ...]      # a shop line not rung
+    walk_ins: tuple[ParsedLine, ...]  # no shop order matches
+    unmatched: tuple[LineId, ...]  # a shop line not rung
     rejects: tuple[Reject, ...]
 
 

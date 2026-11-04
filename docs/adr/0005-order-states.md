@@ -41,9 +41,9 @@ class Head:
     order_id: OrderId
     customer_id: CustomerId
     channel: Channel
-    country: Country                 # as order_country chose it
-    lines: tuple[OrderLine, ...]     # one or more
-    credit_of: OrderId | None        # set on a credit order only
+    country: Country  # as order_country chose it
+    lines: tuple[OrderLine, ...]  # one or more
+    credit_of: OrderId | None  # set on a credit order only
 
 
 @dataclass(frozen=True)
@@ -114,13 +114,17 @@ Order = Placed | Paid | Invoiced | Shipped | Delivered | Cancelled
 ```python
 Action = Literal['pay', 'invoice', 'ship', 'deliver', 'cancel']
 Status = Literal[
-    'placed', 'paid', 'invoiced', 'shipped', 'delivered',
+    'placed',
+    'paid',
+    'invoiced',
+    'shipped',
+    'delivered',
     'cancelled',
 ]
 
-TRANSITIONS: Final[Mapping[tuple[str, Action], str]] = (
-    MappingProxyType({...})          # the eight rows above
-)
+TRANSITIONS: Final[Mapping[tuple[str, Action], str]] = MappingProxyType(
+    {...}
+)  # the eight rows above
 
 
 def check(order: Order, action: Action) -> str:
@@ -151,9 +155,7 @@ def status(order: Order) -> Status:
   from the payments, not from the state:
 
   ```python
-  def invoice_open(
-      order: Order, paid: Iterable[Payment]
-  ) -> bool: ...
+  def invoice_open(order: Order, paid: Iterable[Payment]) -> bool: ...
   ```
 
   `order_values.status = 'unpaid'` is this question asked on 30 September 2026.

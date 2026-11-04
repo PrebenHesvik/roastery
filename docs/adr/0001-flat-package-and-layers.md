@@ -1,6 +1,6 @@
 # 0001. A flat package and its layers
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C1, C14, C20 and C24; `customer` added for C25)
+Status: accepted, 2026-11-04 (step 6.2, decisions C1, C14, C20 and C24; `customer` added for C33)
 
 ## Context
 
@@ -124,10 +124,10 @@ def layer_of(module: str) -> str:
 | core | `catalogue` | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails`, the category path |
 | core | `clock` | `local_date(now, zone)` and the zone of each country: days from moments, as a pure function (ADR 0008) |
 | core | `commands` | the subscription commands as data, each the `subscription_events` row it becomes; `apply`, `replay` |
-| core | `customer` | `Customer` (with its e-mail, C25) and `CustomerChange`: the customer as the app holds it, and its change log's row |
-| core | `errors` | `ShopError` and its 17 members, the one closed family (ADR 0006) |
+| core | `customer` | `Customer`, `Email` (optional on the customer, C37) and `CustomerChange`: the customer as the app holds it, and its change log's row |
+| core | `errors` | `ShopError` and its 18 members, the one closed family (ADR 0006) |
 | core | `events` | `OrderPlaced`, `OrderPaid`, `OrderInvoiced`, `StatusChanged`; the in-process `EventBus`; `CollectingBus` and `HandlerFailure` (C29) (ADR 0009) |
-| core | `ids` | the id value types, one per kind of ADR 0007 and the provider's: `CustomerId`, `OrderId`, `LineId`, `EventId`, `ProductId`, `CategoryId`, `CampaignId`, `SubscriptionId`, `SubEventId`, `ShipmentId`, `BagId`, `MovementId`, `PurchaseId`, `RuleId`, `PaymentId`; and `Country`, `PostalCode`, `Email`, `AccountKind` (ADR 0004) |
+| core | `ids` | the id value types, one per kind of ADR 0007 and the provider's: `CustomerId`, `OrderId`, `LineId`, `EventId`, `ProductId`, `CategoryId`, `CampaignId`, `SubscriptionId`, `SubEventId`, `ShipmentId`, `BagId`, `MovementId`, `PurchaseId`, `RuleId`, `PaymentId`; and `Country`, `PostalCode`, `AccountKind` (ADR 0004) |
 | core | `money` | `Money(amount, currency)` on `Decimal`, `Qty`, rounding to the øre (ADR 0004) |
 | core | `order` | `OrderLine`, one class per feed status, `TRANSITIONS` (ADR 0005) |
 | core | `parsing` | payloads and till rows into `ParsedLine` or `Reject` (ADR 0012) |

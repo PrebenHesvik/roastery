@@ -1,6 +1,6 @@
 # 0011. Contract B: the simulator's call surface
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C12, C23, C25, C27, C29 and C30)
+Status: accepted, 2026-11-04 (step 6.2, decisions C12, C23, C25, C27, C29, C30 and C37 to C39)
 
 ## Context
 
@@ -17,17 +17,17 @@ Four things shape it:
 
 ### The surface
 
-Contract B is the fenced block in `architecture.md` §5, with the table of what each call raises. In numbers: 7 services and 27 calls; 2 commands, plus 2 frozen records (`Item` and `Receipt`); 5 jobs; `App.failures()`; and 17 members of `ShopError`.
+Contract B is the fenced block in `architecture.md` §5, with the table of what each call raises. In numbers: 7 services and 27 calls; 2 commands, plus 2 frozen records (`Item` and `Receipt`); 5 jobs; `App.failures()`; and 18 members of `ShopError`.
 
 **It is the whole surface the simulator imports** (C27), not only the services. A name the simulator imports and the snapshot does not cover could change under 6.4's tag. So the block also holds:
 
 | what | from | why the simulator imports it |
 |---|---|---|
 | `wire`, `Source` | `bootstrap`, `ports` | it wires the app twice over one store (ADR 0007) |
-| `sqlite_store`, `memory_store` | `bootstrap` | the store both wirings share (C32: sqlite for `month` and `full`, memory for `tiny`) |
+| `sqlite_store`, `memory_store` | `bootstrap` | the store both wirings share, with its one price cache (C38). sqlite for `month` and `full`; either for the week alone (C32) |
 | `SequentialIds`, `ScriptedIds`, `IdKind` | `repository`, `ports` | the two `Ids` adapters (ADR 0007) |
 | `FakeClock` | `fakes` | the simulator's clock: it moves it through three years |
-| `FakeProvider`, `FakeNotifier`, `FakeLabels` | `fakes` | the provider it plays, and the two handlers' ports (C26) |
+| `FakeProvider`, `FakeNotifier`, `FakeLabels` | `fakes` | the provider it plays (a working fake: the payments it holds, refunds by its rules, the negative messages to deliver), and the two handlers' ports (C26) |
 | `Settings` | `settings` | built directly, as the tests do (ADR 0014) |
 | `StatusFeed`, `FeedDown`, `StatusChanged`, `Relayed` | `ports`, `events` | its own feed adapter, and what `jobs.relay` returns (ADR 0009) |
 | `CollectingBus`, `HandlerFailure` | `events` | `App.events`, and what `App.failures()` returns (C29) |
@@ -120,9 +120,11 @@ O-106's cancel does put its bag back. L-10 left at `place` (E-11, 6 Oct 21:30 UT
 - `Customers.erase` cancels the customer's open subscriptions in its unit of work, with reason `erased`: C-07 is erased on 9 October and S-7 ends that day.
 - `jobs.ship_subscription_bags` ships this month's bag to every running subscription that has none yet and is not skipped or paused. It writes `subscription_shipments` and one `shipped` movement each. It takes no month: the month is the shop's today. A second run in a month ships nothing new.
 
-**Customers.** `register` sets `joined` to today and keeps the customer's e-mail (C25), which reaches contract A only in `raw_customers`. `change` takes the customer's whole contact after the change: country, postal code and e-mail, never optional fields. The data's changes are moves, and `customer_changes` records the country and postal code after each update (ADR 0003). `erase` writes a tombstone. The customers store writes the change rows (ADR 0003). The `line_stamps` stamps are written by `place`, `credit_for` and `cancel`, never by a job.
+**Customers.** `register` sets `joined` to today and keeps the customer's e-mail when there is one (C25, C37; C-05 has none), which reaches contract A only in `raw_customers`. `change` takes the customer's whole contact after the change: country, postal code and e-mail, never optional fields. The data's changes are moves, and `customer_changes` records the country and postal code after each update (ADR 0003). `erase` writes a tombstone. The customers store writes the change rows (ADR 0003). The `line_stamps` stamps are written by `place`, `credit_for` and `cancel`, never by a job.
 
 **Jobs** take no argument and no clock. `wire` binds them to the store, the feed and the settings (ADR 0013). `nightly_extract` replaces tonight's `customer_extracts` copy. `csv_export` returns the two files' text, and the caller saves them; the export writer adds the faults after it (D10).
+
+**Handlers** (C39): `confirm` hears `OrderPaid` and `OrderInvoiced`, never for a credit order, and sends the confirmation e-mail through `Notifier` when the customer has an e-mail; `label` hears the same, for web orders with a postal code only, and asks for the shipping label through `Labels`. An order without an address gets no label, and `Fulfilment.ship` refuses it (`NoAddress`): O-105 (C-05, paid, never shipped in the week).
 
 **Handler failures** (C29). A call returns once its unit of work commits, whatever its handlers do after. A handler's failure is kept by the wiring's `CollectingBus` (ADR 0009) and read with `App.failures()`. The simulator reads it after each day and stops if it is not empty: a failure is a bug in a fake, never a refusal.
 
@@ -161,7 +163,7 @@ It compares that text with the committed `packages/shop/tests/contract_b.txt`. A
 ## Consequences
 
 - The simulator never writes an app table. It calls these 27 calls and 5 jobs, writes the outside systems' tables, and runs the derived queries in its extract writer.
-- The simulator's provider must record each refund it is asked for, so the simulator can write the provider's negative message and deliver it. `FakeProvider` keeps them, and the snapshot covers it (C27).
+- The simulator's provider must answer each refund it is asked for with a negative message, so the simulator can write it to `payments` and deliver it. `FakeProvider` is that provider: `take` gives it each payment the simulator makes, `refund` refuses more than is left, and `messages()` gives the negative messages. The snapshot covers it (C27).
 - The API maps the port errors too: `ProviderRefused` to 402 and `ProviderUnavailable` to 503, beside ADR 0006's `STATUS`.
 - 6.4's script must give L-10 a product other than P-10 and P-20, roast 24 bags of P-10 on 8 October, and keep cancels away from midnight UTC. Order 300's customer must be a consumer, and no credit order of a business account may fall before the week: the claim "each business order invoiced once, never paid" would see the credit order's `paid` event. The `subscribers` claim reads `event_at::DATE`, and `ended` is a local date; near midnight the two can differ.
 
@@ -169,11 +171,11 @@ It compares that text with the committed `packages/shop/tests/contract_b.txt`. A
 
 | ADR | change |
 |---|---|
-| 0001 | the service row gains `listing` (the `Catalogue` service): 8 service modules, 39 in all (40 with C20's `errors`, 41 with `customer` for C25's e-mail) |
+| 0001 | the service row gains `listing` (the `Catalogue` service): 8 service modules, 39 in all (40 with C20's `errors`, 41 with `customer`, C33) |
 | 0004 | `ids.py` gains `CategoryId` and `AccountKind` (`Literal['consumer', 'business']`); `catalogue.py` gains `BeanDetails` (weight, origin, roast, process) and `EquipmentDetails` (warranty, material) |
 | 0003 | a store's `get` of an unknown id raises `UnknownId` (a `ShopError`), not a bare `LookupError` |
 | 0005 | `Head` gains `country: Country`, the order's country as `order_country` chose it (C22); a business account's order is invoiced inside `place`, so a business counter sale ends at `Invoiced` (then `settle`), not at `Paid` |
-| 0006 | the family is the 17 members of §5; `KeyReused` is the API key store's; `PaymentMismatch` is the redelivery with another amount; `NoSuchCustomer` and `UnknownId` replace the stores' `Unknown...`; `STATUS` gains the new members |
+| 0006 | the family is the members of §5 (17 then, 18 with C39's `NoAddress`); `KeyReused` is the API key store's; `PaymentMismatch` is the redelivery with another amount; `NoSuchCustomer` and `UnknownId` replace the stores' `Unknown...`; `STATUS` gains the new members |
 | 0010 | `scheme_for(order, on)`, as C22 already says; the sketch still shows `scheme_for(country)` |
 | 0013 | `wire` puts `resilience`'s retry and breaker around the `PaymentProvider` port |
 
@@ -186,7 +188,7 @@ It compares that text with the committed `packages/shop/tests/contract_b.txt`. A
 | `idempotency` | `handle_message` and PAY-1 twice, one `Receipt`; `PaymentMismatch` |
 | `adapter` | `Payments.refund` through `PaymentProvider`: kroner to minor units, a 402 to `ProviderRefused` |
 | `retry-and-circuit-breaker` | the refund retried with the same key; the breaker open; a decline never retried |
-| `state-machine` | `ship(O-106)` raising `IllegalTransition`; `NotShippable` for O-104 |
+| `state-machine` | `ship(O-106)` raising `IllegalTransition`; `NotShippable` for O-104; `NoAddress` for O-105 |
 | `command` | `Subscriptions`: each call with its reason, one `subscription_events` row |
 | `anaemic-model` | `credit_for` refusing O-107 (`NotCreditable`) |
 | `outbox` | `jobs.relay` |

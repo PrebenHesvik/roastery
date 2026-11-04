@@ -1,6 +1,6 @@
 # 0013. Wiring and the API
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C14, C26, C27, C29, C31 and C32, and the bootstrap)
+Status: accepted, 2026-11-04 (step 6.2, decisions C14, C26, C27, C29, C31, C32, C38 and C39, and the bootstrap)
 
 ## Context
 
@@ -51,7 +51,7 @@ def wire(
 
 | argument | API | simulator | a test or a walk |
 |---|---|---|---|
-| `store` | `sqlite_store(connection, ...)` | one store, shared by its two wirings: `sqlite_store` for `month` and `full`, `memory_store` for `tiny` (C32) | `memory_store(...)` |
+| `store` | `sqlite_store(connection, ...)` | one store, shared by its two wirings: `sqlite_store` for `month` and `full`, either for the week alone (C32) | `memory_store(...)` |
 | `clock` | the live shop's UTC clock, from outside the package; the cli's `FakeClock` at `--at` | `FakeClock`, moved by the script | `FakeClock` |
 | `ids`, `source` | ADR 0007 | ADR 0007 | ADR 0007 |
 | `feed` | the caller's feed; the cli's `ClosedFeed` | the simulator's feed | `FakeFeed` |
@@ -61,8 +61,8 @@ def wire(
 Inside `wire`, beside the ports:
 
 - **The rule registry is built here**, by `pricing.standard_rules()`, and handed to `Checkout`. It is never module state: `pricing.RULES` is a read-only mapping of the three standard rules, and a registry that plugins register into is a new object per wiring (the `registries-and-plugins` page's "what goes wrong": a registry in a module variable is shared by everyone who imports it).
-- **The bus** is made here, its handlers (`fulfilment.confirm`, `fulfilment.label`) are bound to the `Notifier`, the `Labels` and the store, and it is wrapped in one `CollectingBus` handed to every service. `App.failures()` reads it (C29, ADR 0009).
-- **The price cache is not built here.** It is built with the store, one per store (C31, ADR 0003), so the simulator's two wirings share it.
+- **The bus** is made here, its handlers (`fulfilment.confirm`, `fulfilment.label`) are bound to the `Notifier`, the `Labels` and the store, and it is wrapped in one `CollectingBus` handed to every service. `App.failures()` reads it (C29, ADR 0009). The handlers' scope (C39): `confirm` hears `OrderPaid` and `OrderInvoiced`, never for a credit order, and sends the confirmation e-mail through `Notifier` when the customer has an e-mail; `label` hears the same, for web orders with a postal code only, and asks for the shipping label through `Labels`. An order without an address gets no label, and `Fulfilment.ship` refuses it (`NoAddress`): O-105 (C-05, paid, never shipped in the week).
+- **The price cache is not built here.** It belongs to the store (C38): the store constructors take the clock and `price_ttl`, and `wire` takes the store and no TTL. `bootstrap` builds both from one clock and one `Settings` (`sqlite_store(connection, clock=clock, price_ttl=settings.price_ttl)`, then `wire(settings, store, clock=clock, ...)`), so the simulator's two wirings share one cache and one clock (C31, ADR 0003).
 
 `wire` wraps the `PaymentProvider` it is given in `resilience`'s retry and `CircuitBreaker`, so every caller gets the same protected port, whatever stands behind it. A decline (`ProviderRefused`) is never retried; `ProviderUnavailable` is retried, and passes through when the retries run out or the breaker is open (ADR 0011).
 
@@ -74,7 +74,7 @@ Inside `wire`, beside the ports:
 def memory_store(*, clock: Clock, price_ttl: int) -> InMemoryStore:
     """The app's tables as dicts, with their one price cache.
 
-    For a test, a walk or `tiny` (C32).
+    For a test, a walk or the week alone (C32).
     """
     ...
 
@@ -156,8 +156,7 @@ Phase 8's change asks the flag `vat-by-country` with the customer's country. The
 class Flags(Protocol):
     """Feature flags, asked per customer country."""
 
-    def enabled(self, flag: str, country: Country | None) -> bool:
-        ...
+    def enabled(self, flag: str, country: Country | None) -> bool: ...
 ```
 
 It comes with phase 8, with its two adapters: a fixed set of flags (in `fakes.py`, for tests and the simulator) and the flag service's client. `wire` gets `flags` as a keyword with a default that keeps every flag off, so the simulator's call stays as it is and its data does not change. The flag is never read from the settings or the environment.

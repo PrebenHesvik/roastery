@@ -30,9 +30,20 @@ caller, not about an order.
 
 ```python
 IdKind = Literal[
-    'customer', 'order', 'line', 'event', 'product',
-    'category', 'campaign', 'subscription', 'sub_event',
-    'shipment', 'bag', 'movement', 'purchase', 'rule',
+    'customer',
+    'order',
+    'line',
+    'event',
+    'product',
+    'category',
+    'campaign',
+    'subscription',
+    'sub_event',
+    'shipment',
+    'bag',
+    'movement',
+    'purchase',
+    'rule',
 ]
 
 

@@ -1,6 +1,6 @@
 # 0009. Events, the outbox and the relay
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C9, C26, C27, C28 and C29)
+Status: accepted, 2026-11-04 (step 6.2, decisions C9, C26, C27, C28, C29 and C39)
 
 ## Context
 
@@ -36,10 +36,12 @@ The teaching app today, `firm`, has an `EventBus` in `events.py`, an outbox in `
 
 **The service writes the outbox row, never a handler** (C26). What must be kept with the change (the outbox row, the `sold` movements, the `customer_changes` row) is written in the change's unit of work. A handler writes no row of contract A. It is for a reaction that may fail on its own, and the shop has two, each through a port:
 
-| handler | hears | does | the port's adapters |
-|---|---|---|---|
-| `fulfilment.confirm` | `OrderPaid`, `OrderInvoiced` | sends the confirmation e-mail to the customer's `email`, through `Notifier.send` | `fakes.FakeNotifier`, which records what it is asked; the live shop's mailer |
-| `fulfilment.label` | `OrderPaid`, `OrderInvoiced`, web orders only | asks the carrier for the shipping label, through `Labels.request` | `fakes.FakeLabels`, which records; the live shop's carrier client |
+The two handlers (C39): `confirm` hears `OrderPaid` and `OrderInvoiced`, never for a credit order, and sends the confirmation e-mail through `Notifier` when the customer has an e-mail; `label` hears the same, for web orders with a postal code only, and asks for the shipping label through `Labels`. An order without an address gets no label, and `Fulfilment.ship` refuses it (`NoAddress`): O-105 (C-05, paid, never shipped in the week).
+
+| handler | the port | the port's adapters |
+|---|---|---|
+| `fulfilment.confirm` | `Notifier.send` | `fakes.FakeNotifier`, which records what it is asked; the live shop's mailer |
+| `fulfilment.label` | `Labels.request` | `fakes.FakeLabels`, which records; the live shop's carrier client |
 
 The second adapter of `Notifier` and `Labels` comes with the live shop (plan §8), as the wall clock does (ADR 0008): the package holds the fake that records, and the seam is where the live shop plugs in. Neither port reaches contract A, so the data is the same whatever the fakes record. The `observer-and-events` page's own warning holds: "not every reaction should be an event". A step the change cannot count without goes in its unit of work.
 
@@ -153,16 +155,14 @@ Two adapters stand at this seam, so it is real:
 
 ```python
 @dataclass(frozen=True)
-class Relayed:                       # in ports.py (C27)
+class Relayed:  # in ports.py (C27)
     """What a run did: the batches sent and those that wait."""
 
     sent: tuple[int, ...]
     waiting: tuple[int, ...]
 
 
-def relay(
-    uow: UnitOfWork, feed: StatusFeed, *, size: int
-) -> Relayed:
+def relay(uow: UnitOfWork, feed: StatusFeed, *, size: int) -> Relayed:
     """Form new batches, then offer each waiting one to the feed.
 
     A batch the feed refuses waits for the next run; the batches

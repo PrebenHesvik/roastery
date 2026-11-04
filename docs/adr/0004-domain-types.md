@@ -32,8 +32,8 @@ live in the core modules of ADR 0001's `LAYERS`:
 
 | module | types |
 |---|---|
-| `roastery/ids.py` | the id types, `Country`, `PostalCode`, `Email`, `AccountKind` |
-| `roastery/customer.py` | `Customer`, `CustomerChange` |
+| `roastery/ids.py` | the id types, `Country`, `PostalCode`, `AccountKind` |
+| `roastery/customer.py` | `Customer`, `Email`, `CustomerChange` (C33) |
 | `roastery/money.py` | `Money`, `Qty`, rounding to the øre |
 | `roastery/catalogue.py` | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails` |
 | `roastery/order.py` | `OrderLine`, `Channel`, the order's states (ADR 0005) |
@@ -79,7 +79,7 @@ class OrderId:
 @dataclass(frozen=True)
 class Money:
     amount: Decimal
-    currency: str          # three capitals: NOK, SEK, DKK, EUR
+    currency: str  # three capitals: NOK, SEK, DKK, EUR
 
     @classmethod
     def of(cls, amount: str | int, currency: str) -> Money: ...
@@ -87,7 +87,7 @@ class Money:
     def __add__(self, other: object) -> Money: ...
     def __neg__(self) -> Money: ...
     def times(self, qty: Qty) -> Money: ...
-    def to_ore(self) -> Money: ...    # quantize 0.01, half up
+    def to_ore(self) -> Money: ...  # quantize 0.01, half up
 ```
 
 - `amount` must be a `Decimal`; a `float` is refused with `TypeError`.
@@ -121,16 +121,38 @@ class OrderLine:
     unit_price: Money
 
     @classmethod
-    def of(cls, *, line_id: str, product_id: str,
-           qty: int, unit_price: str) -> Self: ...
+    def of(
+        cls, *, line_id: str, product_id: str, qty: int, unit_price: str
+    ) -> Self: ...
     @classmethod
-    def from_payload(cls, payload: Mapping[str, object]
-                     ) -> Self: ...
+    def from_payload(
+        cls,
+        line_id: LineId,
+        payload: Mapping[str, object],
+        list_price: Money,
+    ) -> Self: ...
     @classmethod
-    def at_counter(cls, *, line_id: str, product_id: str,
-                   qty: int, unit_price: str) -> Self: ...
+    def at_counter(
+        cls,
+        line_id: LineId,
+        product_id: ProductId,
+        qty: Qty,
+        rung: Money,
+    ) -> Self: ...
     def credit(self, line_id: LineId) -> OrderLine: ...
 ```
+
+Each factory has its own input and its own reason:
+
+- `of` takes text, for tests and walks;
+- `from_payload` parses the web shop's JSON line (`productId`, `qty`) at the API's edge, priced
+  by the list unless the payload gives a price;
+- `at_counter` requires the price rung (L-06 at 549.00): a counter line never takes the list's;
+- `credit` is the one way to a negative line.
+
+Inside contract B both channels arrive as `Item`s, so the pick by source is the API's
+(`api.place_handler`); the `factories` page's fit is partial for that reason (`architecture.md`
+§3).
 
 - `of`, `from_payload` and `at_counter` refuse a quantity below 1.
 - `credit` is the only way to a negative line. It copies the product and the unit price and
@@ -145,7 +167,7 @@ class OrderLine:
 | `Channel` | `Literal['web', 'shop']` | a type alias, no class |
 | `Kind` | `Literal['beans', 'equipment']` | as `products.kind` holds it |
 | `AccountKind` | `Literal['consumer', 'business']` | a type alias, no class; in `ids.py` |
-| `Email` | text | one `@`, and the domain `example.invalid` (C25): no address in the data can reach a real inbox |
+| `Email` | text | one `@`, and the domain `example.invalid` (C25): no address in the data can reach a real inbox. In `customer.py` (C33); optional on the customer (C37) |
 | `BeanDetails` | weight, origin, roast, process | frozen dataclass in `catalogue.py`; a bean product's own fields |
 | `EquipmentDetails` | warranty, material | frozen dataclass in `catalogue.py`; an equipment product's own fields |
 
@@ -156,7 +178,7 @@ class OrderLine:
 class Customer:
     customer_id: CustomerId
     name: str
-    email: Email
+    email: Email | None  # C-05 has none (C37)
     country: Country | None
     postal_code: PostalCode | None
     account_kind: AccountKind

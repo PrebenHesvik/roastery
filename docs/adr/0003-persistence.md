@@ -108,7 +108,7 @@ class CustomerRepository(Protocol):
         ...
 ```
 
-`Customer` and `CustomerChange` are core types in `roastery/customer.py` (ADR 0001). A customer carries an e-mail (C25), ending in `example.invalid`; it reaches contract A only in `raw_customers`, through the csv export. `customer_changes` has no e-mail column, so the log row of an update carries the country and postal code as they are after it, whatever changed: every update writes one row, as `contract.md` says ("every insert, update and delete").
+`Customer` and `CustomerChange` are core types in `roastery/customer.py` (ADR 0001). A customer may carry an e-mail (C25, C37), ending in `example.invalid`; C-05 has none. It reaches contract A only in `raw_customers`, through the csv export, where C-05's NULL is the app's own. `customer_changes` has no e-mail column, so the log row of an update carries the country and postal code as they are after it, whatever changed: every update writes one row, as `contract.md` says ("every insert, update and delete").
 
 `seq` is given by the store, from 1 up, as `MAX(seq) + 1` inside the transaction. Memory and sqlite give the same numbers. An erase is a tombstone: its row carries the key, and its country and postal code are empty. Orders keep the customer's id after an erase (O-107 still names C-07).
 
@@ -129,9 +129,11 @@ class Store(Protocol):
 
 `uow.py` has the two adapters: `SqliteStore` (a connection) and `InMemoryStore` (the dicts). Two units of work over one store see each other's commits. They are used one at a time: the simulator plays one call after another.
 
-**One price cache per store** (C31). Each store adapter is built with one `CachedPrices` (`cache.py`), in front of its prices, and every unit of work of that store reads list prices through it. `Catalogue.set_price` evicts the product's entry when its unit of work commits. Both wirings of the simulator share the store, so they share the cache and see one eviction: no wiring can price a cart from an entry the other made stale. The cache is a concrete class, not a port: it has one adapter, and a port with one adapter fails the deletion test. `bootstrap`'s store constructors take the clock and `price_ttl` for it (ADR 0013).
+**One price cache per store** (C31). Each store adapter is built with one `CachedPrices` (`cache.py`), in front of its prices, and every unit of work of that store reads list prices through it. `Catalogue.set_price` evicts the product's entry when its unit of work commits. Both wirings of the simulator share the store, so they share the cache and see one eviction: no wiring can price a cart from an entry the other made stale. The cache is a concrete class, not a port: it has one adapter, and a port with one adapter fails the deletion test. The cache belongs to the store (C38): `bootstrap`'s store constructors take the clock and `price_ttl` for it, and `wire` takes the store and never a TTL of its own. `bootstrap` builds both from one clock and one `Settings`, so the two cannot disagree (ADR 0013).
 
-**Which store runs what** (C32). `full` and `month` are played on sqlite. The memory store serves the tests, the walks and `tiny`. The memory unit of work copies the store's dicts per call (below), which is quadratic over three years of trade.
+**Which store runs what** (C32). `full` and `month` are played on sqlite. The memory store serves the tests and the walks. The memory unit of work copies the store's dicts per call (below), which is quadratic over three years of trade.
+
+`tiny` is not a run of its own. 6.4 plays the scripted week by itself, on either store (memory is enough for one week), and the tiny writer cuts `tiny` from it. 6.5's `full`, played on sqlite, holds the same week inside three years: the extracts test finds each tiny table's rows in `month` or `full` (`contract.md`'s **lives in**: `same(month)`, `same(full)` or `derived(...)`, compared on tiny's columns, D13). So the week must come out the same on both stores, which the contract suite on both stores (ADR 0015) is there to hold.
 
 ### sqlite's transaction mode
 
