@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from collections import Counter
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from roastery.pipeline import Rows
-from roastery_sim.play import Played, play
+from roastery_sim.build import build, write
+from roastery_sim.play import Played, PlayStopped, play
 
 
 def _at(day: int, hour: int, minute: int = 0, second: int = 0) -> dt.datetime:
@@ -97,3 +100,53 @@ def test_the_apps_counts_are_the_datasets(played: Played) -> None:
     assert counted == expected
     rows = [r for r in _dicts(played.tables['stock_daily']) if r['product_id'] in {'P-10', 'P-20'}]
     assert len(rows) == len(expected)  # one row per product and day
+
+
+class _RaisingNotifier:
+    """A Notifier whose `send` fails,."""
+
+    def __init__(self) -> None:
+        self.sends = 0
+
+    def send(self, to: object, *, subject: str, body: str) -> None:
+        self.sends += 1
+        raise RuntimeError('mail is down')
+
+
+def _hashes(root: Path) -> dict[str, str]:
+    """Each file under root, by relative path, with its sha256."""
+    return {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob('*'))
+        if path.is_file()
+    }
+
+
+def test_the_same_seed_gives_the_same_bytes(tmp_path: Path) -> None:
+    for name in ('one', 'two'):
+        write(build(seed=0, until=None, store='memory'), tmp_path / name, seed=0, shop_version='t')
+    one, two = _hashes(tmp_path / 'one'), _hashes(tmp_path / 'two')
+    assert one == two
+    assert 'tiny.sql' in one
+    assert 'data/manifest.json' in one
+    assert any(name.endswith('.parquet') for name in one)
+    assert {n for n in one if n.startswith('landing/')} == {
+        'landing/raw_customers.csv',
+        'landing/raw_lines.csv',
+    }
+
+
+def test_the_sqlite_store_gives_the_memory_stores_bytes() -> None:
+    memory = build(seed=0, until=None, store='memory')
+    sqlite = build(seed=0, until=None, store='sqlite')
+    assert sqlite.text == memory.text
+    assert sqlite.defects == memory.defects
+
+
+def test_a_failing_handler_stops_the_play_on_the_first_confirmation() -> None:
+    notifier = _RaisingNotifier()
+    with pytest.raises(PlayStopped) as stopped:
+        play(notifier=notifier)
+    assert stopped.value.day == dt.date(2025, 11, 12)
+    assert stopped.value.failures
+    assert all('confirm' in failure.handler for failure in stopped.value.failures)
