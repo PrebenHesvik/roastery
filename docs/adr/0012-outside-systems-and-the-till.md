@@ -1,6 +1,6 @@
 # 0012. The outside systems and the till
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C11 and C13). C11 replaces plan §2's
+Status: accepted, 2026-11-04 (step 6.2, decisions C11, C13 and C21). C11 replaces plan §2's
 "`log_event` with source, variant and step".
 
 ## Context
@@ -104,6 +104,8 @@ null), so the match is never by customer.
 **The till never moves stock.** Stock moves when an order is placed: O-104's placing wrote the
 kettle's `sold` movement in its own unit of work (ADR 0005). The till's R-5001 is the same
 sale seen by a second system. No till line writes a movement, an order or a payment.
+
+A return at the till is the other way round: undoing a sale is a `sold` movement with the opposite sign (C21), written by `Checkout.credit_for` or `cancel`, never by the till's file.
 
 ## Alternatives refused
 

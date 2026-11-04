@@ -38,8 +38,9 @@ def wire(
 
     Takes a unit of work from the store, stamping `source`;
     makes the bus and subscribes the handlers; puts the price
-    cache in front of the prices for settings.price_ttl, and
-    binds the jobs to the store, the feed and the batch size.
+    cache in front of the prices for settings.price_ttl; puts
+    retry and the breaker around the provider; and binds the
+    jobs to the store, the feed and the batch size.
     """
     ...
 ```
@@ -53,6 +54,8 @@ def wire(
 | `ids`, `source` | ADR 0007 | ADR 0007 | ADR 0007 |
 | `feed` | the caller's feed | the simulator's feed | `FakeFeed` |
 | `provider` | `ProviderPayments` on the SDK, from `PROVIDER_URL` and `PROVIDER_KEY` | `FakeProvider` | `FakeProvider` |
+
+`wire` wraps the `PaymentProvider` it is given in `resilience`'s retry and `CircuitBreaker`, so every caller gets the same protected port, whatever stands behind it. A decline (`ProviderRefused`) is never retried; `ProviderUnavailable` is retried, and passes through when the retries run out or the breaker is open (ADR 0011).
 
 `source` and the `Ids` adapter are wiring arguments: ADR 0007 owns them and their two adapters. The domain never sees them.
 
@@ -82,7 +85,7 @@ The relay and the exports are adapters' functions (`outbox.relay`, `exports`). T
 
 ### The API: framework-free handlers
 
-`api.py` holds handlers: a request dict in, a response dict out. A handler reads the request, calls a service on `App`, and turns a `ShopError` into a status (ADR 0006). No web framework is imported. The rules stay in the service and the core.
+`api.py` holds handlers: a request dict in, a response dict out. A handler reads the request, calls a service on `App`, and turns a `ShopError` into a status (ADR 0006). It maps the provider's port errors too: `ProviderRefused` to 402 and `ProviderUnavailable` to 503 (ADR 0011). No web framework is imported. The rules stay in the service and the core.
 
 ```python
 type Request = Mapping[str, object]

@@ -1,6 +1,6 @@
-# 0002. No dependencies in the shop
+# 0002. Stdlib plus tzdata in the shop
 
-Status: accepted, 2026-11-04 (step 6.2, decision C2)
+Status: accepted, 2026-11-04 (step 6.2, decisions C2 and C19)
 
 ## Context
 
@@ -12,10 +12,10 @@ The teaching app today, `firm`, uses the standard library only. Its `frames.py` 
 
 ## Decision
 
-`packages/shop` has no third-party runtime dependency. Its `pyproject.toml` keeps `dependencies = []`.
+`packages/shop` has one runtime dependency, `tzdata`, and nothing else (C19, an amendment to C2). `tzdata` is a data package (PEP 615), not a library: `zoneinfo` reads the IANA time zones from it where the system has none. Its `pyproject.toml` has `dependencies = ['tzdata']`. The rest is the standard library.
 
 - Storage is the standard library's `sqlite3` (ADR 0003).
-- Money is `decimal.Decimal`; time is `datetime` with `zoneinfo` (ADR 0008).
+- Money is `decimal.Decimal`; time is `datetime` with `zoneinfo`, whose zone data comes from `tzdata` (ADR 0008).
 - The payment provider's SDK is a stand-in module, `provider_sdk.py`, in the vendor layer. It plays a library from outside the app without being one.
 - `reports.py` returns rows: frozen dataclasses in sorted tuples. It never returns a frame. Polars stays in data-docs' `frames.py`, which turns the rows into frames for a page.
 
@@ -37,7 +37,7 @@ def sales_by_kind(uow: UnitOfWork) -> tuple[SalesByKind, ...]:
 
 Tools that do not ship with the app (pytest, ruff) are dev dependencies of the workspace. They are not runtime dependencies.
 
-Open question: `zoneinfo` finds no time zones on Windows without the `tzdata` package. On this machine, `ZoneInfo('Europe/Oslo')` in the roastery workspace raises `ZoneInfoNotFoundError` (`zoneinfo.TZPATH` is empty and `tzdata` is not installed). C8 names zones (`ROASTERY_SHOP_ZONE`, a zone per country), so the app and its tests fail on Windows as decided. CI on Linux is not affected. Data-docs' environment already has `tzdata` (through its own dependencies). The two ways out are a marker-conditional dependency (`tzdata; sys_platform == 'win32'`), which is pure data and no code, or `tzdata` in the workspace's dev group only. The owner chooses; ADR 0008 is the place for the zones.
+Why `tzdata` is allowed: on Windows `ZoneInfo('Europe/Oslo')` raises `ZoneInfoNotFoundError` without it (`zoneinfo.TZPATH` is empty), and a slim container image may lack the system database too. C8 names zones (`ROASTERY_SHOP_ZONE`, a zone per country), so the app and its tests need them. Fixed offsets would get summer time wrong. `tzdata` holds data and no code, and data-docs' environment already has it.
 
 ## Alternatives refused
 
@@ -51,8 +51,8 @@ Open question: `zoneinfo` finds no time zones on Windows without the `tzdata` pa
 
 ## Consequences
 
-- The pin adds no library to data-docs (except, on Windows, perhaps `tzdata`: the open question).
-- A third-party import anywhere in `roastery` is a review finding. 6.3 may add a test that the package's `dependencies` list is empty.
+- The pin adds no library to data-docs but `tzdata`, which data-docs already has.
+- A third-party import anywhere in `roastery` is a review finding. 6.3 may add a test that the package's `dependencies` list is exactly `['tzdata']`.
 - The FastAPI adapter of the live shop lives outside `packages/shop` and calls `api.py`'s handlers.
 - `frames.py` in data-docs knows the row types of `reports.py`. A renamed field there is a page change (ADR 0015).
 

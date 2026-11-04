@@ -1,6 +1,6 @@
 # 0003. Persistence
 
-Status: accepted, 2026-11-04 (step 6.2, decision C3)
+Status: accepted, 2026-11-04 (step 6.2, decisions C3 and C20)
 
 ## Context
 
@@ -31,7 +31,7 @@ class OrderRepository(Protocol):
         ...
 
     def get(self, order_id: OrderId) -> Order:
-        """The order; UnknownOrder if there is none."""
+        """The order; UnknownId if there is none."""
         ...
 
     def save(self, order: Order) -> None:
@@ -47,7 +47,7 @@ class OrderRepository(Protocol):
 |---|---|---|
 | a listing is sorted by its key | `sorted(..., key=...)` | `ORDER BY` on every `SELECT` that returns more than one row |
 | a duplicate id is refused | `DuplicateId` | `DuplicateId` (the primary key; the `IntegrityError` is turned into it) |
-| an unknown id | `Unknown...` (a `LookupError`) | the same |
+| an unknown id | `UnknownId`, a `ShopError` (ADR 0006) | the same |
 | money | `Decimal` | `TEXT` holding the decimal, read back with `Decimal(text)`; never `REAL` |
 | a moment | an aware `datetime` in UTC | `TEXT`, ISO 8601 in UTC |
 | a day | `date` | `TEXT`, ISO 8601 |

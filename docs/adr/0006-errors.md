@@ -1,6 +1,6 @@
 # 0006. Errors
 
-Status: accepted, 2026-11-04 (step 6.2, decision C6)
+Status: accepted, 2026-11-04 (step 6.2, decisions C6 and C20)
 
 ## Context
 
@@ -34,18 +34,29 @@ Four kinds of failure, four ways to report them:
 | a question with two kinds of answer | return a `Result`: `Ok[T] \| Err[E]` | `country_of(C-05)` |
 | a bug | any other exception, never caught in `roastery` | |
 
-**The family.** One core module holds `ShopError` and every subclass of it; no other module
-defines one. ADR 0001's `LAYERS` has no module for it yet (see the open question below). The
-decisions of this step already name these members:
+**The family.** `roastery/errors.py`, a core module (C20), holds `ShopError` and every subclass
+of it; no other module defines one. Every layer raises from it, and the API maps it. The family
+is the 17 members that contract B lists (ADR 0011):
 
 | member | raised when | row |
 |---|---|---|
 | `IllegalTransition` | a move `TRANSITIONS` does not have (ADR 0005) | shipping O-106 |
+| `IllegalSubscriptionMove` | a subscription call its state does not allow | a resume of a subscription not paused |
 | `NotShippable` | `ship` on a counter sale (ADR 0005) | O-104 |
+| `NotCreditable` | `credit_for` on a sale that is not `Paid` or `Delivered` | O-107 was never paid |
+| `AlreadyCredited` | `credit_for` on a line already credited | a second credit of one line |
+| `NoOpenInvoice` | `settle` on an order with no open invoice | a paid order |
+| `NothingToRefund` | `refund` on an order that was never paid | O-106 |
+| `PaymentMismatch` | a payment message with a known `payment_id` and another amount | PAY-1 sent again with another amount |
+| `KeyReused` | the API's key store sees a known key with another body (`idempotency.py`) | |
 | `DuplicateId` | the store already holds the id (ADR 0007) | |
-| `KeyReused` | a payment message with a known `payment_id` and another amount | PAY-1 sent again with another amount |
-| `UnknownProduct` | a line names a product the shop does not list; the whole order rolls back | P-99 (L-09's product) |
+| `UnknownId` | a store's lookup of an id it does not hold (ADR 0003) | |
 | `NoSuchCustomer` | a command names a customer the store does not hold | an order for C-07 after 9 October |
+| `UnknownProduct` | a line names a product the shop does not list; the whole order rolls back | P-99 (L-09's product) |
+| `WrongKind` | a call on a product of the wrong kind | a subscription to a grinder |
+| `NoPrice` | no price covers the day | a web line for P-21 before 7 October |
+| `OutOfStock` | a write-off or a bag the stock cannot cover | |
+| `PeriodOverlap` | a dated row that starts inside the open period | a price period that starts before the open one |
 
 Contract B (ADR 0011, U4) lists, per service and per call, which members it raises. The list
 there is the whole family; 6.3's snapshot test (C12) checks the family's module against it.
@@ -61,7 +72,7 @@ class IllegalTransition(ShopError):
     ) -> None: ...
 
 
-class KeyReused(ShopError):
+class PaymentMismatch(ShopError):
     def __init__(self, payment_id: PaymentId) -> None: ...
 ```
 
@@ -100,11 +111,22 @@ def country_of(
 ```python
 STATUS: Final[Mapping[type[ShopError], int]] = MappingProxyType({
     IllegalTransition: 409,
+    IllegalSubscriptionMove: 409,
     NotShippable: 409,
-    DuplicateId: 409,
+    NotCreditable: 409,
+    AlreadyCredited: 409,
+    NoOpenInvoice: 409,
+    NothingToRefund: 409,
+    PaymentMismatch: 409,
     KeyReused: 409,
-    UnknownProduct: 422,
+    DuplicateId: 409,
+    OutOfStock: 409,
+    PeriodOverlap: 409,
+    UnknownId: 404,
     NoSuchCustomer: 404,
+    UnknownProduct: 422,
+    WrongKind: 422,
+    NoPrice: 422,
 })
 ```
 
@@ -126,14 +148,12 @@ STATUS: Final[Mapping[type[ShopError], int]] = MappingProxyType({
 - The simulator catches `ShopError` only where its script says a refusal is expected (O-106).
   Anywhere else the run stops.
 - `NoSuchCustomer` and `UnknownCustomer` are two names on purpose: one is a refusal raised by
-  a command, the other a value returned by a question. U4 may rename them; both stay.
+  a command, the other a value returned by a question. Both stay.
 - A malformed value is not a `ShopError`. The provider's own errors (`ProviderApiError` in
   `provider_sdk.py`) stay behind the adapter in `provider.py`, which turns them into the
   shop's terms; a declined card is decided there (the `retry-and-circuit-breaker` page).
-- **Open question:** ADR 0001's `LAYERS` names no home for the family. It is core (every
-  layer raises or maps it), and `ports.py` holds only the ports' own errors. Either `LAYERS`
-  gains a core module `errors`, or the family goes into an existing core module (`result.py`
-  is the nearest). U5 decides it against `LAYERS`; this ADR does not add a module.
+- The family lives in `errors.py` (C20), a core module: every layer raises it or maps it, and
+  `ports.py` holds only the ports' own errors (`ProviderRefused`, `ProviderUnavailable`).
 - Adding a member after 6.4 changes contract B, so it is a new data version (CLAUDE.md,
   Freezes).
 
@@ -144,6 +164,6 @@ STATUS: Final[Mapping[type[ShopError], int]] = MappingProxyType({
 | `errors` | raise, `None` or a result, on `country_of`: C-05 gives `NoCountry`, C-07 gives `UnknownCustomer`; `None` cannot tell them apart |
 | `parse-dont-validate` | `Ok[ParsedLine] \| Err[Reject]` on the till's file (ADR 0012) |
 | `state-machine` | `IllegalTransition` when O-106 is shipped |
-| `idempotency` | `KeyReused` when PAY-1 comes back with another amount |
+| `idempotency` | `PaymentMismatch` when PAY-1 comes back with another amount |
 | `unit-of-work` | `UnknownProduct` on P-99 rolls the whole order back |
 | `decorators-and-middleware` | the API's handlers turning a `ShopError` into a status in one place |

@@ -1,6 +1,6 @@
 # 0014. Settings
 
-Status: accepted, 2026-11-04 (step 6.2, decision C15)
+Status: accepted, 2026-11-04 (step 6.2, decisions C15 and C19)
 
 ## Context
 
@@ -117,7 +117,7 @@ A message never shows the value of a `Url` or a `Secret`: it names the variable 
 
 VAT rates are dated rows by country and kind in the app database (ADR 0010). A setting is one value for the whole run; a rate changes on a date and differs by country. Phase 8's change is code and data, not "a config change". There is no `ROASTERY_VAT*` variable, and one in the environment is reported as not a setting.
 
-Open question (for phase 8): C15 says these are "the same names as the DevOps settings table". The map's shared case (`map-patterns-devops.md` §3) names `DB_NAME`, `DB_PASSWORD`, `PROVIDER_URL` and `PROVIDER_API_KEY`. The app reads `ROASTERY_DATABASE_URL` (the name and the password are parts of it) and `ROASTERY_PROVIDER_KEY`. Phase 8's Helm values and vault entries must set the app's names, or the DevOps table must be re-said in them.
+C15's names stand: the app reads `ROASTERY_DATABASE_URL` (the name and the password are parts of it) and `ROASTERY_PROVIDER_KEY`. C15's wording "the same names as the DevOps settings table" was wrong: the map's shared case (`map-patterns-devops.md` §3) names `DB_NAME`, `DB_PASSWORD`, `PROVIDER_URL` and `PROVIDER_API_KEY`. Phase 8's chart maps its secrets (`DB_NAME`, `DB_PASSWORD`, `PROVIDER_API_KEY`) onto the `ROASTERY_*` names; the app does not change for it.
 
 ## Alternatives refused
 
@@ -135,7 +135,7 @@ Open question (for phase 8): C15 says these are "the same names as the DevOps se
 
 - One place lists every setting; a new one is a field and a parser, nothing else.
 - The repr of `Settings` is safe to log.
-- `ROASTERY_SHOP_ZONE` needs `zoneinfo` to know the zone. On Windows that needs `tzdata` (ADR 0002's open question).
+- `ROASTERY_SHOP_ZONE` needs `zoneinfo` to know the zone. `tzdata` is the shop's one runtime dependency, so the zone is found on Windows too (C19, ADR 0002).
 - The simulator and the tests build `Settings` directly, or pass a dict to `from_env`. Values for the provider that the fake does not use are read and checked, not used, as in firm.
 
 ## Pages served

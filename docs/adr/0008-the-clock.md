@@ -1,6 +1,6 @@
 # 0008. The clock
 
-Status: accepted, 2026-11-04 (step 6.2, decision C8)
+Status: accepted, 2026-11-04 (step 6.2, decisions C8 and C19)
 
 ## Context
 
@@ -107,15 +107,12 @@ Jobs take no clock argument: the port is wired in (C12).
   moment as an argument, never a clock.
 - The till's Bergen-time `sold_at` is turned into UTC by the parser, with the shop zone
   (ADR 0012).
-- **Open question:** the zone table needs the IANA time zone database. `zoneinfo` reads it from
-  the system, and Windows has none: on the owner's machine, `zoneinfo.ZoneInfo('Europe/Helsinki')`
-  raises `ZoneInfoNotFoundError` in this workspace (checked 2026-11-04). CI runs on
-  `ubuntu-latest`, which ships a system database, so CI would pass while a local run fails;
-  and a system database's version can differ between machines, which the same-bytes rule
-  dislikes. The two ways out are the `tzdata` wheel as the shop's one declared dependency
-  (which touches C2, ADR 0002), or a hand-written rule for the four zones (the EU's last
-  Sundays of March and October). The choice belongs with ADR 0002; 6.3 cannot build
-  `local_date` portably until it is made.
+- `tzdata` is the shop's one runtime dependency (C19, ADR 0002). `zoneinfo` finds no zones on
+  Windows without it (`ZoneInfo('Europe/Helsinki')` raises `ZoneInfoNotFoundError`), a slim image
+  may lack the system database, and a system database's version can differ between machines.
+  The wheel pins one version of the zone data, so a local run and CI give the same days. A
+  hand-written rule for the four zones was refused: it would repeat the EU's last Sundays of
+  March and October in code.
 
 ## Pages served
 

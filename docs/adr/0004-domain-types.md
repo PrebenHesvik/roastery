@@ -32,9 +32,9 @@ live in the core modules of ADR 0001's `LAYERS`:
 
 | module | types |
 |---|---|
-| `roastery/ids.py` | the id types, `Country`, `PostalCode` |
+| `roastery/ids.py` | the id types (with `CategoryId`), `Country`, `PostalCode`, `AccountKind` |
 | `roastery/money.py` | `Money`, `Qty`, rounding to the øre |
-| `roastery/catalogue.py` | `Product`, `Kind` |
+| `roastery/catalogue.py` | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails` |
 | `roastery/order.py` | `OrderLine`, `Channel`, the order's states (ADR 0005) |
 
 A malformed value raises `ValueError` or `TypeError` when it is built; a refused command is
@@ -52,6 +52,7 @@ shape `PREFIX-digits`:
 | `EventId` | `E` | E-09 |
 | `PaymentId` | `PAY` | PAY-1 |
 | `SubscriptionId` | `S` | S-1 |
+| `CategoryId` | fixed in `ids.py` with the other prefixes (ADR 0007) | |
 | `ShipmentId`, `MovementId` | fixed in `ids.py` with the other prefixes (ADR 0007) | |
 
 A `NewType` is refused: it is a name for the type checker and checks nothing at run time.
@@ -139,6 +140,9 @@ class OrderLine:
 | `PostalCode` | text | digits only, kept as text: 0150 keeps its zero (C-01) |
 | `Channel` | `Literal['web', 'shop']` | a type alias, no class |
 | `Kind` | `Literal['beans', 'equipment']` | as `products.kind` holds it |
+| `AccountKind` | `Literal['consumer', 'business']` | a type alias, no class; in `ids.py` |
+| `BeanDetails` | weight, origin, roast, process | frozen dataclass in `catalogue.py`; a bean product's own fields |
+| `EquipmentDetails` | warranty, material | frozen dataclass in `catalogue.py`; an equipment product's own fields |
 
 A customer's country is `Country | None`: C-05 has none, and that is a fact about Lars, not
 a fault. What a missing country means is said by the caller that needs one (ADR 0008,

@@ -168,12 +168,12 @@ def relay(
 | row | what happened |
 |---|---|
 | E-10 before E-09 | At the 15:30 run on 6 October the relay forms new batches. E-09 is the last row of one batch and E-10 the first of the next. The feed refuses E-09's batch; E-10's batch goes and is stamped 15:30. At the 15:45 run, E-09's batch is offered again, as it was, and is stamped 15:45. E-09 is in the feed once. |
-| E-08 late | E-08 is written at 12:00 on 8 October. Its batch is not taken until the run at 07:00 on 10 October: the relay does not run, or its batch is refused, until then. |
+| E-08 late | E-08 is written at 12:00 on 8 October. Its batch is not taken until the run at 07:00 on 10 October: the feed refuses its batch at the runs on 8 and 9 October, though the relay runs both days (E-04 and E-13 are loaded then). |
 | one `loaded_at` per run | Every batch a run sends gets the moment of that run (E-01 and E-02 at 08:15; E-05 and E-06 at 22:00). |
 
 The batch boundary between E-09 and E-10 is the simulator's to make, by construction (6.4; plan risk "E-09 and E-10 land in one batch"). A simulator test holds it.
 
-Open question (for 6.4): plan §5's default says the relay does not run on 8 and 9 October. The baseline disagrees: E-04 is loaded at 8 October 11:00, and E-13 and E-14 at 9 October 19:45. So the relay runs at 19:45 on 9 October and E-08 still waits. Under this decision that needs E-08's batch to be refused at that run (formed earlier, or formed then with a boundary before E-13). "A relay that did not run" alone cannot make E-08 late. The mechanism allows it; the script must name the refused batch, and the default in §5 should be restated.
+The relay did run on 8 and 9 October: E-04 is loaded at 8 October 11:00, and E-13 and E-14 at 9 October 19:45. So E-08 is late because its batch is refused on two runs, not because the relay did not run. 6.4's script names the two refused runs; the default in plan §5 says the same (`RELAY_BATCH = 5`).
 
 ### Downstream
 

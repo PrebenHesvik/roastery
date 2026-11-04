@@ -1,6 +1,6 @@
 # 0001. A flat package and its layers
 
-Status: accepted, 2026-11-04 (step 6.2, decisions C1 and C14)
+Status: accepted, 2026-11-04 (step 6.2, decisions C1, C14, C20 and C24)
 
 ## Context
 
@@ -34,6 +34,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             'catalogue',
             'clock',
             'commands',
+            'errors',
             'events',
             'ids',
             'money',
@@ -61,6 +62,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             'checkout',
             'customers',
             'fulfilment',
+            'listing',
             'payments',
             'reports',
             'stock',
@@ -74,7 +76,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
 """The modules of each layer, sorted; a module is in one row."""
 ```
 
-38 modules in 8 layers: core 13, ports 1, vendor 1, adapters 8, service 7, api 4, bootstrap 2, checks 2.
+40 modules in 8 layers: core 14, ports 1, vendor 1, adapters 8, service 8, api 4, bootstrap 2, checks 2.
 
 `INWARD` lists the layers each layer may import. The rows go from the inside out.
 
@@ -118,11 +120,12 @@ def layer_of(module: str) -> str:
 
 | layer | module | its one job |
 |---|---|---|
-| core | `catalogue` | `Product`, `Kind`, the category path |
+| core | `catalogue` | `Product`, `Kind`, `BeanDetails`, `EquipmentDetails`, the category path |
 | core | `clock` | `local_date(now, zone)` and the zone of each country: days from moments, as a pure function (ADR 0008) |
 | core | `commands` | the subscription commands as data; apply, replay, the command log |
+| core | `errors` | `ShopError` and its 17 members, the one closed family (ADR 0006) |
 | core | `events` | `OrderPlaced`, `OrderPaid`, `StatusChanged`; the in-process `EventBus` (ADR 0009) |
-| core | `ids` | the id value types: `CustomerId`, `ProductId`, `OrderId`, `LineId`, `EventId`, `Country`, `PostalCode` (ADR 0004) |
+| core | `ids` | the id value types: `CustomerId`, `ProductId`, `CategoryId`, `OrderId`, `LineId`, `EventId`, `Country`, `PostalCode`, `AccountKind` (ADR 0004) |
 | core | `money` | `Money(amount, currency)` on `Decimal`, `Qty`, rounding to the øre (ADR 0004) |
 | core | `order` | `OrderLine`, one class per feed status, `TRANSITIONS` (ADR 0005) |
 | core | `parsing` | payloads and till rows into `ParsedLine` or `Reject` (ADR 0012) |
@@ -144,6 +147,7 @@ def layer_of(module: str) -> str:
 | service | `checkout` | `Checkout`: place, cancel, `credit_for` (the facade) |
 | service | `customers` | `Customers`: register, change, erase |
 | service | `fulfilment` | `Fulfilment`: ship, deliver, `late_shipments` |
+| service | `listing` | `Catalogue`: categories, products, prices, rules, campaigns (ADR 0011) |
 | service | `payments` | `Payments`: a provider message handled once, invoice, settle |
 | service | `reports` | the read side: rows, never frames (ADR 0002) |
 | service | `stock` | `Stock`: the movements (roast, write-off) and the count at close |
@@ -163,6 +167,8 @@ The map's changes, as 6.2 made them:
 - `Ids` and `StatusFeed` are ports in `ports.py`, beside the others.
 - `clock.py` is new: ADR 0008 puts `local_date` and the country zones there. The `Clock` port stays in `ports.py`.
 - `stock.py` owns the movements and the count at close.
+- `errors.py` is new: the `ShopError` family needs one core module (C20).
+- `listing.py` is new: the `Catalogue` service lives there, and `catalogue.py` stays core (C24).
 - `exports.py` writes the csv export and the customer extract, through `pipeline.py`.
 - `frames.py` (the polars bridge), `cohesion.py` (a teaching reader of classes) and `without/` (the naive twins) stay in data-docs.
 
@@ -184,7 +190,7 @@ The exporter (`data_docs_export/patterns_export.py`) is wired to `firm` today. P
 | alternative | why not |
 |---|---|
 | A folder per layer (`roastery/core/order.py`) | It repeats `LAYERS` in the file tree, and a check would still need the table: the deletion test says the folders add nothing. Every import gets longer (`from roastery.core.order import ...`), which costs 72-character lines. The pages key on `roastery/pricing.py`. |
-| `LAYERS` as module → layer, as `firm` has it | 38 rows to read on a phone instead of 8; a layer's members are scattered. A row per layer is what C1 calls a layer. `layer_of` gives the other direction in one function. |
+| `LAYERS` as module → layer, as `firm` has it | 40 rows to read on a phone instead of 8; a layer's members are scattered. A row per layer is what C1 calls a layer. `layer_of` gives the other direction in one function. |
 | Layers enforced by a tool (import-linter) | A third-party dependency (ADR 0002), and the rule leaves the code: the `layers` page shows `check_direction` running, which a tool's config cannot show. |
 | A `without/` folder in the app, as `firm` has | The naive twins are wrong on purpose. Shipping them in the app puts broken code in the release that the simulator runs, and `import_graph` would need special cases for them. They stay in data-docs. |
 | The api rows added in phase 7 | The pages need their home named before the code is written, and the layer rule must hold from the first api module. |

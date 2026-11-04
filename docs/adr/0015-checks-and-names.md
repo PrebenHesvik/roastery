@@ -69,7 +69,7 @@ Each check gets a new, empty store from `make` and raises `Broken` when the stor
 - add, then get, gives back an equal object;
 - a second add of the same id raises `DuplicateId`, and the first is kept;
 - a listing is sorted by its key, whatever the order of adding;
-- an unknown id raises the store's `LookupError`;
+- an unknown id raises the store's `UnknownId`, a `ShopError`;
 - leaving a unit of work without commit undoes every write: the change, its outbox row and its `customer_changes` row;
 - the outbox: a waiting batch keeps its rows (ADR 0009); the change log: `seq` from 1 up, a tombstone carries the key only (ADR 0003).
 

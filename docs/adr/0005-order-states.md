@@ -1,6 +1,6 @@
 # 0005. The order's states
 
-Status: accepted, 2026-11-04 (step 6.2, decision C5)
+Status: accepted, 2026-11-04 (step 6.2, decisions C5, C21 and C22)
 
 ## Context
 
@@ -41,6 +41,7 @@ class Head:
     order_id: OrderId
     customer_id: CustomerId
     channel: Channel
+    country: Country                 # as order_country chose it
     lines: tuple[OrderLine, ...]     # one or more
     credit_of: OrderId | None        # set on a credit order only
 
@@ -90,6 +91,7 @@ Order = Placed | Paid | Invoiced | Shipped | Delivered | Cancelled
 ```
 
 - A `Head` with no lines is refused when it is built.
+- `country` is the country `order_country` chose when the order was placed (C22), so `scheme_for(order, on)` reads it from the order. It is never `None`: a customer with no country gets Norway there, explicitly (ADR 0010).
 - Only a `Paid` order, or one shipped or delivered from `Paid`, has a payment id.
 - **The settlement is carried.** `Shipped` and `Delivered` hold the `Paid` or `Invoiced` they
   came from. It is fixed at the move and never changes after it.
@@ -152,12 +154,13 @@ def status(order: Order) -> str:
 
   `order_values.status = 'unpaid'` is this question asked on 30 September 2026.
 - **A counter sale** (channel `shop`) goes `Placed`, then `Paid`, and stops there. O-104 is
-  E-09 and E-10, paid by PAY-4. The table would allow `ship` from `Paid`; the channel rule
+  E-09 and E-10, paid by PAY-4. A business account's counter sale is invoiced inside `place`
+  (ADR 0011), so it stops at `Invoiced` and is settled later by `Payments.settle`. The table would allow `ship` from `Paid`; the channel rule
   sits in `Fulfilment.ship`, which refuses a `shop` order with `NotShippable` (ADR 0006).
 - **A credit order** (S14) is an order of its own. `Checkout.credit_for(order_id, line)`
   builds a new `Head` with channel `shop`, `credit_of` set to the sale it returns, and one
   line made by `OrderLine.credit` (a negative `Qty`, ADR 0004). It is placed and then paid by a
-  negative payment, so it ends at `Paid`, like any counter sale. The original sale keeps its
+  negative payment, so it ends at `Paid`, like any consumer's counter sale. The original sale keeps its
   own state: there is no `returned` status. Order 300 is such an order: -899, one grinder
   (P-20) back.
 - **A cancel** moves the order to `Cancelled` with a reason, and in the same transaction marks
@@ -169,6 +172,10 @@ def status(order: Order) -> str:
   row. No `OrderPaid` handler writes a movement. The rows force it: O-107 was never paid, yet
   P-10's closing balance drops from 37 on 6 October to 36 on 7 October, the day O-107's L-08
   (one bag of P-10) was placed; and O-103's L-04 (three bags) takes 40 to 37 on 6 October.
+- **Undoing a sale is a `sold` movement with the opposite sign** (C21). A cancel puts the
+  bags back only if they left at `place`, which is always so, since stock moves when an order is
+  placed; a credit order's negative line puts its bag back the same way. Contract A's five
+  reasons stay: no reversal reason is added.
 - **O-106 is refused.** Shipping a cancelled order is not in the table, so `ship(O-106)`
   raises `IllegalTransition`. Nothing is written.
 
@@ -195,11 +202,10 @@ def status(order: Order) -> str:
   order 300 to the credit order's `O-...` id (S9).
 - Order 300's original sale is chosen by 6.4's script. `credit_for` refuses a line already
   credited, and a sale that is not `Paid` or `Delivered`; U4 names those errors in contract B.
-- **Open question:** a cancel (O-106) and a credit order (order 300) put stock back, but
-  `stock_movements`' reasons are roasted, sold, shipped, written off or counted: none is a
-  reversal or a return. Either a reason is added while S12 keeps the table editable, or the
-  undo is a `sold` movement with a positive qty. U4 and 6.4 settle it; the week's frozen
-  balances (P-10 and P-20) must come out the same either way.
+- Undoing a sale is a `sold` movement with the opposite sign (C21), so `stock_movements` keeps
+  its five reasons and the signed `qty` says the direction. The week's frozen balances come out
+  the same: O-106's cancel puts its bag back, and 6.4 gives L-10 a product other than P-10 and
+  P-20 (ADR 0011).
 - A cancel of a `Paid` order needs the money back. That is a negative payment from the
   provider, delivered to `handle_message`; the cancel itself writes no payment.
 - `late_shipments` (the `pure-core-imperative-shell` page) must skip `shop` orders: O-104 is
