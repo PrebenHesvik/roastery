@@ -1,0 +1,131 @@
+AlreadyCredited.__init__(self, line_id: LineId) -> None
+App.__init__(self, customers: Customers, catalogue: Catalogue, checkout: Checkout, payments: Payments, fulfilment: Fulfilment, subscriptions: Subscriptions, stock: Stock, jobs: Jobs, events: CollectingBus) -> None
+App.failures(self) -> tuple[HandlerFailure, ...]
+App.fields[00] customers: Customers
+App.fields[01] catalogue: Catalogue
+App.fields[02] checkout: Checkout
+App.fields[03] payments: Payments
+App.fields[04] fulfilment: Fulfilment
+App.fields[05] subscriptions: Subscriptions
+App.fields[06] stock: Stock
+App.fields[07] jobs: Jobs
+App.fields[08] events: CollectingBus
+Catalogue.__init__(self, uow: UnitOfWork, ids: Ids) -> None
+Catalogue.add_campaign(self, name: str, *, discount_pct: int, first_day: dt.date, last_day: dt.date, product_ids: tuple[ProductId, ...]) -> None
+Catalogue.add_category(self, name: str, *, parent_id: CategoryId | None, sort_order: int) -> CategoryId
+Catalogue.add_product(self, name: str, *, category_id: CategoryId, details: BeanDetails | EquipmentDetails) -> ProductId
+Catalogue.set_cost(self, product_id: ProductId, *, valid_from: dt.date, green: Money, packaging: Money, roasting: Money) -> None
+Catalogue.set_price(self, product_id: ProductId, *, price: Money, valid_from: dt.date) -> None
+Catalogue.set_subscriber_discount(self, percent: int | None, *, valid_from: dt.date) -> None
+Checkout.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, events: CollectingBus, rules: Mapping[str, Rule]) -> None
+Checkout.cancel(self, order_id: OrderId, *, reason: str) -> None
+Checkout.credit_for(self, order_id: OrderId, *, line_id: LineId) -> OrderId
+Checkout.place(self, command: PlaceOrder) -> Placed | Invoiced
+CollectingBus.__init__(self, bus: EventBus) -> None
+CollectingBus.failures(self) -> tuple[HandlerFailure, ...]
+CollectingBus.publish(self, event: object) -> None
+Customers.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
+Customers.change(self, customer_id: CustomerId, *, email: Email | None, country: Country | None, postal_code: PostalCode | None) -> None
+Customers.erase(self, customer_id: CustomerId) -> None
+Customers.register(self, name: str, *, email: Email | None, country: Country | None, postal_code: PostalCode | None, account_kind: AccountKind = 'consumer') -> CustomerId
+DuplicateId.__init__(self, kind: str, value: str) -> None
+FakeClock.__init__(self, start: dt.datetime) -> None
+FakeClock.advance(self, by: dt.timedelta) -> None
+FakeClock.now(self) -> dt.datetime
+FakeClock.set(self, moment: dt.datetime) -> None
+FakeLabels.__init__(self) -> None
+FakeLabels.request(self, order_id: OrderId, *, postal_code: PostalCode) -> None
+FakeLabels.requested(self) -> tuple[OrderId, ...]
+FakeNotifier.__init__(self) -> None
+FakeNotifier.send(self, to: Email, *, subject: str, body: str) -> None
+FakeNotifier.sent(self) -> tuple[tuple[Email, str], ...]
+FakeProvider.__init__(self, *, refund_ids: Sequence[PaymentId]) -> None
+FakeProvider.messages(self) -> tuple[PaymentMessage, ...]
+FakeProvider.refund(self, payment_id: PaymentId, amount: Money, *, key: str) -> PaymentId
+FakeProvider.set_down(self, down: bool) -> None
+FakeProvider.take(self, message: PaymentMessage) -> None
+FeedDown.__init__(self, /, *args, **kwargs)
+Fulfilment.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
+Fulfilment.deliver(self, shipment_id: ShipmentId) -> None
+Fulfilment.late_shipments(self) -> tuple[Order, ...]
+Fulfilment.ship(self, order_id: OrderId, *, promised_by: dt.date) -> ShipmentId
+HandlerFailure.fields[00] handler: str
+HandlerFailure.fields[01] event: str
+HandlerFailure.fields[02] error: str
+IdKind = 'customer', 'order', 'line', 'event', 'product', 'category', 'campaign', 'subscription', 'sub_event', 'shipment', 'bag', 'movement', 'purchase', 'rule'
+IllegalSubscriptionMove.__init__(self, subscription_id: SubscriptionId, state: str, action: str) -> None
+IllegalTransition.__init__(self, order_id: OrderId, state: str, action: str) -> None
+Item.fields[00] product_id: ProductId
+Item.fields[01] qty: Qty
+Item.fields[02] price: Money | None
+Jobs.__init__(self, uow: UnitOfWork, *, clock: Clock, ids: Ids, feed: StatusFeed, settings: Settings) -> None
+Jobs.count_at_close(self) -> int
+Jobs.csv_export(self) -> Mapping[str, str]
+Jobs.nightly_extract(self) -> int
+Jobs.relay(self) -> Relayed
+Jobs.ship_subscription_bags(self) -> int
+KeyReused.__init__(self, key: str) -> None
+Labels.request(self, order_id: OrderId, *, postal_code: PostalCode) -> None
+NoAddress.__init__(self, order_id: OrderId) -> None
+NoOpenInvoice.__init__(self, order_id: OrderId) -> None
+NoPrice.__init__(self, product_id: ProductId, on: dt.date) -> None
+NoSuchCustomer.__init__(self, customer_id: CustomerId) -> None
+NotCreditable.__init__(self, order_id: OrderId, state: str) -> None
+NotShippable.__init__(self, order_id: OrderId) -> None
+NothingToRefund.__init__(self, order_id: OrderId) -> None
+Notifier.send(self, to: Email, *, subject: str, body: str) -> None
+OutOfStock.__init__(self, product_id: ProductId, wanted: int, on_hand: int) -> None
+PaymentMessage.fields[00] payment_id: PaymentId
+PaymentMessage.fields[01] order_id: OrderId
+PaymentMessage.fields[02] amount: Money
+PaymentMessage.fields[03] paid_on: dt.date
+PaymentMismatch.__init__(self, payment_id: PaymentId) -> None
+PaymentProvider.refund(self, payment_id: PaymentId, amount: Money, *, key: str) -> PaymentId
+Payments.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, events: CollectingBus, provider: PaymentProvider) -> None
+Payments.handle_message(self, message: PaymentMessage) -> Receipt
+Payments.invoice(self, order_id: OrderId) -> None
+Payments.refund(self, order_id: OrderId) -> PaymentId
+Payments.settle(self, message: PaymentMessage) -> Receipt
+PeriodOverlap.__init__(self, table: str, key: str, valid_from: dt.date) -> None
+PlaceOrder.fields[00] customer_id: CustomerId
+PlaceOrder.fields[01] channel: Channel
+PlaceOrder.fields[02] items: tuple[Item, ...]
+Receipt.fields[00] payment_id: PaymentId
+Receipt.fields[01] order_id: OrderId
+Receipt.fields[02] status: str
+Relayed.fields[00] sent: tuple[int, ...]
+Relayed.fields[01] waiting: tuple[int, ...]
+ScriptedIds.__init__(self, script: Mapping[IdKind, Sequence[str]], then: Ids) -> None
+ScriptedIds.next(self, kind: IdKind) -> str
+SequentialIds.__init__(self, start: Mapping[IdKind, int], skip: frozenset[str] = frozenset()) -> None
+SequentialIds.next(self, kind: IdKind) -> str
+Settings.fields[00] database_url: Url
+Settings.fields[01] provider_url: Url
+Settings.fields[02] provider_key: Secret
+Settings.fields[03] price_ttl: int
+Settings.fields[04] shop_zone: ZoneInfo
+Settings.fields[05] relay_batch: Positive
+ShopError.__init__(self, /, *args, **kwargs)
+Source = 'scripted', 'simulator', 'visitor'
+StatusChanged.fields[00] event_id: EventId
+StatusChanged.fields[01] order_id: OrderId
+StatusChanged.fields[02] status: Status
+StatusChanged.fields[03] event_at: dt.datetime
+StatusFeed.send(self, events: Sequence[StatusChanged]) -> None
+Stock.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
+Stock.buy_green(self, *, origin: str, kg: Decimal, nok_per_kg: Money) -> None
+Stock.roast(self, product_id: ProductId, *, bags: Qty) -> None
+Stock.stocktake(self, product_id: ProductId, *, on_hand: int) -> None
+Stock.write_off(self, product_id: ProductId, *, qty: Qty) -> None
+Subscriptions.__init__(self, uow: UnitOfWork, clock: Clock, ids: Ids, shop_zone: ZoneInfo) -> None
+Subscriptions.cancel(self, subscription_id: SubscriptionId, *, reason: str) -> None
+Subscriptions.pause(self, subscription_id: SubscriptionId, *, reason: str) -> None
+Subscriptions.resume(self, subscription_id: SubscriptionId, *, reason: str) -> None
+Subscriptions.skip(self, subscription_id: SubscriptionId, *, reason: str) -> None
+Subscriptions.subscribe(self, customer_id: CustomerId, *, product_id: ProductId) -> SubscriptionId
+UnknownId.__init__(self, kind: str, value: str) -> None
+UnknownProduct.__init__(self, product_id: ProductId) -> None
+WrongKind.__init__(self, product_id: ProductId, kind: str) -> None
+memory_store(*, clock: Clock, price_ttl: int) -> InMemoryStore
+sqlite_store(connection: sqlite3.Connection, *, clock: Clock, price_ttl: int) -> SqliteStore
+wire(settings: Settings, store: Store, *, clock: Clock, ids: Ids, source: Source, feed: StatusFeed, provider: PaymentProvider, notifier: Notifier, labels: Labels) -> App
