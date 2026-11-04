@@ -295,8 +295,9 @@ _SEQUENCE: Final[Mapping[IdKind, tuple[str, int]]] = MappingProxyType(
 )
 """Each kind's prefix and the sequence's fixed width (ADR 0007's table)."""
 
-PLANTED: Final = ('L-05', 'L-09')
-"""The ids the export writer plants; the sequence never makes them."""
+PLANTED: Final = ('L-05', 'L-09', 'P-99')
+"""The ids the export writer plants (P-99 is L-09's product, never made by the
+app); the sequence never makes them."""
 
 
 def hidden(kind: IdKind, n: int) -> str:
@@ -331,7 +332,7 @@ def scripted_ids(steps: Iterable[Step]) -> Mapping[IdKind, tuple[str, ...]]:
 
 def skip_set(steps: Iterable[Step]) -> frozenset[str]:
     """What the shared sequence skips: every scripted id (the hidden
-    ones among them) and the writer's planted L-05 and L-09 (W6)."""
+    ones among them) and the writer's planted L-05, L-09 and P-99 (W6)."""
     listed = scripted_ids(steps)
     return frozenset(each for ids in listed.values() for each in ids) | frozenset(PLANTED)
 

@@ -14,6 +14,7 @@ from dataclasses import astuple, dataclass, fields
 from decimal import Decimal
 
 from roastery.fakes import FakeProvider
+from roastery.ids import PaymentId
 from roastery.payments import PaymentMessage
 from roastery.pipeline import Rows
 
@@ -27,7 +28,7 @@ class ProviderLog:
     def __init__(self, provider: FakeProvider) -> None:
         self._provider = provider
         self._log: list[PaymentMessage] = []
-        self._delivered: set[str] = set()
+        self._delivered: set[PaymentId] = set()
 
     def deliver(self, message: PaymentMessage) -> PaymentMessage:
         """Log the message, let the provider take it, and give it back.

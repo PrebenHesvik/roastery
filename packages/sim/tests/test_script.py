@@ -6,6 +6,8 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 
 from roastery.ids import CustomerId, OrderId, PostalCode, ProductId
+from roastery.ports import IdKind
+from roastery.repository import SequentialIds
 from roastery_sim import script
 from roastery_sim.script import (
     CancelOrder,
@@ -135,3 +137,9 @@ def test_the_stock_by_arithmetic_is_the_count_at_close() -> None:
     p10, p20 = ProductId('P-10'), ProductId('P-20')
     assert [on_day[p10, day] for day in days] == [40, 37, 36, 60, 59]
     assert [on_day[p20, day] for day in days] == [4, 4, 4, 4, 4]
+
+
+def test_sequence_widths_are_the_apps_first_ids() -> None:
+    kinds: tuple[IdKind, ...] = tuple(script._SEQUENCE)
+    for kind in kinds:
+        assert script.hidden(kind, 1) == SequentialIds({}).next(kind)

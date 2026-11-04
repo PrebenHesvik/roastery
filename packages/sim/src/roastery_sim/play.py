@@ -24,7 +24,7 @@ from roastery.events import HandlerFailure
 from roastery.fakes import FakeClock, FakeLabels, FakeNotifier, FakeProvider
 from roastery.ids import OrderId, ShipmentId
 from roastery.pipeline import Rows
-from roastery.ports import Labels, Notifier, Relayed, Source
+from roastery.ports import IdKind, Ids, Labels, Notifier, Relayed, Source
 from roastery.repository import ScriptedIds, SequentialIds
 from roastery.settings import Positive, Secret, Settings, Url
 
@@ -57,6 +57,24 @@ from roastery_sim.script import (
 
 RELAY_BATCH = Positive(5)
 """Events per relay batch (W5): the Settings default, stated."""
+
+
+class _DrawLog:
+    """The `Ids` port with a record of what it gave, kind by kind (W6)."""
+
+    def __init__(self, inner: Ids) -> None:
+        self._inner = inner
+        self.drawn: dict[IdKind, list[str]] = {}
+
+    def next(self, kind: IdKind) -> str:
+        each = self._inner.next(kind)
+        self.drawn.setdefault(kind, []).append(each)
+        return each
+
+    def take(self) -> dict[IdKind, list[str]]:
+        """What was drawn since the last take."""
+        drawn, self.drawn = self.drawn, {}
+        return drawn
 
 
 class PlayStopped(Exception):
@@ -124,8 +142,10 @@ def play(
         log = ProviderLog(provider)
         sequence = SequentialIds({}, skip=script.skip_set(steps))
         scripted_ids = ScriptedIds(script.scripted_ids(steps), sequence)
-        wirings: tuple[tuple[Source, ScriptedIds | SequentialIds], ...] = (
-            ('scripted', scripted_ids),
+        draws = _DrawLog(scripted_ids)
+        listed = frozenset(script.scripted_ids(steps))
+        wirings: tuple[tuple[Source, Ids], ...] = (
+            ('scripted', draws),
             ('simulator', sequence),
         )
         apps: dict[str, App] = {}
@@ -149,6 +169,8 @@ def play(
             except Exception as error:
                 error.add_note(f'in step {n} at {step.at.isoformat()}: {step.action!r}')
                 raise
+            if step.wiring == 'scripted':
+                _check_draws(n, step, draws.take(), listed)
             last_of_day = n + 1 == len(run) or run[n + 1].at.date() != step.at.date()
             if last_of_day:
                 failures = apps['scripted'].failures() + apps['simulator'].failures()
@@ -200,6 +222,26 @@ def _year_orders(steps: Sequence[Step]) -> Mapping[int, OrderId]:
                 raise ValueError(f'a place of the year is not followed by its payment: {step}')
             named[n] = after.action.message.order_id
     return named
+
+
+def _check_draws(
+    n: int, step: Step, drawn: Mapping[IdKind, Sequence[str]], listed: frozenset[IdKind]
+) -> None:
+    """The step drew exactly the scripted ids it lists, in order (W6).
+
+    A kind the script lists for some step is compared for every scripted
+    step, so a step that draws one it does not list is caught too; the
+    kinds that fall to the sequence are not compared. One id more or
+    fewer would shift every later scripted id.
+    """
+    for kind in sorted(listed):
+        want = list(step.ids.get(kind, ()))
+        got = list(drawn.get(kind, ()))
+        if got != want:
+            raise ValueError(
+                f'step {n} at {step.at.isoformat()} ({step.action!r}) drew {kind} {got}; '
+                f'it lists {want}'
+            )
 
 
 def _do(app: App, n: int, step: Step, state: _State) -> None:
