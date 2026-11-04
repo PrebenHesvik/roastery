@@ -1050,7 +1050,7 @@ class PeriodOverlap(ShopError):
     ) -> None: ...
 ```
 
-`Settings` is imported, not repeated: its six fields are ADR 0014's, and the snapshot renders them. The simulator builds it directly.
+`Settings` is imported, not repeated: its six fields are ADR 0014's, and the snapshot renders them. The simulator builds it directly. `Rows` is imported too: its three fields (`name`, `columns`, `rows`) are in `pipeline.py`, and the snapshot renders them (6.4, W2).
 
 ### What each call raises
 
