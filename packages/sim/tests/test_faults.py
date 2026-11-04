@@ -114,3 +114,53 @@ def test_csv_text_tells_null_from_empty() -> None:
     assert tuple(found[0]) == rows.columns
     assert [tuple(row) for row in found[1:]] == list(rows.rows)
     assert '\r' not in faults.csv_text(rows)
+
+
+def _changes(
+    given: Mapping[str, Rows], faulted: Mapping[str, Rows]
+) -> Counter[tuple[str, str, str]]:
+    """Every difference between the two mappings, table by table, as (table, key, column).
+
+    A row only one side holds has column ''; a row both sides hold under one key but with other
+    cells has one change per cell. Rows are matched by the log's key; a raw table's, by place.
+    """
+    found: Counter[tuple[str, str, str]] = Counter()
+    for name, was in given.items():
+        now = faulted[name]
+        before = Counter(was.rows) - Counter(now.rows)
+        after = Counter(now.rows) - Counter(was.rows)
+        if name == 'order_events':
+            for row in (*before.elements(), *after.elements()):
+                found[(name, str(row[was.columns.index('order_id')]), '')] += 1
+            continue
+        if name in tiny.RAW:  # the key cell itself may be dirty: the rows are matched by place
+            assert len(was.rows) == len(now.rows), name
+            for old, new in zip(was.rows, now.rows, strict=True):
+                for at, column in enumerate(was.columns):
+                    if old[at] != new[at]:
+                        found[(name, faults.key_of(was, old), column)] += 1
+            continue
+        left = {faults.key_of(was, row): row for row in before.elements()}
+        right = {faults.key_of(now, row): row for row in after.elements()}
+        for key in left.keys() | right.keys():
+            if key in left and key in right:
+                for at, column in enumerate(was.columns):
+                    if left[key][at] != right[key][at]:
+                        found[(name, key, column)] += 1
+            else:
+                found[(name, key, '')] += 1
+    return found
+
+
+def test_the_log_names_every_change_and_only_changes() -> None:
+    given, faulted, log = _faulted()
+    assert set(faulted) == set(given)
+    changes = _changes(given, faulted)
+    # order_events is logged once per order, however many events the order lost
+    named = Counter((d.table, d.key, d.column) for d in log)
+    dropped = {(d.table, d.key, d.column) for d in log if d.kind == 'dropped'}
+    for entry in dropped:
+        assert changes[entry] > 0, f'{entry} is logged but nothing was dropped'
+        named[entry] = changes[entry]
+    assert changes == named
+    assert all(count == 1 for key, count in named.items() if key not in dropped)

@@ -8,6 +8,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # every machine reads the tzdata wheel, never the system's zone files (6.4, U12)
+      PYTHONTZPATH: ''
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

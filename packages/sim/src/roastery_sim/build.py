@@ -89,10 +89,18 @@ def _bytes(path: Path, text: str) -> Path:
     return path
 
 
-def write(built: Built, out: Path, *, seed: int, shop_version: str) -> tuple[Path, ...]:
+def write(
+    built: Built,
+    out: Path,
+    *,
+    seed: int,
+    shop_version: str,
+    until: dt.datetime | None = None,
+) -> tuple[Path, ...]:
     """`out/tiny.sql`, the data folder `out/data` and `out/landing/*.csv`; the files written.
 
-    The data folder's files are its parquet files and its manifest, by name.
+    The data folder's files are its parquet files and its manifest, by name. A play stopped at
+    `until` is marked so in the manifest, the moment in UTC as ISO text.
     """
     written = [_bytes(out / 'tiny.sql', built.text)]
     data = out / 'data'
@@ -101,6 +109,7 @@ def write(built: Built, out: Path, *, seed: int, shop_version: str) -> tuple[Pat
         data,
         extract='tiny',
         seed=seed,
+        until=None if until is None else until.astimezone(dt.UTC).isoformat(),
         defects=[d.as_dict() for d in built.defects],
         shop_version=shop_version,
     )

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
-from dataclasses import astuple, dataclass, fields
+from dataclasses import astuple, dataclass, fields, replace
 from decimal import Decimal
 
 from roastery.fakes import FakeProvider
@@ -41,9 +41,17 @@ class ProviderLog:
             self._provider.take(message)
         return message
 
-    def refunds(self) -> tuple[PaymentMessage, ...]:
-        """The provider's refund messages not yet delivered, in order."""
-        return tuple(m for m in self._provider.messages() if m.payment_id not in self._delivered)
+    def refunds(self, *, on: dt.date) -> tuple[PaymentMessage, ...]:
+        """The provider's refund messages not yet delivered, in order, dated `on`.
+
+        The fake dates a refund as its payment; a refund is the shop's act of the day it is
+        delivered, so `on` (the shop's local date of that moment) replaces `paid_on`.
+        """
+        return tuple(
+            replace(m, paid_on=on)
+            for m in self._provider.messages()
+            if m.payment_id not in self._delivered
+        )
 
     def rows(self) -> Rows:
         """`payments`: every message delivered, in the order delivered."""

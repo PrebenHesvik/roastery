@@ -124,13 +124,16 @@ def test_a_refund_asked_of_the_provider_is_waiting_to_be_delivered() -> None:
     provider = FakeProvider(refund_ids=[REFUND_ID])
     log = outside.ProviderLog(provider)
     log.deliver(_paid(O101, 'PAY-1', '1157.00', 5))
-    assert log.refunds() == ()
+    day = dt.date(2026, 10, 9)
+    assert log.refunds(on=day) == ()
     provider.refund(PAY1, _nok('100.00'), key='refund-O-101')
-    [refund] = log.refunds()
+    [refund] = log.refunds(on=day)
     assert (refund.payment_id, refund.amount) == (REFUND_ID, _nok('-100.00'))
+    assert refund.paid_on == day  # the refund's day, not the day of the sale (5 October)
     log.deliver(refund)
-    assert log.refunds() == ()
+    assert log.refunds(on=day) == ()
     assert log.rows().rows[-1][3] == _nok('-100.00').amount
+    assert log.rows().rows[-1][4] == day
 
 
 FACTS = {

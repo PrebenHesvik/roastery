@@ -17,13 +17,15 @@ def write(
     *,
     extract: str,
     seed: int,
+    until: str | None = None,
     defects: Sequence[Mapping[str, str]],
     shop_version: str,
 ) -> dict:
     """Build the folder and return its manifest.
 
     The settings are those of `roastery_spec.baseline.build`: one thread, a fixed row group size,
-    rows ordered by key. The manifest keeps a fixed key order, with `sha256` sorted by file name.
+    rows ordered by key. `until` is None for a whole play, else the ISO moment it stopped at.
+    The manifest keeps a fixed key order, with `sha256` sorted by file name.
     """
     found = baseline.tables(text)
     con = duckdb.connect()
@@ -55,6 +57,7 @@ def write(
         'tables': counts,
         'sha256': dict(sorted(hashes.items())),
         'seed': seed,
+        'until': until,
         'shop': shop_version,
         'defects': [dict(d) for d in defects],
     }

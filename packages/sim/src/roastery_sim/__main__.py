@@ -40,7 +40,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     built = build.build(seed=args.seed, until=args.until, store=args.store)
     written = build.write(
-        built, args.out, seed=args.seed, shop_version=importlib.metadata.version('roastery')
+        built,
+        args.out,
+        seed=args.seed,
+        shop_version=importlib.metadata.version('roastery'),
+        until=args.until,
     )
     for path in written:
         sys.stdout.write(f'{path.as_posix()}\n')

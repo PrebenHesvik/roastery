@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
@@ -150,3 +151,42 @@ def test_a_failing_handler_stops_the_play_on_the_first_confirmation() -> None:
     assert stopped.value.day == dt.date(2025, 11, 12)
     assert stopped.value.failures
     assert all('confirm' in failure.handler for failure in stopped.value.failures)
+
+
+SHA_FILE = Path(__file__).with_name('tiny.sha256')
+
+
+def test_the_bytes_are_those_committed(tmp_path: Path) -> None:
+    built = build(seed=0, until=None, store='memory')
+    write(built, tmp_path, seed=0, shop_version='sha-gate')
+    got = {
+        'tiny': hashlib.sha256(built.text.encode('utf-8')).hexdigest(),
+        'manifest': hashlib.sha256((tmp_path / 'data' / 'manifest.json').read_bytes()).hexdigest(),
+    }
+    first, second = SHA_FILE.read_text(encoding='utf-8').splitlines()
+    committed = {'tiny': first, 'manifest': second.removeprefix('manifest ')}
+    assert got == committed, (
+        f'tiny.sql or manifest.json changed: now tiny {got["tiny"]} and manifest '
+        f'{got["manifest"]}. If this is on purpose, rewrite tests/tiny.sha256 with the first as '
+        'line 1 and "manifest <hex>" as line 2 (LF).'
+    )
+
+
+def test_a_manifest_says_where_a_play_stopped(tmp_path: Path) -> None:
+    whole = build(seed=0, until=None, store='memory')
+    write(whole, tmp_path / 'whole', seed=0, shop_version='t')
+    stop = _at(5, 0)
+    write(
+        build(seed=0, until=stop, store='memory'),
+        tmp_path / 'cut',
+        seed=0,
+        shop_version='t',
+        until=stop,
+    )
+    kept = [
+        json.loads((tmp_path / n / 'data' / 'manifest.json').read_text()) for n in ('whole', 'cut')
+    ]
+    assert kept[0]['until'] is None
+    assert kept[1]['until'] == '2026-10-05T00:00:00+00:00'
+    keys = list(kept[0])
+    assert keys.index('until') == keys.index('seed') + 1
