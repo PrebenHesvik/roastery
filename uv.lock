@@ -109,12 +109,14 @@ name = "roastery-sim"
 version = "0.0.0"
 source = { editable = "packages/sim" }
 dependencies = [
+    { name = "duckdb" },
     { name = "roastery" },
     { name = "roastery-spec" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", specifier = ">=1.5,<1.6" },
     { name = "roastery", editable = "packages/shop" },
     { name = "roastery-spec", editable = "packages/spec" },
 ]
