@@ -81,9 +81,11 @@ class CircuitBreaker:
     row open it. Open: each call is refused with CircuitOpen, without
     calling, until `reset_after` has passed on the clock. Half-open:
     the next call is a trial; if it works the breaker closes, and if
-    it fails it opens again. Only errors in `on` count. The state
-    lives in this object, so each process has a breaker of its own,
-    and it serves one caller at a time.
+    it fails it opens again. Only errors in `on` count: any other
+    answer, a decline included, shows the service is up, so it
+    clears the count and closes a half-open breaker. The state lives
+    in this object, so each process has a breaker of its own, and it
+    serves one caller at a time.
     """
 
     def __init__(
@@ -130,9 +132,15 @@ class CircuitBreaker:
             if state == 'half-open' or tripped:
                 self._opened_at = self._clock.now()
             raise
+        except Exception:
+            self._close()  # an answer, if a no: the service is up
+            raise
+        self._close()
+        return answer
+
+    def _close(self) -> None:
         self._failures = 0
         self._opened_at = None
-        return answer
 
 
 class ProtectedProvider:
@@ -141,7 +149,8 @@ class ProtectedProvider:
     One refund is up to `attempts` calls to the provider, each with
     the same key, so a retry cannot refund twice. The breaker counts
     a refund that failed after all its tries as one failure. A
-    decline (ProviderRefused) is never retried and never counted.
+    decline (ProviderRefused) is never retried; it is an answer, so
+    it closes the breaker as a refund does.
     """
 
     def __init__(

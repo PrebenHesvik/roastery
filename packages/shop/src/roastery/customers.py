@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from zoneinfo import ZoneInfo
 
 from roastery.clock import ZONES, local_date
-from roastery.commands import Cancel, apply
+from roastery.commands import Cancel, apply, check
 from roastery.customer import Customer, Email
 from roastery.errors import NoSuchCustomer, UnknownId
 from roastery.ids import (
@@ -140,26 +140,45 @@ class Customers:
 
     def erase(self, customer_id: CustomerId) -> None:
         """Gone, a tombstone row; orders keep the id. Open
-        subscriptions are cancelled, reason 'erased'."""
+        subscriptions are cancelled, reason 'erased', on the
+        customer's day; each cancel is checked before any id is
+        drawn (A35)."""
         now = self._clock.now()
         with self._uow as uow:
-            find_customer(customer_id, uow.customers)
-            for sub in uow.subscriptions.of_customer(customer_id):
-                if sub.state == 'cancelled':
-                    continue
-                cancel = Cancel(
-                    SubEventId(self._ids.next('sub_event')),
-                    sub.subscription_id,
-                    'erased',
-                    now,
-                )
-                shipped = frozenset(
+            customer = find_customer(customer_id, uow.customers)
+            zone = zone_of(customer.country, self._shop_zone)
+            day = local_date(now, zone)
+            subs = uow.subscriptions.of_customer(customer_id)
+            open_subs = [s for s in subs if s.state != 'cancelled']
+            shipped = {
+                sub.subscription_id: frozenset(
                     month_of(bag.shipped_on)
                     for bag in uow.subscriptions.bags(
                         sub.subscription_id
                     )
                 )
-                apply(sub, cancel, shipped_months=shipped)
+                for sub in open_subs
+            }
+            for sub in open_subs:
+                check(
+                    sub,
+                    Cancel,
+                    day,
+                    shipped_months=shipped[sub.subscription_id],
+                )
+            for sub in open_subs:
+                cancel = Cancel(
+                    SubEventId(self._ids.next('sub_event')),
+                    sub.subscription_id,
+                    'erased',
+                    now,
+                    day,
+                )
+                apply(
+                    sub,
+                    cancel,
+                    shipped_months=shipped[sub.subscription_id],
+                )
                 uow.subscriptions.record(cancel)
             uow.customers.erase(customer_id, now)
             uow.commit()

@@ -1,9 +1,12 @@
 """The subscription commands as data, and the rules of their order.
 
 A command is a frozen object, the `subscription_events` row it
-becomes, so the table is the log. apply() is pure: a subscription
-and a command in, the subscription after out, or a refusal. replay()
-rebuilds the state from the start and the events only (ADR 0011).
+becomes, so the table is the log. Its `day` is the customer's day of
+`event_at`, in the zone `started` is dated by (ADR 0008): the
+service works it out, so check(), apply() and replay() stay pure.
+check() says whether a move may follow; apply() makes the
+subscription after it; replay() rebuilds the state from the start
+and the events only (ADR 0011).
 """
 
 from __future__ import annotations
@@ -26,33 +29,34 @@ class _Move:
     subscription_id: SubscriptionId
     reason: str
     event_at: dt.datetime  # UTC
+    day: dt.date  # event_at on the customer's clock
     EVENT_TYPE: ClassVar[str]
 
 
 @dataclass(frozen=True)
 class Skip(_Move):
-    """No bag in the month of `event_at`."""
+    """No bag in the month of `day`."""
 
     EVENT_TYPE = 'skip'
 
 
 @dataclass(frozen=True)
 class Pause(_Move):
-    """No bag from `event_at` until a resume."""
+    """No bag from `day` until a resume."""
 
     EVENT_TYPE = 'pause'
 
 
 @dataclass(frozen=True)
 class Resume(_Move):
-    """Bags again from `event_at`."""
+    """Bags again from `day`."""
 
     EVENT_TYPE = 'resume'
 
 
 @dataclass(frozen=True)
 class Cancel(_Move):
-    """Ended on the day of `event_at`."""
+    """Ended on `day`."""
 
     EVENT_TYPE = 'cancel'
 
@@ -63,6 +67,35 @@ Command = Skip | Pause | Resume | Cancel
 
 def _refuse(sub: Subscription, state: str, action: str) -> NoReturn:
     raise IllegalSubscriptionMove(sub.subscription_id, state, action)
+
+
+def check(
+    sub: Subscription,
+    move: type[Command],
+    day: dt.date,
+    *,
+    shipped_months: frozenset[dt.date],
+) -> None:
+    """Raises IllegalSubscriptionMove if `move` may not follow.
+
+    A service checks before it draws the event's id (A35); apply()
+    checks the same way. `shipped_months` holds the first days of
+    the months whose bag already shipped: the shipments know it,
+    the events do not (A15).
+    """
+    state = sub.state
+    action = move.EVENT_TYPE
+    month = month_of(day)
+    if state == 'cancelled':
+        _refuse(sub, state, action)
+    if move in (Skip, Pause) and state != 'running':
+        _refuse(sub, state, action)
+    if move is Resume and state != 'paused':
+        _refuse(sub, state, action)
+    if move is Skip and month in shipped_months:
+        _refuse(sub, f'shipped for {month:%Y-%m}', action)
+    if move is Skip and month in sub.skipped:
+        _refuse(sub, f'skipped for {month:%Y-%m}', action)
 
 
 def _closed(sub: Subscription, day: dt.date) -> tuple[Period, ...]:
@@ -79,41 +112,26 @@ def apply(
 ) -> Subscription:
     """The subscription after the command; raises if it may not.
 
-    `shipped_months` holds the first days of the months whose bag
-    already shipped: the shipments know it, the events do not (A15).
+    The command is checked first, as check() does it.
     """
     if command.subscription_id != sub.subscription_id:
         raise ValueError(
             f'{command.event_id} is a move of '
             f'{command.subscription_id}, not {sub.subscription_id}'
         )
-    state = sub.state
-    day = command.event_at.date()
-    action = command.EVENT_TYPE
-    if state == 'cancelled':
-        _refuse(sub, state, action)
+    day = command.day
+    check(sub, type(command), day, shipped_months=shipped_months)
     match command:
         case Skip():
-            month = month_of(day)
-            if state != 'running':
-                _refuse(sub, state, action)
-            if month in shipped_months:
-                _refuse(sub, f'shipped for {month:%Y-%m}', action)
-            if month in sub.skipped:
-                _refuse(sub, f'skipped for {month:%Y-%m}', action)
-            return replace(sub, skipped=sub.skipped | {month})
+            return replace(sub, skipped=sub.skipped | {month_of(day)})
         case Pause():
-            if state != 'running':
-                _refuse(sub, state, action)
             return replace(sub, periods=_closed(sub, day))
         case Resume():
-            if state != 'paused':
-                _refuse(sub, state, action)
             opened = (*sub.periods, Period(day, None))
             return replace(sub, periods=opened)
         case Cancel():
             periods = sub.periods
-            if state == 'running':
+            if sub.state == 'running':
                 periods = _closed(sub, day)
             return replace(sub, periods=periods, ended=day)
         case _:

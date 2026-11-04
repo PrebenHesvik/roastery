@@ -46,7 +46,7 @@ def customer_cells(customer: Customer) -> dict[str, str]:
 
 def _customers_who_ordered(uow: UnitOfWork) -> Iterator[Customer]:
     """The customers with an order, sorted by customer id."""
-    ordered = {order.customer_id for order in uow.orders.all()}
+    ordered = {order.head.customer_id for order in uow.orders.all()}
     for customer in uow.customers.all():
         if customer.customer_id in ordered:
             yield customer

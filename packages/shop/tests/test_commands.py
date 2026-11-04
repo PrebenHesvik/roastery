@@ -2,14 +2,19 @@
 
 The subscription moves decide which bags ship; the bus decides
 whether a handler's failure reaches the caller (ADR 0009, 0011).
+A move's day is the customer's day of its moment, as `started` is
+(A41): a Finnish customer's evening in UTC is already tomorrow.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from roastery.catalogue import BeanDetails
+from roastery.clock import local_date
 from roastery.commands import (
     Cancel,
     Command,
@@ -19,6 +24,7 @@ from roastery.commands import (
     apply,
     replay,
 )
+from roastery.customers import Customers
 from roastery.errors import IllegalSubscriptionMove
 from roastery.events import (
     CollectingBus,
@@ -26,16 +32,24 @@ from roastery.events import (
     HandlersFailed,
     OrderPaid,
 )
+from roastery.fakes import FakeClock
 from roastery.ids import (
     CustomerId,
     OrderId,
+    PostalCode,
     ProductId,
     SubEventId,
     SubscriptionId,
 )
+from roastery.listing import Catalogue
+from roastery.ports import IdKind, Store
+from roastery.repository import SequentialIds
 from roastery.subscription import Subscription
+from roastery.subscriptions import Subscriptions
 
 NONE_SHIPPED: frozenset[dt.date] = frozenset()
+OSLO = ZoneInfo('Europe/Oslo')  # the shop's zone
+HELSINKI = ZoneInfo('Europe/Helsinki')
 
 
 def day(text: str) -> dt.date:
@@ -51,9 +65,18 @@ def sub(number: int, started: str) -> Subscription:
     )
 
 
-def move[C: Command](kind: type[C], sub_id: str, at: str) -> C:
+def move[C: Command](
+    kind: type[C], sub_id: str, at: str, zone: ZoneInfo = OSLO
+) -> C:
+    """The move at `at` (UTC), dated on a clock in `zone`."""
     moment = dt.datetime.fromisoformat(at).replace(tzinfo=dt.UTC)
-    return kind(SubEventId('SE-1'), SubscriptionId(sub_id), '', moment)
+    return kind(
+        SubEventId('SE-1'),
+        SubscriptionId(sub_id),
+        '',
+        moment,
+        local_date(moment, zone),
+    )
 
 
 def test_replay_of_s2_stops_on_the_first_of_august() -> None:
@@ -121,6 +144,106 @@ def test_any_move_after_a_cancel_is_refused(
             move(after, 'S-7', '2026-10-10T10:00'),
             shipped_months=NONE_SHIPPED,
         )
+
+
+def test_a_late_skip_on_31_october_in_helsinki_skips_november() -> None:
+    # S-6 is C-04's (FI). 22:30 UTC is 00:30 on 1 November there.
+    s6 = sub(6, '2025-09-15')
+    skipped = apply(
+        s6,
+        move(Skip, 'S-6', '2026-10-31T22:30', HELSINKI),
+        shipped_months=NONE_SHIPPED,
+    )
+    assert skipped.bags_due(day('2026-10-31'))
+    assert not skipped.bags_due(day('2026-11-02'))
+
+
+class CountedIds:
+    """SequentialIds that note the kind of every id drawn."""
+
+    def __init__(self) -> None:
+        self.drawn: list[IdKind] = []
+        self._ids = SequentialIds({})
+
+    def next(self, kind: IdKind) -> str:
+        self.drawn.append(kind)
+        return self._ids.next(kind)
+
+
+class Services:
+    """Customers and Subscriptions over one store, and a beans
+    product (P-10's name) to subscribe to."""
+
+    def __init__(self, store: Store, clock: FakeClock) -> None:
+        self.ids = CountedIds()
+        uow = store.unit_of_work('scripted')
+        self.customers = Customers(uow, clock, self.ids, OSLO)
+        self.subs = Subscriptions(uow, clock, self.ids, OSLO)
+        catalogue = Catalogue(uow, self.ids)
+        beans = catalogue.add_category(
+            'Beans', parent_id=None, sort_order=1
+        )
+        self.beans = catalogue.add_product(
+            'Morning roast',
+            category_id=beans,
+            details=BeanDetails(250, 'Brazil', 'medium', 'dry'),
+        )
+        self.store = store
+
+    def aino_subscribes(self) -> SubscriptionId:
+        """C-04's name and country (FI): her own subscription."""
+        aino = self.customers.register(
+            'Aino',
+            email=None,
+            country='FI',
+            postal_code=PostalCode('33100'),
+        )
+        return self.subs.subscribe(aino, product_id=self.beans)
+
+    def held(self, subscription_id: SubscriptionId) -> Subscription:
+        with self.store.unit_of_work('scripted') as uow:
+            return uow.subscriptions.get(subscription_id)
+
+
+@pytest.mark.parametrize('ends_by', ['cancel', 'erase'])
+def test_an_fi_subscription_ended_late_on_its_first_day_ends_then(
+    store: Store, clock: FakeClock, ends_by: str
+) -> None:
+    # 22:30 UTC on 5 October is 01:30 on 6 October in Helsinki
+    clock.set(dt.datetime(2026, 10, 5, 22, 30, tzinfo=dt.UTC))
+    shop = Services(store, clock)
+    sub_id = shop.aino_subscribes()
+    if ends_by == 'cancel':
+        shop.subs.cancel(sub_id, reason='changed her mind')
+    else:
+        shop.customers.erase(shop.held(sub_id).customer_id)
+    ended = shop.held(sub_id)
+    assert (ended.started, ended.ended) == (
+        day('2026-10-06'),
+        day('2026-10-06'),
+    )
+    assert not ended.bags_due(day('2026-10-06'))
+
+
+def test_a_refused_move_draws_no_id(
+    store: Store, clock: FakeClock
+) -> None:
+    shop = Services(store, clock)
+    sub_id = shop.aino_subscribes()
+    with pytest.raises(IllegalSubscriptionMove):
+        shop.subs.resume(sub_id, reason='never paused')
+    assert 'sub_event' not in shop.ids.drawn
+
+
+def test_an_erase_over_a_cancelled_subscription_draws_no_id(
+    store: Store, clock: FakeClock
+) -> None:
+    shop = Services(store, clock)
+    sub_id = shop.aino_subscribes()
+    shop.subs.cancel(sub_id, reason='moved away')
+    drawn = len(shop.ids.drawn)
+    shop.customers.erase(shop.held(sub_id).customer_id)
+    assert shop.ids.drawn[drawn:] == []
 
 
 class Calls:

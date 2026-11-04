@@ -87,10 +87,11 @@ CLI_JOBS: Final = (
     'count_at_close',
     'csv_export',
     'nightly_extract',
-    'relay',
 )
 """The jobs `main` runs: those that draw no id and publish no
-event, so the cli needs no script and no handler."""
+event, so the cli needs no script and no handler. Not `relay`:
+the cli has no feed to send to, and a relay would still form and
+commit batches that can never go."""
 
 SQLITE_URL: Final = 'sqlite:///'
 """What ROASTERY_DATABASE_URL starts with; the path follows."""
@@ -291,7 +292,7 @@ def main(argv: Sequence[str], env: Mapping[str, str]) -> int:
 
     The command is given the moment to run at (`--at`): main
     wires a FakeClock set to it, so a rerun gives the same rows.
-    The feed is ClosedFeed, so a relay's rows wait; the notifier,
+    No cli job relays, so the feed is ClosedFeed; the notifier,
     the labels and the provider are fakes, since no cli job
     publishes an event or asks for a refund.
     """

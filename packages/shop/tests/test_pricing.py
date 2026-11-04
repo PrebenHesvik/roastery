@@ -217,6 +217,25 @@ def test_the_larger_percent_wins_and_none_stack(
     )
 
 
+def test_a_discount_on_half_an_ore_rounds_half_up() -> None:
+    # A made-up list price: none of dataset.sql's lands on half an
+    # øre at K-2's 15 %. 12.50 less 15 % is 10.625: half up gives
+    # 10.63, where half even or down would give 10.62 (A3).
+    sale = Sale(
+        CustomerId('C-01'),
+        P21,
+        dt.date(2026, 11, 20),
+        (_price('P-21', '12.50', '2026-10-07', None),),
+        (K2,),
+        (),
+    )
+    (quote,) = price_lines([sale], per_rule(RULES, list_price))
+    assert (quote.percent, quote.unit_price) == (
+        15,
+        Money.of('10.63', 'NOK'),
+    )
+
+
 def test_a_rule_name_registered_twice_raises() -> None:
     registry = standard_rules()
     with pytest.raises(DuplicateRule):

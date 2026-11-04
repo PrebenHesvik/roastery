@@ -27,6 +27,7 @@ from roastery.customers import (
 )
 from roastery.errors import (
     AlreadyCredited,
+    IllegalTransition,
     NoSuchCustomer,
     NotCreditable,
     OutOfStock,
@@ -158,6 +159,9 @@ class Checkout:
         for item in command.items:
             if item.qty.value < 1:
                 raise ValueError(f'qty must be 1 or more: {item}')
+            if command.channel == 'shop' and item.price is None:
+                # ADR 0004: a counter line never takes the list's
+                raise ValueError(f'the till rings a price: {item}')
         now = self._clock.now()
         with self._uow as uow:
             found = country_of(command.customer_id, uow.customers)
@@ -208,10 +212,19 @@ class Checkout:
 
     def cancel(self, order_id: OrderId, *, reason: str) -> None:
         """Cancelled; its lines marked deleted; each line's bag
-        back as a sold movement of the opposite sign (C21)."""
+        back as a sold movement of the opposite sign (C21).
+
+        A sale with a credit order that stands is not cancelled:
+        the credit already put that bag back.
+        """
         now = self._clock.now()
         with self._uow as uow:
-            cancelled = orders.cancel(uow.orders.get(order_id), reason)
+            order = uow.orders.get(order_id)
+            cancelled = orders.cancel(order, reason)
+            if _standing_credits(uow, order_id):
+                raise IllegalTransition(
+                    order_id, orders.status(order), 'cancel'
+                )
             uow.orders.save(cancelled)
             uow.orders.mark_deleted(order_id, now)
             self._sold(uow, cancelled.head.lines, now, back=True)
@@ -222,7 +235,12 @@ class Checkout:
         self, order_id: OrderId, *, line_id: LineId
     ) -> OrderId:
         """A credit order at the counter: one negative line for
-        the line returned, its bag back (C21); placed (S14)."""
+        the line returned, its bag back (C21); placed (S14).
+
+        It corrects its sale, so it has the sale's country, and
+        the sale's scheme and rate follow (A40): an export's
+        credit owes no VAT.
+        """
         now = self._clock.now()
         with self._uow as uow:
             sale = uow.orders.get(order_id)
@@ -233,8 +251,7 @@ class Checkout:
                 raise NotCreditable(order_id, orders.status(sale))
             line = _line(head, line_id)
             _check_not_credited(uow, sale, line)
-            found = country_of(head.customer_id, uow.customers)
-            country = order_country('shop', found)
+            country = head.country
             day = local_date(now, ZONES[country])
             product = _product(uow, line.product_id)
             credit_id = OrderId(self._ids.next('order'))
@@ -367,11 +384,14 @@ def _vat_amount(
     """The VAT shares of the lines, each to the øre, summed (C18).
 
     Each line on its own kind's rate on the order's day, under the
-    order's scheme (A12, C22).
+    order's scheme (A12, C22). An export is zero with no lookup
+    (ADR 0010), so a foreign day no rate row covers still sells.
     """
-    rates = VatRates(uow.vat_rates.all())
-    scheme = scheme_for(order, day)
     total = Money(Decimal('0.00'), 'NOK')
+    scheme = scheme_for(order, day)
+    if scheme != 'domestic':
+        return total
+    rates = VatRates(uow.vat_rates.all())
     for line, product in zip(order.head.lines, products, strict=True):
         rate = rates.rate_on(order.head.country, product.kind, day)
         gross = line.unit_price.times(line.qty)
@@ -385,6 +405,17 @@ def _line(head: Head, line_id: LineId) -> OrderLine:
         if line.line_id == line_id:
             return line
     raise UnknownId('line', str(line_id))
+
+
+def _standing_credits(
+    uow: UnitOfWork, order_id: OrderId
+) -> tuple[Order, ...]:
+    """The sale's credit orders that stand: not cancelled."""
+    return tuple(
+        credit
+        for credit in uow.orders.credits_of(order_id)
+        if not isinstance(credit, orders.Cancelled)
+    )
 
 
 def _check_not_credited(
@@ -411,8 +442,7 @@ def _check_not_credited(
     )
     credited = sum(
         1
-        for credit in uow.orders.credits_of(sale.head.order_id)
-        if not isinstance(credit, orders.Cancelled)
+        for credit in _standing_credits(uow, sale.head.order_id)
         for each in credit.head.lines
         if same(each) and each.qty.value == -line.qty.value
     )

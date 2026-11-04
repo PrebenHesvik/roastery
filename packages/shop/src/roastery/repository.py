@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS payments (
     amount TEXT NOT NULL,
     currency TEXT NOT NULL,
     paid_on TEXT NOT NULL,
+    status TEXT NOT NULL,
     source TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS categories (
@@ -287,6 +288,7 @@ CREATE TABLE IF NOT EXISTS subscription_events (
     event_type TEXT NOT NULL,
     reason TEXT NOT NULL,
     event_at TEXT NOT NULL,
+    day TEXT NOT NULL,
     source TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS subscription_shipments (
@@ -936,15 +938,7 @@ class MemorySubscriptions(_MemoryRepo):
         if key not in self._t.subscriptions:
             raise UnknownId('subscription', key)
         started = self._t.subscriptions[key][0]
-        held = sorted(
-            (
-                command
-                for command, _ in self._t.sub_events.values()
-                if command.subscription_id == subscription_id
-            ),
-            key=lambda c: (c.event_at, str(c.event_id)),
-        )
-        return replay(started, held)
+        return replay(started, self.events(subscription_id))
 
     def of_customer(
         self, customer_id: CustomerId
@@ -969,6 +963,18 @@ class MemorySubscriptions(_MemoryRepo):
         if key in self._t.sub_events:
             raise DuplicateId('sub_event', key)
         self._t.sub_events[key] = (command, self._source)
+
+    def events(
+        self, subscription_id: SubscriptionId
+    ) -> tuple[Command, ...]:
+        held = (
+            command
+            for command, _ in self._t.sub_events.values()
+            if command.subscription_id == subscription_id
+        )
+        return tuple(
+            sorted(held, key=lambda c: (c.event_at, str(c.event_id)))
+        )
 
     def bags(
         self, subscription_id: SubscriptionId
@@ -1509,41 +1515,45 @@ class SqlitePayments(_SqliteRepo):
         key = str(payment.payment_id)
         self._taken('payment', 'payments', 'payment_id', key)
         self._db.execute(
-            'INSERT INTO payments VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO payments VALUES (?, ?, ?, ?, ?, ?, ?)',
             (
                 key,
                 str(payment.order_id),
                 str(payment.amount.amount),
                 payment.amount.currency,
                 payment.paid_on.isoformat(),
+                payment.status,
                 self._source,
             ),
         )
 
     def find(self, payment_id: PaymentId) -> Payment | None:
         rows = self._rows(
-            'SELECT payment_id, order_id, amount, currency, paid_on'
-            ' FROM payments WHERE payment_id = ? ORDER BY payment_id',
+            'SELECT payment_id, order_id, amount, currency,'
+            ' paid_on, status FROM payments WHERE payment_id = ?'
+            ' ORDER BY payment_id',
             (str(payment_id),),
         )
         return _payment(rows[0]) if rows else None
 
     def of(self, order_id: OrderId) -> tuple[Payment, ...]:
         rows = self._rows(
-            'SELECT payment_id, order_id, amount, currency, paid_on'
-            ' FROM payments WHERE order_id = ? ORDER BY payment_id',
+            'SELECT payment_id, order_id, amount, currency,'
+            ' paid_on, status FROM payments WHERE order_id = ?'
+            ' ORDER BY payment_id',
             (str(order_id),),
         )
         return tuple(_payment(row) for row in rows)
 
 
 def _payment(row: tuple[Any, ...]) -> Payment:
-    payment_id, order_id, amount, currency, paid_on = row
+    payment_id, order_id, amount, currency, paid_on, word = row
     return Payment(
         PaymentId(payment_id),
         OrderId(order_id),
         _money(amount, currency),
         _date(paid_on),
+        word,
     )
 
 
@@ -1929,13 +1939,15 @@ class SqliteSubscriptions(_SqliteRepo):
         )
         self._taken('sub_event', 'subscription_events', 'event_id', key)
         self._db.execute(
-            'INSERT INTO subscription_events VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO subscription_events VALUES'
+            ' (?, ?, ?, ?, ?, ?, ?)',
             (
                 key,
                 sub,
                 command.EVENT_TYPE,
                 command.reason,
                 moment_text(command.event_at),
+                command.day.isoformat(),
                 self._source,
             ),
         )
@@ -1943,8 +1955,28 @@ class SqliteSubscriptions(_SqliteRepo):
             self._db.execute(
                 'UPDATE subscriptions SET ended = ?'
                 ' WHERE subscription_id = ?',
-                (command.event_at.date().isoformat(), sub),
+                (command.day.isoformat(), sub),
             )
+
+    def events(
+        self, subscription_id: SubscriptionId
+    ) -> tuple[Command, ...]:
+        rows = self._rows(
+            'SELECT event_id, event_type, reason, event_at, day'
+            ' FROM subscription_events WHERE subscription_id = ?'
+            ' ORDER BY event_at, event_id',
+            (str(subscription_id),),
+        )
+        return tuple(
+            _COMMANDS[event_type](
+                SubEventId(event_id),
+                subscription_id,
+                reason,
+                moment_from(event_at),
+                _date(day),
+            )
+            for event_id, event_type, reason, event_at, day in rows
+        )
 
     def bags(
         self, subscription_id: SubscriptionId
@@ -1990,22 +2022,7 @@ class SqliteSubscriptions(_SqliteRepo):
             ProductId(product_id),
             _date(started),
         )
-        events = self._rows(
-            'SELECT event_id, event_type, reason, event_at'
-            ' FROM subscription_events WHERE subscription_id = ?'
-            ' ORDER BY event_at, event_id',
-            (sub_id,),
-        )
-        commands = [
-            _COMMANDS[event_type](
-                SubEventId(event_id),
-                SubscriptionId(sub_id),
-                reason,
-                moment_from(event_at),
-            )
-            for event_id, event_type, reason, event_at in events
-        ]
-        return replay(begun, commands)
+        return replay(begun, self.events(begun.subscription_id))
 
 
 class SqliteStock(_SqliteRepo):

@@ -8,7 +8,9 @@ week the lesson needs, at their moments and with their ids.
 
 from __future__ import annotations
 
+import csv
 import datetime as dt
+import io
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -17,8 +19,14 @@ import pytest
 from roastery.bootstrap import App, wire
 from roastery.catalogue import BeanDetails, EquipmentDetails
 from roastery.checkout import Item, PlaceOrder
+from roastery.commands import Cancel
 from roastery.customer import Email
-from roastery.errors import IllegalTransition, NoAddress, NotShippable
+from roastery.errors import (
+    IllegalTransition,
+    NoAddress,
+    NotShippable,
+    OutOfStock,
+)
 from roastery.fakes import (
     FakeClock,
     FakeFeed,
@@ -34,6 +42,7 @@ from roastery.ids import (
     PaymentId,
     PostalCode,
     ProductId,
+    SubscriptionId,
 )
 from roastery.money import Money, Qty
 from roastery.order import PaymentMessage, status
@@ -440,3 +449,148 @@ def test_two_wirings_over_one_store_share_one_price_cache(
     after = simulator.checkout.place(one_bag)  # inside the TTL
     assert before.head.lines[0].unit_price == _nok('129.00')
     assert after.head.lines[0].unit_price == _nok('139.00')
+
+
+def _shipped(store: Store, *subs: SubscriptionId) -> list[object]:
+    """The bags of the subscriptions and the `shipped` movements."""
+    with store.unit_of_work('scripted') as uow:
+        bags = [
+            (bag.subscription_id, bag.product_id, bag.shipped_on)
+            for sub in subs
+            for bag in uow.subscriptions.bags(sub)
+        ]
+        moved = [
+            (m.product_id, m.qty)
+            for product in (P10, P11)
+            for m in uow.stock.movements(product)
+            if m.reason == 'shipped'
+        ]
+    return [*bags, *moved]
+
+
+def test_the_bag_job_ships_each_due_subscription_once_a_month(
+    store: Store, clock: FakeClock
+) -> None:
+    app = _wire(store, clock, _ids({})).app
+    _set_up(app, clock)
+    subs = app.subscriptions
+    s1 = subs.subscribe(C01, product_id=P10)  # S-1: C-01's P-10
+    s6 = subs.subscribe(C04, product_id=P10)  # S-6: C-04's P-10
+    lars = subs.subscribe(C05, product_id=P11)
+    clock.set(_at(2, 9))
+    subs.skip(s6, reason='away in October')
+    subs.pause(lars, reason='too much coffee')
+    clock.set(_at(5, 9))
+    assert app.jobs.ship_subscription_bags() == 1
+    clock.set(_at(20, 9))
+    assert app.jobs.ship_subscription_bags() == 0
+    assert _shipped(store, s1, s6, lars) == [
+        (s1, P10, dt.date(2026, 10, 5)),
+        (P10, -1),
+    ]
+
+
+def test_the_bag_job_ships_nothing_when_one_bag_is_short(
+    store: Store, clock: FakeClock
+) -> None:
+    app = _wire(store, clock, _ids({})).app
+    _set_up(app, clock)
+    app.stock.stocktake(P11, on_hand=0)
+    s1 = app.subscriptions.subscribe(C01, product_id=P10)
+    aino = app.subscriptions.subscribe(C04, product_id=P11)
+    clock.set(_at(5, 9))
+    with pytest.raises(OutOfStock) as short:
+        app.jobs.ship_subscription_bags()
+    assert short.value.product_id == P11
+    # S-1's bag had stock, and it did not ship either
+    assert _shipped(store, s1, aino) == []
+
+
+def test_an_erased_customer_is_gone_and_her_orders_keep_the_id(
+    store: Store, clock: FakeClock
+) -> None:
+    app = _wire(store, clock, _ids({})).app
+    _set_up(app, clock)
+    s6 = app.subscriptions.subscribe(C04, product_id=P10)
+    clock.set(_at(6, 21, 30))
+    o106 = app.checkout.place(
+        PlaceOrder(C04, 'web', (Item(P10, Qty(1)),))
+    )
+    clock.set(_at(9, 10))
+    app.customers.erase(C04)
+    with store.unit_of_work('scripted') as uow:
+        assert C04 not in {c.customer_id for c in uow.customers.all()}
+        last = uow.customers.changes()[-1]
+        sub = uow.subscriptions.get(s6)
+        [event] = uow.subscriptions.events(s6)
+        order = uow.orders.get(o106.head.order_id)
+    assert (last.op, last.customer_id, last.country) == (
+        'delete',
+        C04,
+        None,
+    )
+    assert (sub.state, sub.ended) == ('cancelled', dt.date(2026, 10, 9))
+    assert (type(event), event.reason) == (Cancel, 'erased')
+    assert status(order) == 'placed'
+    assert o106.head.customer_id == C04
+    assert order == o106
+
+
+@pytest.mark.parametrize(
+    ('on', 'price'),
+    [(12, '809.10'), (25, '809.10'), (26, '899.00')],
+)
+def test_a_campaign_prices_a_placed_line_through_its_last_day(
+    store: Store, clock: FakeClock, on: int, price: str
+) -> None:
+    # K-1, Autumn espresso: 10 % off P-11 and P-20, 12 to 25 October
+    app = _wire(store, clock, _ids({})).app
+    _set_up(app, clock)
+    app.catalogue.add_campaign(
+        'Autumn espresso',
+        discount_pct=10,
+        first_day=dt.date(2026, 10, 12),
+        last_day=dt.date(2026, 10, 25),
+        product_ids=(P11, P20),
+    )
+    clock.set(_at(on, 9))
+    placed = app.checkout.place(
+        PlaceOrder(C01, 'web', (Item(P20, Qty(1)),))
+    )
+    assert placed.head.lines[0].unit_price == _nok(price)
+
+
+def test_a_web_order_to_finland_books_no_vat(
+    store: Store, clock: FakeClock
+) -> None:
+    # O-106: C-04's (FI) web order, 7 October on her clock
+    app = _wire(store, clock, _ids({})).app
+    _set_up(app, clock)
+    clock.set(_at(6, 21, 30))
+    placed = app.checkout.place(
+        PlaceOrder(C04, 'web', (Item(P10, Qty(1)),))
+    )
+    with store.unit_of_work('scripted') as uow:
+        booking = uow.orders.booking(placed.head.order_id)
+    assert (booking.order_date, booking.vat_amount) == (
+        dt.date(2026, 10, 7),
+        _nok('0.00'),
+    )
+
+
+def test_the_csv_export_leaves_c05_s_e_mail_cell_empty(
+    store: Store, clock: FakeClock
+) -> None:
+    # raw_customers: C-05 (Lars) has no e-mail, country or postcode
+    app = _wire(store, clock, _ids({})).app
+    _set_up(app, clock)
+    clock.set(_at(7, 11, 5))
+    app.checkout.place(PlaceOrder(C05, 'web', (Item(P11, Qty(1)),)))
+    files = app.jobs.csv_export()
+    rows = csv.DictReader(io.StringIO(files['raw_customers.csv']))
+    [lars] = [row for row in rows if row['customer_id'] == 'C-05']
+    assert (lars['email'], lars['country'], lars['postal_code']) == (
+        '',
+        '',
+        '',
+    )

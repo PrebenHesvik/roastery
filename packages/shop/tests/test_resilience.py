@@ -136,6 +136,27 @@ def test_the_breaker_opens_at_its_threshold_and_does_not_call():
     assert breaker.state == 'closed'
 
 
+def test_a_decline_between_outages_resets_the_count():
+    breaker = CircuitBreaker(
+        FakeClock(START), 3, dt.timedelta(minutes=1)
+    )
+    down = Counting(ProviderUnavailable('down'))
+    declined = Counting(ProviderRefused('declined'))
+    # a decline is an answer: the provider is up, so the count of
+    # outages starts again after it
+    for provider, error in (
+        (down, ProviderUnavailable),
+        (down, ProviderUnavailable),
+        (declined, ProviderRefused),
+        (down, ProviderUnavailable),
+    ):
+        with pytest.raises(error):
+            breaker.call(
+                lambda p=provider: p.refund(PAY_1, nok('1.00'), key='k')
+            )
+    assert breaker.state == 'closed'
+
+
 def test_the_fake_refuses_more_than_is_left_and_what_it_does_not_hold():
     fake = provider_holding_pay_1()
 

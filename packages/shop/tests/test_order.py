@@ -222,6 +222,7 @@ def test_an_invoice_is_open_until_a_payment_names_it() -> None:
         OrderId('O-102'),
         Money.of('516.98', 'SEK'),
         dt.date(2026, 10, 5),
+        'paid',
     )
     assert invoice_open(invoiced, [other])
     mine = Payment(
@@ -229,5 +230,6 @@ def test_an_invoice_is_open_until_a_payment_names_it() -> None:
         OrderId('O-101'),
         Money.of('1', 'NOK'),
         dt.date(2026, 10, 5),
+        'invoiced',
     )
     assert not invoice_open(invoiced, [other, mine])

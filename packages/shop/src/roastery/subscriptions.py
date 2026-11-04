@@ -1,9 +1,10 @@
 """The subscriptions: one bag of beans a month, and the moves on it.
 
-Each move (skip, pause, resume, cancel) builds its command, checks
-it with `commands.apply` against the subscription as its events
-leave it, and keeps it: the command is the `subscription_events`
-row it becomes (ADR 0011). `subscribe` writes the start and no
+Each move (skip, pause, resume, cancel) is checked with
+`commands.check` against the subscription as its events leave it,
+then built as its command and kept: the command is the
+`subscription_events` row it becomes (ADR 0011). Its day is the
+customer's, as `started` is. `subscribe` writes the start and no
 event. Below the class sits the arithmetic of the monthly job that
 ships the bags (A15).
 """
@@ -11,10 +12,9 @@ ships the bags (A15).
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import replace
 from zoneinfo import ZoneInfo
 
-from roastery.clock import local_date
+from roastery.clock import ZONES, local_date
 from roastery.commands import (
     Cancel,
     Command,
@@ -22,8 +22,9 @@ from roastery.commands import (
     Resume,
     Skip,
     apply,
+    check,
 )
-from roastery.customers import find_customer, zone_of
+from roastery.customers import country_of, find_customer, zone_of
 from roastery.errors import (
     OutOfStock,
     UnknownId,
@@ -45,6 +46,7 @@ from roastery.ports import (
     Movement,
     UnitOfWork,
 )
+from roastery.result import Err, Ok
 from roastery.subscription import Subscription, month_of
 
 
@@ -122,27 +124,34 @@ class Subscriptions:
     def _move(
         self,
         subscription_id: SubscriptionId,
-        command_type: type[Skip | Pause | Resume | Cancel],
+        command_type: type[Command],
         reason: str,
     ) -> None:
-        """Build the command, check it against the subscription,
-        keep it as its row."""
+        """Check the move against the subscription, then build its
+        command and keep it as its row."""
         now = self._clock.now()
         with self._uow as uow:
             sub = uow.subscriptions.get(subscription_id)
-            # Checked first, with no id drawn: a refused move must
-            # leave the Ids port as it was.
-            trial = command_type(
-                SubEventId('SE-0'), subscription_id, reason, now
+            match country_of(sub.customer_id, uow.customers):
+                case Ok(country):
+                    zone = ZONES[country]
+                case Err():
+                    # No country: the shop's day. Erased: cancelled,
+                    # so check() refuses on any day.
+                    zone = self._shop_zone
+            day = local_date(now, zone)
+            shipped = shipped_months(uow, subscription_id)
+            check(sub, command_type, day, shipped_months=shipped)
+            command = command_type(
+                SubEventId(self._ids.next('sub_event')),
+                subscription_id,
+                reason,
+                now,
+                day,
             )
-            apply(
-                sub,
-                trial,
-                shipped_months=shipped_months(uow, subscription_id),
-            )
-            command: Command = replace(
-                trial, event_id=SubEventId(self._ids.next('sub_event'))
-            )
+            # applied before it is kept: a row replay cannot read
+            # back is never written
+            apply(sub, command, shipped_months=shipped)
             uow.subscriptions.record(command)
             uow.commit()
 

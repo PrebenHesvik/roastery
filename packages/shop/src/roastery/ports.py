@@ -408,7 +408,13 @@ class SubscriptionRepository(Protocol):
 
     def record(self, command: Command) -> None:
         """Keep the command as a `subscription_events` row. A
-        Cancel also sets `ended` to the day of its `event_at`."""
+        Cancel also sets `ended` to its `day`."""
+        ...
+
+    def events(
+        self, subscription_id: SubscriptionId
+    ) -> tuple[Command, ...]:
+        """Its commands as kept, by `event_at` then event id."""
         ...
 
     def bags(

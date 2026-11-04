@@ -209,7 +209,8 @@ def per_rule(rules: Mapping[str, Rule], default: Rule) -> Rule:
 
     A rule picks a rule: each quote is taken off the list price,
     and one quote prices the line, so two rules never stack (A14).
-    Equal percents give the same price; the first name wins.
+    A tie goes to the default, then to the first name sorted
+    (A31); equal percents give the same price.
     """
     chosen = tuple(sorted(rules.items()))
 

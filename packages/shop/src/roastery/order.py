@@ -437,13 +437,16 @@ class Payment:
 
     Negative for a refund (S14). It names its order and is never
     compared with the order's total: a payment is in the
-    customer's currency (ADR 0011).
+    customer's currency (ADR 0011). `status` is the word its
+    receipt gave when it was first recorded, kept so that every
+    delivery gets the same receipt.
     """
 
     payment_id: PaymentId
     order_id: OrderId
     amount: Money
     paid_on: dt.date
+    status: Status  # the receipt's word, as first answered
 
 
 @dataclass(frozen=True)

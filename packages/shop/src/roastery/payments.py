@@ -1,8 +1,9 @@
 """Payments: the provider's messages, invoices, and the one refund.
 
-A message is recorded once, keyed on its `payment_id`: the same
-message again gets the same `Receipt` and writes nothing, and the
-same id with another order or amount is refused (`PaymentMismatch`).
+A message is recorded once, keyed on its `payment_id`, with the
+word its `Receipt` gave: the same message again gets that receipt
+and writes nothing, whatever the order did since, and the same id
+with another order or amount is refused (`PaymentMismatch`).
 It is compared with the payment stored under its id, never with the
 order's total: a payment is in the customer's currency (ADR 0011).
 `refund` is the app's one call out, through the `PaymentProvider`
@@ -69,33 +70,31 @@ class Payments:
         is paid; a refund to a credit order pays it; a refund
         to a cancelled order is recorded with no event."""
         now = self._clock.now()
-        payment = _payment(message)
         with self._uow as uow:
             held = uow.payments.find(message.payment_id)
             if held is not None:
-                _same(held, payment)
-                return _paid_receipt(
-                    held, uow.orders.get(held.order_id)
-                )
+                return _again(held, message)
             order = uow.orders.get(message.order_id)
-            refund = payment.amount.amount < 0
+            refund = message.amount.amount < 0
             if refund and isinstance(order, Cancelled):
+                payment = _payment(message, 'cancelled')
                 uow.payments.add(payment)
                 uow.commit()
-                return _paid_receipt(payment, order)
+                return _receipt(payment)
             credit = order.head.credit_of is not None
             if refund != credit:
                 action = 'refund' if refund else 'pay'
                 raise IllegalTransition(
                     order.head.order_id, orders.status(order), action
                 )
-            paid = orders.pay(order, payment.payment_id)
+            paid = orders.pay(order, message.payment_id)
+            payment = _payment(message, 'paid')
             uow.payments.add(payment)
             uow.orders.save(paid)
             self._status(uow, paid.head.order_id, 'paid', now)
             uow.commit()
         self._events.publish(OrderPaid(paid.head.order_id))
-        return _paid_receipt(payment, paid)
+        return _receipt(payment)
 
     def invoice(self, order_id: OrderId) -> None:
         """A consumer's placed order put on invoice (S13)."""
@@ -108,22 +107,26 @@ class Payments:
         self._events.publish(OrderInvoiced(order_id))
 
     def settle(self, message: PaymentMessage) -> Receipt:
-        """An open invoice paid: a payment, no status event."""
-        payment = _payment(message)
+        """An open invoice paid: a payment, no status event.
+
+        An amount of zero or less is a refund sent to the wrong
+        call: a ValueError, before anything is read (ADR 0011).
+        """
+        if message.amount.amount <= 0:
+            raise ValueError(f'settle takes a payment: {message}')
         with self._uow as uow:
             held = uow.payments.find(message.payment_id)
             if held is not None:
-                _same(held, payment)
-                order = uow.orders.get(held.order_id)
-                return _receipt(held, orders.status(order))
+                return _again(held, message)
             order = uow.orders.get(message.order_id)
             if not invoice_open(
                 order, uow.payments.of(message.order_id)
             ):
                 raise NoOpenInvoice(message.order_id)
+            payment = _payment(message, orders.status(order))
             uow.payments.add(payment)
             uow.commit()
-        return _receipt(payment, orders.status(order))
+        return _receipt(payment)
 
     def refund(self, order_id: OrderId) -> PaymentId:
         """The one outbound call: the money back, asked of the
@@ -134,7 +137,9 @@ class Payments:
         with self._uow as uow:
             order = uow.orders.get(order_id)
             sale_id = order.head.credit_of
-            if sale_id is not None:
+            if sale_id is not None and isinstance(order, Cancelled):
+                taken, amount = None, None  # only a credit that stands
+            elif sale_id is not None:
                 taken = _taken(uow.payments.of(sale_id))
                 amount = -_total(order)
             elif isinstance(order, Cancelled):
@@ -162,42 +167,36 @@ class Payments:
         )
 
 
-def _payment(message: PaymentMessage) -> Payment:
-    """The app's record of a message (A11)."""
+def _payment(message: PaymentMessage, word: orders.Status) -> Payment:
+    """The app's record of a message (A11), with the word its
+    receipt gives."""
     return Payment(
         message.payment_id,
         message.order_id,
         message.amount,
         message.paid_on,
+        word,
     )
 
 
-def _same(held: Payment, payment: Payment) -> None:
-    """PaymentMismatch unless a redelivery names the same order
-    and amount as the payment stored under its id."""
-    if (held.order_id, held.amount) != (
-        payment.order_id,
-        payment.amount,
-    ):
-        raise PaymentMismatch(payment.payment_id)
+def _again(held: Payment, message: PaymentMessage) -> Receipt:
+    """The stored receipt, for a redelivery (ADR 0011).
 
-
-def _receipt(payment: Payment, word: str) -> Receipt:
-    return Receipt(payment.payment_id, payment.order_id, word)
-
-
-def _paid_receipt(payment: Payment, order: Order) -> Receipt:
-    """What handle_message answered when it took the payment.
-
-    Worked out from the payment, not from the order's state now,
-    so a redelivery after the order shipped gets the same reply:
-    a refund to a cancelled order left it cancelled, and any other
-    payment it took made its order paid.
+    PaymentMismatch unless it names the same order and amount as
+    the payment stored under its id. The word is the one kept when
+    the payment was first recorded, never the order's state now,
+    so a redelivery after a ship or a cancel gets the same reply.
     """
-    refund = payment.amount.amount < 0
-    if refund and isinstance(order, Cancelled):
-        return _receipt(payment, 'cancelled')
-    return _receipt(payment, 'paid')
+    if (held.order_id, held.amount) != (
+        message.order_id,
+        message.amount,
+    ):
+        raise PaymentMismatch(message.payment_id)
+    return _receipt(held)
+
+
+def _receipt(payment: Payment) -> Receipt:
+    return Receipt(payment.payment_id, payment.order_id, payment.status)
 
 
 def _taken(payments: tuple[Payment, ...]) -> Payment | None:

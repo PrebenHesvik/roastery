@@ -273,3 +273,38 @@ def test_o101_totals_pay_1_with_its_vat_share(
     # = 179.80. Each line to the øre, then summed: 213.45.
     assert booking.vat_amount == Money.of('213.45', 'NOK')
     assert booking.order_date == dt.date(2026, 10, 5)
+
+
+def test_an_export_owes_no_vat_on_a_day_with_no_rate_row(
+    store: Store, clock: FakeClock
+) -> None:
+    shop = _shop(store, clock)
+    sweden = shop.customers.register(
+        'Åsa',
+        email=None,
+        country='SE',
+        postal_code=PostalCode('21119'),
+    )
+    # SE's food rate of 6 % ends on 1 January 2028 and vat.md has
+    # no row after it; an export is zero with no lookup (ADR 0010).
+    clock.set(dt.datetime(2028, 1, 3, 10, 0, tzinfo=dt.UTC))
+    placed = shop.checkout.place(
+        PlaceOrder(sweden, 'web', (Item(P10, Qty(1)),))
+    )
+    assert placed.head.country == 'SE'
+    with shop.uow as uow:
+        booking = uow.orders.booking(placed.head.order_id)
+    assert booking.vat_amount == Money.of('0.00', 'NOK')
+
+
+def test_a_counter_line_without_a_price_is_refused(
+    store: Store, clock: FakeClock
+) -> None:
+    shop = _shop(store, clock)
+    command = PlaceOrder(C01, 'shop', (Item(P20, Qty(1)),))
+    with pytest.raises(ValueError, match='the till rings a price'):
+        shop.checkout.place(command)
+    with shop.uow as uow:
+        assert uow.orders.all() == ()
+    assert _moves(shop.uow, P20) == [('counted', 5)]
+    assert shop.ids.kinds == []
