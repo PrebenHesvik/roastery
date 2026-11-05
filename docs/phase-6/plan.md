@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (6.5's is [6.5-volume.md](6.5-volume.md)), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row (6.6 has no plan file yet: write it first, in data-docs as plan §6.6 says; plan.md's 6.5 Note lists what it inherits), and work from its first unticked unit.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
@@ -25,7 +25,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
 | 6.3 app core and service layer | [x] [6.3-app.md](6.3-app.md); closed 2026-11-04 |
 | 6.4 the teaching week through the simulator (contract B frozen) | [x] [6.4-week.md](6.4-week.md); closed 2026-11-05; the gate holds; security review closed (W42); tagged `shop-0.1.0` (`498d909`) |
-| 6.5 the volume, `roastery-data 1.0` | [ ] [6.5-volume.md](6.5-volume.md); U0 done |
+| 6.5 the volume, `roastery-data 1.0` | [x] [6.5-volume.md](6.5-volume.md); closed 2026-11-05; released `roastery-data-1.0.0` and `shop-0.1.1` on `57f1064` |
 | 6.6 data-docs reads the release | [ ] |
 
 Notes:
