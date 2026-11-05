@@ -136,6 +136,25 @@ def test_a_refund_asked_of_the_provider_is_waiting_to_be_delivered() -> None:
     assert log.rows().rows[-1][4] == day
 
 
+def test_a_redelivered_refund_is_two_rows_and_still_one_the_provider_sent() -> None:
+    """As a positive payment (W22): the same refund delivered twice is logged twice, the
+    provider sent it once, and the play takes the redelivery as sent, on a later day too."""
+    provider = FakeProvider(refund_ids=[REFUND_ID])
+    log = outside.ProviderLog(provider)
+    log.deliver(_paid(O101, 'PAY-1', '1157.00', 5))
+    provider.refund(PAY1, _nok('100.00'), key='refund-O-101')
+    day = dt.date(2026, 10, 9)
+    [refund] = log.refunds(on=day)
+    assert log.sent(refund, on=day)
+    assert not log.sent(dataclasses.replace(refund, paid_on=dt.date(2026, 10, 5)), on=day)
+    log.deliver(refund)
+    assert log.sent(refund, on=day + dt.timedelta(days=1))
+    log.deliver(refund)
+    assert [r[0] for r in log.rows().rows] == ['PAY-1', REFUND_ID.value, REFUND_ID.value]
+    assert len(provider.messages()) == 1
+    assert not log.sent(dataclasses.replace(refund, amount=_nok('-99.00')), on=day)
+
+
 FACTS = {
     'fx_rates': outside.FxRate,
     'managers': outside.Manager,

@@ -19,13 +19,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
-from zoneinfo import ZoneInfo
 
 from roastery.pipeline import Rows
 from roastery_spec.contract import TABLES, Extract
 
 from roastery_sim import faults, outside, tiny, world
-from roastery_sim.play import Played
+from roastery_sim.play import SHOP_ZONE, Played
 from roastery_sim.targets import Targets
 from roastery_sim.world import Volume
 
@@ -33,9 +32,6 @@ SNAPSHOT: Final = dt.datetime(2026, 10, 10, 7, 0, tzinfo=dt.UTC)
 """`full` is what the play held after its last step at or before this moment (V2)."""
 MONTH: Final = (dt.date(2026, 10, 1), dt.date(2026, 10, 31))
 """The days `month` holds (the owner's answer 1)."""
-
-SHOP_ZONE: Final = ZoneInfo('Europe/Oslo')
-"""The till's `sold_at` is Bergen time, naive."""
 
 LESSON_IDS: Final = ('lesson_set', 'row_no', 'shop_id')
 
@@ -175,7 +171,7 @@ MONTH_DAYS: Final[Mapping[str, str]] = MappingProxyType(
     {
         'orders': 'order_date',
         'payments': 'paid_on',
-        'order_events': 'event_at',
+        'order_events': 'loaded_at',
         'fx_rates': 'rate_date',
         'stock_daily': 'stock_date',
         'stock_movements': 'moved_at',
@@ -195,7 +191,8 @@ MONTH_DAYS: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 """V5: the dated facts of `month`, each by its own day (a UTC stamp's UTC date; the till's
-Bergen time its own)."""
+Bergen time its own). The feed's events are the ones loaded in October (by the UTC day of
+`loaded_at`), so the landing's feed files, a file per UTC day of loads, hold them exactly."""
 
 BY_PARENT: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
     {
@@ -301,12 +298,16 @@ def full(volume: Volume, played: Played, targets: Targets) -> Written:
     return _assemble('full', cut, log)
 
 
-def month(volume: Volume, played: Played) -> Written:
+def month(
+    volume: Volume, played: Played, *, nightly: Mapping[dt.date, Mapping[str, str]] | None = None
+) -> Written:
     """The end of the play, faulted, cut to October 2026 (V5): dated facts by their day,
     lines and stamps by their order, the state and reference tables whole. The raw tables are
     the landing's 9 October files, the faulted ones; `lesson_ids` keeps its subscribers rows
-    (its order_values rows name orders of earlier months)."""
-    landed = dataclasses.replace(played, csv=exports(played)[FAULTED_NIGHT])
+    (its order_values rows name orders of earlier months). `nightly` is `exports(played)` if
+    the caller has it already."""
+    nightly = exports(played) if nightly is None else nightly
+    landed = dataclasses.replace(played, csv=nightly[FAULTED_NIGHT])
     tables, log = faults.apply(inputs(volume, landed))
     dated = {name: _days(column, *MONTH) for name, column in MONTH_DAYS.items()}
     cut = _cut(tables, dated)

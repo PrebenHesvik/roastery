@@ -29,7 +29,6 @@ from roastery.pipeline import Rows
 
 from roastery_sim import extracts, faults
 from roastery_sim.extracts import FAULTED_NIGHT
-from roastery_sim.play import SHOP_ZONE
 
 if TYPE_CHECKING:
     from roastery_sim.build import PlayedVolume
@@ -100,12 +99,14 @@ def _count(text: str) -> int:
 
 
 def _jsonl(rows: Rows) -> dict[dt.date, str]:
-    """The feed's events by the night (Oslo date) of `loaded_at`, one object a line."""
+    """The feed's events by the UTC day of `loaded_at`, one object a line: a night's file is
+    what that day's relays loaded (the last at 23:30 UTC), picked up at PICKUP the next day.
+    month's `order_events` is cut by the same day, so the files hold it exactly."""
     at = rows.columns.index('loaded_at')
     nights: dict[dt.date, list[str]] = defaultdict(list)
     for row in rows.rows:
         entry = {key: _cell(row[rows.columns.index(key)]) for key in FEED_KEYS}
-        nights[row[at].astimezone(SHOP_ZONE).date()].append(json.dumps(entry, ensure_ascii=False))
+        nights[row[at].astimezone(dt.UTC).date()].append(json.dumps(entry, ensure_ascii=False))
     return {night: '\n'.join(lines) + '\n' for night, lines in nights.items()}
 
 
@@ -153,11 +154,18 @@ def _entry(file: str, strategy: Strategy, loaded: dt.datetime, rows: int) -> dic
     }
 
 
-def files(volume: PlayedVolume, month: extracts.Written | None = None) -> dict[str, str]:
+def files(
+    volume: PlayedVolume,
+    month: extracts.Written | None = None,
+    *,
+    nightly: Mapping[dt.date, Mapping[str, str]] | None = None,
+) -> dict[str, str]:
     """The landing for 1 to 31 October 2026: each file's text by its path under `landing/`,
-    `loads.json` with them. `month` is the extract if the caller has it already."""
+    `loads.json` with them. `month` is the extract and `nightly` the csv exports
+    (`extracts.exports`) if the caller has them already."""
     played = volume.played
-    held = month or extracts.month(volume.world, played)
+    nightly = extracts.exports(played) if nightly is None else nightly
+    held = month or extracts.month(volume.world, played, nightly=nightly)
     tables = {rows.name: rows for rows in held.tables}
     files: dict[str, str] = {}
     entries: list[dict[str, str | int]] = []
@@ -168,16 +176,18 @@ def files(volume: PlayedVolume, month: extracts.Written | None = None) -> dict[s
 
     month_ends = _picked_up(LAST_NIGHT)
 
-    # the status feed: what each night's relays loaded
+    # the status feed: what each night's relays loaded, every event of month's order_events
     feed = _jsonl(tables['order_events'])
-    kept = {n for n in feed if FIRST_NIGHT <= n <= LAST_NIGHT}
-    for night in sorted(kept):
+    outside = sorted(n for n in feed if not FIRST_NIGHT <= n <= LAST_NIGHT)
+    if outside:
+        raise ValueError(f'order_events loaded outside October: {outside[:3]}')
+    for night in sorted(feed):
         count = feed[night].count('\n')
         add(f'feed/{night}.jsonl', feed[night], FEED, _picked_up(night), count)
 
     # the shop's csv export: the 9 October one with the writer's faults (month's raw tables),
     # the rest as written
-    for night, export in sorted(extracts.exports(played).items()):
+    for night, export in sorted(nightly.items()):
         if not FIRST_NIGHT <= night <= LAST_NIGHT:
             continue
         for name, strategy in (('raw_customers', CUSTOMERS), ('raw_lines', LINES)):

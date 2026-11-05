@@ -50,8 +50,13 @@ def _sha(text: str) -> str:
 
 
 def _built(root: Path, files: dict[str, str], *, landing: dict[str, str] | None = None) -> Path:
-    """A built folder: `data/` with the files and a manifest naming them, and a landing."""
-    manifest: dict[str, object] = {'sha256': {n: _sha(t) for n, t in files.items()}}
+    """A built folder: `data/` with the files and a manifest naming them, and a landing. The
+    manifest is its part's (the folder's name) of this release; tiny's has no version, as
+    tiny's own."""
+    manifest: dict[str, object] = {'extract': root.name, 'until': None}
+    if root.name != 'tiny':
+        manifest['version'] = release.VERSION
+    manifest['sha256'] = {n: _sha(t) for n, t in files.items()}
     if landing is not None:
         manifest['landing'] = {n: _sha(t) for n, t in landing.items()}
     texts = {f'data/{n}': t for n, t in files.items()}
@@ -104,5 +109,34 @@ def test_a_folder_that_differs_from_its_manifest_is_not_zipped(
         (tmp_path / path).write_text('changed', encoding='utf-8')
     else:
         (tmp_path / path).unlink()
+    with pytest.raises(ValueError, match=reason):
+        release.release(tmp_path / 'out', tiny=tiny, volume=volume)
+
+
+@pytest.mark.parametrize(
+    ('part', 'change', 'reason'),
+    [
+        ('volume/month', {'extract': 'full'}, "extract 'full', not 'month'"),
+        ('volume/full', {'until': '2026-10-05T00:00:00+00:00'}, 'a play cut at 2026-10-05'),
+        ('volume/full', {'version': '0.9.0'}, "version '0.9.0', not"),
+        ('volume/month', {'version': None}, 'version None, not'),
+        ('tiny', {'version': '0.9.0'}, "version '0.9.0', not"),
+        ('tiny', {'until': '2026-10-05T00:00:00+00:00'}, 'a play cut at'),
+    ],
+)
+def test_a_manifest_not_of_its_zip_is_not_zipped(
+    tmp_path: Path, part: str, change: dict[str, object], reason: str
+) -> None:
+    """A folder is zipped only under its own part, of a whole play, of this release's version;
+    tiny's manifest may give no version (its bytes are frozen), but not another."""
+    tiny, volume = _folders(tmp_path)
+    path = tmp_path / part / 'data' / 'manifest.json'
+    manifest = json.loads(path.read_text(encoding='utf-8'))
+    for key, value in change.items():
+        if value is None:
+            manifest.pop(key)
+        else:
+            manifest[key] = value
+    path.write_text(json.dumps(manifest), encoding='utf-8')
     with pytest.raises(ValueError, match=reason):
         release.release(tmp_path / 'out', tiny=tiny, volume=volume)

@@ -109,7 +109,8 @@ class PlayStopped(Exception):
 
 
 SHOP_ZONE: Final = ZoneInfo('Europe/Oslo')
-"""The shop's own day: an export is filed under the night (the Oslo date) it ran in."""
+"""The shop's own day: an export is filed under the night (the Oslo date) it ran in, a
+refund is dated the day it is delivered, and the till's `sold_at` is Bergen time, naive."""
 
 
 @dataclass(frozen=True)
@@ -446,7 +447,8 @@ def _do(app: App, step: Step, state: _State) -> None:
             state.keep(handle, head.order_id.value)
         case Pay(payment_id, ref, amount, paid_on):
             message = _message(state, payment_id, ref, amount, paid_on)
-            if amount.amount < 0 and message not in state.log.refunds(on=paid_on):
+            local = step.at.astimezone(SHOP_ZONE).date()
+            if amount.amount < 0 and not state.log.sent(message, on=local):
                 raise ValueError(f'{payment_id} is a refund the provider never sent: {message}')
             app.payments.handle_message(state.log.deliver(message))
         case Settle(payment_id, ref, amount, paid_on):

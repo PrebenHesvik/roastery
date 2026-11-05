@@ -53,6 +53,13 @@ class ProviderLog:
             if m.payment_id not in self._delivered
         )
 
+    def sent(self, message: PaymentMessage, *, on: dt.date) -> bool:
+        """Whether the provider sent this refund message: one waiting, dated `on` (the shop's
+        local date of its delivery), or one delivered already, redelivered as it was logged."""
+        if message.payment_id in self._delivered:
+            return message in self._log
+        return message in self.refunds(on=on)
+
     def rows(self) -> Rows:
         """`payments`: every message delivered, in the order delivered."""
         rows = tuple(

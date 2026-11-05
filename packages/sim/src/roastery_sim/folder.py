@@ -54,7 +54,7 @@ def write(
             target = out / f'{name}.parquet'
             con.execute(
                 f"COPY (SELECT * FROM {name} ORDER BY {order}) TO '{target.as_posix()}' "
-                '(FORMAT parquet, ROW_GROUP_SIZE 100000)'
+                f'(FORMAT parquet, ROW_GROUP_SIZE {ROW_GROUP_SIZE})'
             )
             row = con.execute(f'SELECT count(*) FROM {name}').fetchone()
             counts[name] = row[0] if row else 0

@@ -190,6 +190,8 @@ OCTOBER_STARTS: Final = 0.3
 """The chance of a new subscription on a day after the window (about the volume's rate)."""
 OCTOBER_PAUSES: Final = 12
 """About one running subscription in this many pauses after the window."""
+JOIN_DAYS: Final = 7
+"""A pool consumer registers on the day of their first view or up to this many days before."""
 BUSINESS_DAILY: Final = 0.05
 """The chance a business account orders on a weekday after the window: about its 2026 rate."""
 
@@ -395,37 +397,49 @@ def _promised(shipped: dt.date) -> dt.date:
     return shipped + dt.timedelta(days=2)
 
 
+def _script_moves(steps: Iterable[Step]) -> list[tuple[dt.datetime, ProductId, int]]:
+    """The stock moves of the script's own steps, in their order: a Place takes its lines, a
+    CancelOrder puts back the cancelled order's own lines, a Roast adds its bags."""
+    lines: dict[str, tuple[tuple[ProductId, int], ...]] = {}
+    moves: list[tuple[dt.datetime, ProductId, int]] = []
+    for step in steps:
+        match step.action:
+            case Place(order, handle):
+                made = tuple((item.product_id, item.qty.value) for item in order.items)
+                lines[step.ids['order'][0] if 'order' in step.ids else handle] = made
+                moves += [(step.at, product, -qty) for product, qty in made]
+            case CancelOrder(ref):
+                key = ref.value if isinstance(ref, OrderId) else ref
+                if key not in lines:
+                    raise ValueError(f'{key} is cancelled, never placed')
+                moves += [(step.at, product, qty) for product, qty in lines[key]]
+            case Roast(product, bags):
+                moves.append((step.at, product, bags.value))
+            case _:
+                continue
+    return moves
+
+
 def _week_balance() -> dict[ProductId, int]:
     """The lowest balance of each product from the opening stocktakes to the restock after the
     window, with the week's own moves only (nothing generated moves stock in the window)."""
-    lines: dict[str, tuple[tuple[ProductId, int], ...]] = {}
     level = {ProductId(p): n for p, n in OPENING.items()}
     low = dict(level)
-    for step in script.steps():
-        if not OPENING_AT <= step.at < AFTER_WEEK:
-            continue
-        match step.action:
-            case Place(order):
-                made = tuple((item.product_id, item.qty.value) for item in order.items)
-                lines[step.ids['order'][0]] = made
-                for product, qty in made:
-                    level[product] = level.get(product, 0) - qty
-            case CancelOrder(order_id):
-                for product, qty in lines[order_id.value]:
-                    level[product] += qty
-            case Roast(product, bags):
-                level[product] += bags.value
-            case _:
-                continue
-        for product, n in level.items():
-            low[product] = min(low.get(product, n), n)
+    for at, product, qty in _script_moves(script.steps()):
+        if OPENING_AT <= at < AFTER_WEEK:
+            level[product] = level.get(product, 0) + qty
+            low[product] = min(low.get(product, level[product]), level[product])
     return low
 
 
 def feasibility(targets: Targets) -> Report:
     """Check the targets before any step is made; raises Infeasible naming the day and product,
     or the rule, that cannot be met."""
-    fit = _fit(targets)
+    return _check(targets, _fit(targets))[0]
+
+
+def _check(targets: Targets, fit: _Fit) -> tuple[Report, dt.date]:
+    """`feasibility` on a fit made once; the report and the day of order 300's sale."""
     bounds: list[Bound] = []
     by_lesson = {x.order_no: x for x in targets.lessons}
 
@@ -554,6 +568,7 @@ def feasibility(targets: Targets) -> Report:
             'the sale is the latest such filler day',
         )
     )
+    sale_day = max(sale_days)
 
     # A14: the subscriber rule stays off C-01's list-price year, and off every lesson
     first_year = script.YEAR[0][0]
@@ -586,7 +601,7 @@ def feasibility(targets: Targets) -> Report:
             'each ends at 12:00 on a day the 06:00 bag run already shipped: a skip on the 1st',
         )
     )
-    return Report(tuple(bounds), fit.misfits)
+    return Report(tuple(bounds), fit.misfits), sale_day
 
 
 def _sale_limit(credit_day: dt.date) -> dt.date:
@@ -787,14 +802,33 @@ class _Builder:
         return handle
 
     def register_pool(self) -> None:
-        """Each pool consumer registers three minutes before their first order."""
+        """Each pool consumer registers a while before the first web event that names them:
+        their first order's view (`_FIRST_VIEW` before it, a direct or a panel visit; a browse
+        by a known consumer comes after an order). The day is the view's or up to JOIN_DAYS
+        before it, never one that touches the teaching window; the minute is drawn in
+        CUSTOMER_HOURS and before the view, clear of the script's moments."""
         for country in COUNTRIES:
             for handle in self.pool[country]:
-                at = self.first[handle] - dt.timedelta(minutes=3)
-                while at in self.taken:
-                    at -= dt.timedelta(minutes=1)
+                at = self.joined(self.first[handle] - _FIRST_VIEW)
                 name = self.rng.choice(_NAMES[country])
                 self.register(at, handle, name, country, _postal(self.rng, country))
+
+    def joined(self, view: dt.datetime) -> dt.datetime:
+        """A registration moment before `view`, as `register_pool` draws it."""
+        day = view.date() - dt.timedelta(days=self.rng.randrange(JOIN_DAYS + 1))
+        opens, closes = (_at(day, h.hour, h.minute) for h in CUSTOMER_HOURS)
+        if day < FIRST_DAY or (opens <= QUIET[1] and closes >= QUIET[0]):
+            day = view.date()
+            opens, closes = (_at(day, h.hour, h.minute) for h in CUSTOMER_HOURS)
+        latest = min(closes, view - dt.timedelta(minutes=1))
+        if latest < opens:
+            raise Infeasible(f'{view}', 'no minute to register before the first view')
+        at = opens + dt.timedelta(minutes=self.rng.randrange((latest - opens) // _MINUTE + 1))
+        while at in self.taken:
+            at -= _MINUTE
+        if at < opens:
+            raise Infeasible(f'{view}', "every minute before the first view is the script's")
+        return at
 
     # orders
 
@@ -857,19 +891,25 @@ class _Builder:
         self.add(at, Settle(self.payment_id(), handle, money, at.date()))
 
     def invoice_paid(
-        self, ordered: dt.date, handle: str, country: str, nok: Decimal, *, status: str = ''
+        self, ordered: dt.datetime, handle: str, country: str, nok: Decimal, *, status: str = ''
     ) -> None:
-        """A business invoice settled on its settle day (`_settle_day`), at 14:00 UTC.
+        """A business invoice, placed at `ordered`, settled on its settle day (`_settle_day`)
+        at 14:00 UTC.
 
-        A lesson `paid` settles by the counted day; one `unpaid` stays open that day and is
-        settled late, on a weekday of 12 to 30 October at a drawn minute; nothing settles
-        after LAST_DAY.
+        A lesson `paid` settles by the counted day, at 14:00 or a minute after its order if
+        that is later (an order of the counted day itself); one `unpaid` stays open that day
+        and is settled late, on a weekday of 12 to 30 October at a drawn minute; nothing
+        settles after LAST_DAY.
         """
-        day = _settle_day(ordered)
+        day = _settle_day(ordered.date())
         at = _at(day, 14)
         if status == 'paid':
-            at = _at(min(day, COUNTED_ON), 14)
-        elif status == 'unpaid':
+            at = self.free(max(_at(min(day, COUNTED_ON), 14), ordered + dt.timedelta(minutes=1)))
+            if at.date() > COUNTED_ON or at.time() > CUSTOMER_HOURS[1]:
+                raise Infeasible(f'{handle} at {ordered}', 'a paid lesson settles after its day')
+            self.settle(at, handle, country, nok)
+            return
+        if status == 'unpaid':
             late = [
                 d for d in _days(dt.date(2026, 10, 12), dt.date(2026, 10, 30)) if d.weekday() < 5
             ]
@@ -900,7 +940,7 @@ class _Builder:
         """A business account's web order (one bag of P-10 unless told): invoiced at place,
         settled on its settle day, shipped the next day."""
         handle, total = self.place(at, account, 'web', lines)
-        self.invoice_paid(at.date(), handle, country, total)
+        self.invoice_paid(at, handle, country, total)
         ship = _at(at.date() + dt.timedelta(days=1), 9, self.rng.randrange(60))
         self.ship(ship, handle, self.rng.choice(DELIVERY_DAYS[country]))
 
@@ -1049,7 +1089,7 @@ def _lessons(b: _Builder, accounts: Mapping[str, list[str]]) -> list[tuple[str, 
             raise Infeasible(f'order {i}', f'lines give {total}, order_values {lesson.amount}')
         after = b.free(at + dt.timedelta(minutes=1))
         if business:
-            b.invoice_paid(lesson.order_date, handle, country, total, status=lesson.status)
+            b.invoice_paid(at, handle, country, total, status=lesson.status)
         elif lesson.status == 'paid':
             b.pay(after, handle, country, total)
         elif lesson.status == 'unpaid':
@@ -1077,7 +1117,7 @@ def _refund(b: _Builder, sale_day: dt.date) -> None:
     b.moves.append((credit, _P20, 1))
     refund = b.free(credit + dt.timedelta(minutes=1))
     b.add(refund, Refund(f'lesson {REFUND}'))
-    message = Money(-script.list_price(_P20, credit_day), 'NOK')
+    message = Money(-total, 'NOK')  # the sale's own line, as the provider refunds it
     b.add(
         b.free(refund + dt.timedelta(minutes=1)),
         Pay(REFUND_ID, f'lesson {REFUND}', message, credit_day),
@@ -1305,11 +1345,13 @@ def _direct_visits(
 
     The ordering customer views 7 minutes before the order, carts at 3 and checks out at 1.
     Beside each such order come one to three browse-only visits (a view, or a view and a cart)
-    in the week up to it, by a pool consumer who has bought before or by an anonymous visitor
-    (`AV-nnnnn`, no customer), so direct traffic converts at about a third; none falls in the
-    teaching window. A customer is one visitor, DV-nnnnn. A visitor's events make one visit
-    while no gap is over 30 minutes (the 30-minute rule, S18); visits and events are numbered
-    in time order.
+    in the week up to it: on its day or up to _BROWSE_DAYS before, between 08:00 and 20:00 UTC,
+    the view at least _BROWSE_BEFORE before the order, so the visit has ended before it and
+    never runs into the order's own visit. Each is by a pool consumer who has bought before
+    (and so is registered) or by an anonymous visitor (`AV-nnnnn`, no customer), so direct
+    traffic converts at about a third; none falls in the teaching window. A customer is one
+    visitor, DV-nnnnn. A visitor's events make one visit while no gap is over 30 minutes (the
+    30-minute rule, S18); visits and events are numbered in time order.
     """
     rng = Random(f'browse {seed}')
     orders = sorted(o for o in b.web_orders if o not in anchored)
@@ -1322,8 +1364,12 @@ def _direct_visits(
         who = (customer, customer, b.country[customer])
         events[who] += [(at - dt.timedelta(minutes=before), kind) for kind, before in _DIRECT_STEPS]
         for _ in range(rng.choice(_BROWSE_PER_ORDER)):
-            day = max(FIRST_DAY, at.date() - dt.timedelta(days=rng.randrange(7)))
-            view = _at(day, 8) + dt.timedelta(minutes=rng.randrange(12 * 60))
+            day = max(FIRST_DAY, at.date() - dt.timedelta(days=rng.randrange(_BROWSE_DAYS + 1)))
+            opens = _at(day, _BROWSE_HOURS[0].hour)
+            latest = min(_at(day, _BROWSE_HOURS[1].hour), at - _BROWSE_BEFORE)
+            if latest < opens:
+                raise ValueError(f'no minute for a browse visit before the order at {at}')
+            view = opens + dt.timedelta(minutes=rng.randrange((latest - opens) // _MINUTE + 1))
             steps = [(view, 'view')]
             if rng.random() < _BROWSE_CART:
                 steps.append((view + dt.timedelta(minutes=rng.randrange(1, 15)), 'cart'))
@@ -1373,10 +1419,22 @@ def _direct_visits(
 
 _DIRECT_STEPS: Final = (('view', 7), ('cart', 3), ('checkout', 1))
 """A direct visit's events, minutes before its order."""
+_MINUTE: Final = dt.timedelta(minutes=1)
+_FIRST_VIEW: Final = max(
+    panel_plan.ORDER_AFTER, *(dt.timedelta(minutes=before) for _, before in _DIRECT_STEPS)
+)
+"""How long before an order its visit's first event is: a panel visit's or a direct one's."""
 _KIND_ORDER: Final = {'view': 0, 'cart': 1, 'checkout': 2}
 _BROWSE_PER_ORDER: Final = (1, 2, 2, 3)
 """Browse-only direct visits drawn beside each direct order: two on average, so a third of
 the direct visits convert."""
+_BROWSE_DAYS: Final = 6
+"""A browse visit falls on its order's day or up to this many days before."""
+_BROWSE_HOURS: Final = (dt.time(8, 0), dt.time(20, 0))
+"""A browse visit's view is at or after the first and before the second, UTC."""
+_BROWSE_BEFORE: Final = dt.timedelta(hours=1)
+"""A browse visit's view is at least this long before its order: its cart (under 15 minutes
+on) ends it well over 30 minutes before the order's own view (7 minutes before it)."""
 _BROWSE_CART: Final = 0.4
 """The chance a browse-only visit puts a bag in the cart."""
 _BROWSE_KNOWN: Final = 0.55
@@ -1421,22 +1479,7 @@ def _stock(b: _Builder, subs: Sequence[_Sub]) -> None:
         month = _months_after(month, 1)
     for at in bag_runs:
         b.add(at, ShipBags())
-    for step in b.script:  # the week's roast and O-106's cancel move stock too
-        match step.action:
-            case Roast(product, bags):
-                b.moves.append((step.at, product, bags.value))
-            case CancelOrder():
-                b.moves.append((step.at, _P11, 1))  # O-106's one P-11
-            case Place(order) if step.wiring == 'scripted':
-                for item in order.items:
-                    b.moves.append((step.at, item.product_id, -item.qty.value))
-            case _:
-                continue
-    year_places = [s for s in b.script if s.wiring == 'simulator' and isinstance(s.action, Place)]
-    for s in year_places:
-        assert isinstance(s.action, Place)
-        for item in s.action.order.items:
-            b.moves.append((s.at, item.product_id, -item.qty.value))
+    b.moves += _script_moves(b.script)  # the script's places, its roast and O-106's cancel
     for n, day in enumerate(_mondays()):  # write-offs in February, May, August, November
         if day.month in (2, 5, 8, 11) and day.day <= 7:
             product = _BEANS[n % 2]
@@ -1562,15 +1605,11 @@ def build(targets: Targets, *, seed: int) -> Volume:
     Raises Infeasible where `feasibility` does, or where the stock plan or Finland's week
     fails on the steps as drawn.
     """
-    report = feasibility(targets)
     fit = _fit(targets)
+    report, sale_day = _check(targets, fit)
     b = _Builder(targets, seed, fit)
     accounts = _business(b)
     order_ids = _lessons(b, accounts)
-    credit_day = next(x.order_date for x in targets.lessons if x.order_no == REFUND)
-    sale_day = max(
-        d for (d, p), n in fit.filler.items() if p == _P20 and d <= _sale_limit(credit_day)
-    )
     filler = dict(fit.filler)
     filler[sale_day, _P20] -= 1
     b.fit = replace(fit, filler={k: v for k, v in filler.items() if v})

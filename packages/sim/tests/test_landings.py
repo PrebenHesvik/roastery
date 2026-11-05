@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import datetime as dt
 import io
 import json
 from pathlib import Path
@@ -40,6 +41,44 @@ def test_the_landing_is_the_months_rows(volume: build.PlayedVolume, tmp_path) ->
     }
     assert {e['event_id']: e for e in fed} == expected
     assert len(fed) == len(expected)
+
+    # the rule: a feed file is one UTC day's loads, and month's order_events is every event of
+    # the play loaded on an October day; so the files rebuild it, the month's ends included
+    for path in sorted((tmp_path / 'feed').iterdir()):
+        night = dt.date.fromisoformat(path.stem)
+        assert landings.FIRST_NIGHT <= night <= landings.LAST_NIGHT
+        for line in path.read_text(encoding='utf-8').splitlines():
+            loaded = dt.datetime.fromisoformat(json.loads(line)['loaded_at'])
+            assert loaded.date() == night
+    whole, _ = faults.apply(extracts.inputs(volume.world, volume.played))
+    feed = whole['order_events']
+    at = feed.columns.index('loaded_at')
+    october = {
+        row[0]
+        for row in feed.rows
+        if landings.FIRST_NIGHT <= row[at].astimezone(dt.UTC).date() <= landings.LAST_NIGHT
+    }
+    assert october == set(expected)
+
+    # the new till's files, from its first day, are month's till lines of those days
+    receipts = {row[0]: row for row in tables['till_receipts'].rows}
+    sold = tables['till_receipts'].columns.index('sold_at')
+    lines = tables['till_lines']
+    receipt_id, line_no = (lines.columns.index(c) for c in ('receipt_id', 'line_no'))
+    till = sorted(
+        (row[receipt_id], row[line_no])
+        for row in lines.rows
+        if receipts[row[receipt_id]][sold].date() >= landings.FIRST_TILL_DAY
+    )
+    tilled = sorted(
+        (receipt, int(line_no))
+        for path in sorted((tmp_path / 'till').iterdir())
+        for receipt, _, _, line_no, *_ in _rows(path.read_text(encoding='utf-8'))
+    )
+    assert tilled == till
+    assert {p.stem for p in (tmp_path / 'till').iterdir()} == {
+        str(receipts[r][sold].date()) for r, _ in till
+    }
 
     # month's raw tables are the 9 October files, the faulted ones, cell for cell
     for name in tiny.RAW:

@@ -163,8 +163,9 @@ def write_volume(
 
     The landing is made first: month's manifest holds each landing file's sha256."""
     events = extracts.scripted_events(volume.world, volume.played)
-    month = extracts.month(volume.world, volume.played)
-    texts = landings.files(volume, month)
+    nightly = extracts.exports(volume.played)
+    month = extracts.month(volume.world, volume.played, nightly=nightly)
+    texts = landings.files(volume, month, nightly=nightly)
     landed = landings.sha256(texts)
     written: list[Path] = []
     for extract, landing in (
