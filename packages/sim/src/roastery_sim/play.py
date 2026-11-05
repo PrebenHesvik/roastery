@@ -20,7 +20,8 @@ import sqlite3
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Literal
+from typing import Final, Literal
+from zoneinfo import ZoneInfo
 
 from roastery.bootstrap import App, memory_store, sqlite_store, wire
 from roastery.events import HandlerFailure
@@ -107,6 +108,10 @@ class PlayStopped(Exception):
         self.failures = tuple(failures)
 
 
+SHOP_ZONE: Final = ZoneInfo('Europe/Oslo')
+"""The shop's own day: an export is filed under the night (the Oslo date) it ran in."""
+
+
 @dataclass(frozen=True)
 class Snapshot:
     """The app's tables, the feed's and the provider's rows, and the last `csv_export`'s files
@@ -133,6 +138,8 @@ class Played:
     till_members: the outside systems' writers over the world's facts."""
     csv: Mapping[str, str]
     """`csv_export`'s files, file name to text; empty if it did not run."""
+    csv_exports: Mapping[dt.date, Mapping[str, str]]
+    """Every `csv_export` of the play, by the night (Oslo date) it ran in."""
     relays: tuple[tuple[dt.datetime, Relayed], ...]
     """Each relay run's moment and result, in order."""
     seed: int
@@ -253,6 +260,7 @@ def play(
                 outside.till_members(world.till_members),
             ),
             csv=MappingProxyType(dict(state.csv)),
+            csv_exports=MappingProxyType(dict(state.csv_exports)),
             relays=tuple(state.relays),
             seed=seed,
             handles=MappingProxyType(dict(state.handles)),
@@ -293,6 +301,7 @@ class _State:
     shipments: dict[OrderId, ShipmentId] = field(default_factory=dict)
     relays: list[tuple[dt.datetime, Relayed]] = field(default_factory=list)
     csv: Mapping[str, str] = field(default_factory=dict)
+    csv_exports: dict[dt.date, Mapping[str, str]] = field(default_factory=dict)
 
     def keep(self, handle: str | None, made: str) -> None:
         """`made` under `handle`; a handle names one call only."""
@@ -472,5 +481,9 @@ def _do(app: App, step: Step, state: _State) -> None:
             app.jobs.nightly_extract()
         case CsvExport():
             state.csv = app.jobs.csv_export()
+            night = step.at.astimezone(SHOP_ZONE).date()
+            if night in state.csv_exports:
+                raise ValueError(f'two csv exports in the night of {night}')
+            state.csv_exports[night] = state.csv
         case other:
             raise TypeError(f'no call for {other!r}')

@@ -17,7 +17,7 @@ from typing import Literal
 
 from roastery.pipeline import Rows
 
-from roastery_sim import dataset_sql, extracts, faults, folder, play, targets, tiny, world
+from roastery_sim import dataset_sql, extracts, faults, folder, landings, play, targets, tiny, world
 
 
 @dataclass(frozen=True)
@@ -140,14 +140,12 @@ def play_volume(*, seed: int = 0) -> PlayedVolume:
 def write_volume(
     volume: PlayedVolume, out: Path, *, seed: int, shop_version: str
 ) -> tuple[Path, ...]:
-    """`out/full/data` and `out/month/data`, each its parquet files and manifest; the files
-    written."""
+    """`out/full/data`, `out/month/data` (each its parquet files and manifest) and
+    `out/month/landing`; the files written."""
     events = extracts.scripted_events(volume.world, volume.played)
     written: list[Path] = []
-    for extract in (
-        extracts.full(volume.world, volume.played, volume.targets),
-        extracts.month(volume.world, volume.played),
-    ):
+    month = extracts.month(volume.world, volume.played)
+    for extract in (extracts.full(volume.world, volume.played, volume.targets), month):
         data = out / extract.name / 'data'
         manifest = folder.write_rows(
             extract.tables,
@@ -160,6 +158,7 @@ def write_volume(
         )
         written += [data / name for name in manifest['sha256']]
         written.append(data / 'manifest.json')
+    written += landings.write(volume, out / 'month' / 'landing', month=month)
     return tuple(written)
 
 
