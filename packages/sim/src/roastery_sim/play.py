@@ -14,6 +14,7 @@ moment asked for: the faults and the cut are later modules'.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import sqlite3
 from collections.abc import Iterator, Mapping, Sequence
@@ -24,7 +25,7 @@ from typing import Literal
 from roastery.bootstrap import App, memory_store, sqlite_store, wire
 from roastery.events import HandlerFailure
 from roastery.fakes import FakeClock, FakeLabels, FakeNotifier, FakeProvider
-from roastery.ids import LineId, OrderId, PaymentId, ShipmentId, SubscriptionId
+from roastery.ids import CustomerId, LineId, OrderId, PaymentId, ShipmentId, SubscriptionId
 from roastery.money import Money
 from roastery.payments import PaymentMessage
 from roastery.pipeline import Rows
@@ -46,6 +47,7 @@ from roastery_sim.script import (
     CountAtClose,
     Credit,
     CsvExport,
+    CustomerRef,
     Deliver,
     Erase,
     Invoice,
@@ -300,6 +302,12 @@ class _State:
             raise ValueError(f'handle {handle!r} names {self.handles[handle]} already')
         self.handles[handle] = made
 
+    def customer(self, ref: CustomerRef) -> CustomerId:
+        """The customer a step names: its id, or the id its handle was given."""
+        if isinstance(ref, CustomerId):
+            return ref
+        return CustomerId(self._handle(ref))
+
     def order(self, ref: OrderRef) -> OrderId:
         """The order a step names: its id, or the id its handle was given."""
         if isinstance(ref, OrderId):
@@ -363,20 +371,23 @@ def _message(
 def _do(app: App, step: Step, state: _State) -> None:
     """Give the step to the one call it names."""
     match step.action:
-        case Register(name, email, country, postal_code, account_kind):
-            app.customers.register(
+        case Register(name, email, country, postal_code, account_kind, handle):
+            made = app.customers.register(
                 name,
                 email=email,
                 country=country,
                 postal_code=postal_code,
                 account_kind=account_kind,
             )
+            state.keep(handle, made.value)
         case Change(customer_id, email, country, postal_code):
-            app.customers.change(customer_id, email=email, country=country, postal_code=postal_code)
+            app.customers.change(
+                state.customer(customer_id), email=email, country=country, postal_code=postal_code
+            )
         case Erase(customer_id):
-            app.customers.erase(customer_id)
+            app.customers.erase(state.customer(customer_id))
         case Subscribe(customer_id, product_id, handle):
-            made = app.subscriptions.subscribe(customer_id, product_id=product_id)
+            made = app.subscriptions.subscribe(state.customer(customer_id), product_id=product_id)
             state.keep(handle, made.value)
         case CancelSubscription(ref, reason):
             app.subscriptions.cancel(state.subscription(ref), reason=reason)
@@ -418,7 +429,9 @@ def _do(app: App, step: Step, state: _State) -> None:
             app.stock.write_off(product_id, qty=qty)
         case BuyGreen(origin, kg, nok_per_kg):
             app.stock.buy_green(origin=origin, kg=kg, nok_per_kg=nok_per_kg)
-        case Place(order, handle):
+        case Place(order, handle, customer):
+            if customer is not None:
+                order = dataclasses.replace(order, customer_id=state.customer(customer))
             head = app.checkout.place(order).head
             state.lines[head.order_id] = tuple(line.line_id for line in head.lines)
             state.keep(handle, head.order_id.value)

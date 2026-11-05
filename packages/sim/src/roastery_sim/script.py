@@ -71,26 +71,30 @@ type OrderRef = OrderId | str
 type SubscriptionRef = SubscriptionId | str
 """A subscription a step names: a scripted id, or the handle of its `Subscribe` (V4)."""
 
+type CustomerRef = CustomerId | str
+"""A customer a step names: a scripted id, or the handle of its `Register`."""
+
 
 # The actions: one frozen type per kind of step ---------------------
 
 
 @dataclass(frozen=True)
 class Register:
-    """`customers.register`; the customer id is the step's."""
+    """`customers.register`; the customer id is the step's. `handle` names what it returns."""
 
     name: str
     email: Email | None
     country: Country | None
     postal_code: PostalCode | None
     account_kind: AccountKind = 'consumer'
+    handle: str | None = None
 
 
 @dataclass(frozen=True)
 class Change:
     """`customers.change`: the whole contact after the change."""
 
-    customer_id: CustomerId
+    customer_id: CustomerRef
     email: Email | None
     country: Country | None
     postal_code: PostalCode | None
@@ -100,14 +104,14 @@ class Change:
 class Erase:
     """`customers.erase`; open subscriptions are cancelled with it."""
 
-    customer_id: CustomerId
+    customer_id: CustomerRef
 
 
 @dataclass(frozen=True)
 class Subscribe:
     """`subscriptions.subscribe`, started on the customer's day; `handle` names what it returns."""
 
-    customer_id: CustomerId
+    customer_id: CustomerRef
     product_id: ProductId
     handle: str | None = None
 
@@ -236,10 +240,16 @@ class BuyGreen:
 
 @dataclass(frozen=True)
 class Place:
-    """`checkout.place`; `handle` names the order it returns."""
+    """`checkout.place`; `handle` names the order it returns.
+
+    `customer` is a `Register` handle: when given, the order is placed for the customer
+    that call returned and `order.customer_id` is replaced (a `PlaceOrder` holds a valid
+    `CustomerId` only, so the order carries any valid one as a placeholder).
+    """
 
     order: PlaceOrder
     handle: str | None = None
+    customer: str | None = None
 
 
 @dataclass(frozen=True)
