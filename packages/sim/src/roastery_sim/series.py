@@ -8,7 +8,7 @@ equal it; they run back to 1 January 2024 and, for the first two, on to 31 Octob
 from __future__ import annotations
 
 import datetime as dt
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from random import Random
 
 from roastery_sim.outside import DoorCount, FxRate, TillDayTotal, TillReceipt, WeatherDay
@@ -18,8 +18,9 @@ ORIGIN = dt.date(2024, 10, 1)
 """Day 0 of tier3.sql's formulas."""
 FIRST_DAY = dt.date(2024, 1, 1)
 LAST_DAY = dt.date(2026, 10, 31)
-OLD_TILL_LAST_DAY = dt.date(2026, 10, 5)
-"""The new till starts on 6 October."""
+OLD_TILL_LAST_DAY = dt.date(2026, 10, 9)
+"""The old till counts the anonymous walk-ins to 9 October; the new till's receipts of the week
+are the club members' (and R-5001), and it takes the walk-ins from 10 October."""
 WALK_IN_FIRST_DAY = dt.date(2026, 10, 10)
 
 WEEKDAY_WEIGHT = (2, 2, 2, 3, 4, 3, 1)
@@ -65,32 +66,49 @@ def door_counts() -> tuple[DoorCount, ...]:
 
 
 def till_day_totals() -> tuple[TillDayTotal, ...]:
-    """The old till's receipts from 1 Jan 2024 to 5 Oct 2026; none on a Sunday."""
+    """The old till's receipts from 1 Jan 2024 to 9 Oct 2026; none on a Sunday."""
     return tuple(TillDayTotal(d, _receipts(d)) for d in _days(FIRST_DAY, OLD_TILL_LAST_DAY))
 
 
-_FX_BASE = (
-    ('DKK', Decimal('1.5580'), 2),
-    ('EUR', Decimal('11.6200'), 10),
-    ('SEK', Decimal('1.0610'), 1),
-)
+FX_KEPT = (dt.date(2026, 10, 2), dt.date(2026, 10, 7))
+"""The script's days: its eight rows are kept as they are and no other row falls in them."""
+FX_DAILY = 50
+"""A banking day's move: up to this many hundredths of a percent either way."""
+FX_PULL = 250
+"""Each day a rate gives back 1/FX_PULL of its distance from the script's level: it is
+mostly within a few percent of it, at most about ten over the span. Integers only, so every
+machine draws the same rates."""
 
 
-def fx() -> tuple[FxRate, ...]:
+def _walk(rng: Random, start: Decimal, days: list[dt.date]) -> list[tuple[dt.date, Decimal]]:
+    """A seeded random walk from `start` over `days`, in hundredths of a percent of it."""
+    off = 0
+    out = []
+    for day in days:
+        pull = abs(off) // FX_PULL
+        off += rng.randrange(-FX_DAILY, FX_DAILY + 1) - (pull if off > 0 else -pull)
+        rate = start * (10000 + off) / 10000
+        out.append((day, rate.quantize(Decimal('0.0001'), ROUND_HALF_UP)))
+    return out
+
+
+def fx(*, seed: int) -> tuple[FxRate, ...]:
     """A rate per currency for every banking day (Monday to Friday) from 1 Jan 2024 to 31 Oct 2026.
 
     The script's eight rows of 2 to 7 October 2026 are kept as they are and no other row falls
-    in those days. A generated rate is the currency's base plus a small steady wobble.
+    in those days. Each currency walks at random from its script rows, back in time from its
+    first and forward from its last: a few tenths of a percent a day, pulled back to that level.
     """
-    window = (dt.date(2026, 10, 2), dt.date(2026, 10, 7))
+    rng = Random(f'fx {seed}')
     rows = list(FX)
-    for day in _days(FIRST_DAY, LAST_DAY):
-        if day.weekday() > 4 or window[0] <= day <= window[1]:
-            continue
-        n = (day - ORIGIN).days
-        for code, (currency, base, step) in enumerate(_FX_BASE):
-            wobble = ((n * 7919 + code * 104729) % 41 - 20) * step
-            rows.append(FxRate(currency, day, base + Decimal(wobble) / 10000))
+    banking = [d for d in _days(FIRST_DAY, LAST_DAY) if d.weekday() < 5]
+    before = [d for d in banking if d < FX_KEPT[0]]
+    after = [d for d in banking if d > FX_KEPT[1]]
+    for currency in sorted({r.currency for r in FX}):
+        kept = sorted((r.rate_date, r.nok_per_unit) for r in FX if r.currency == currency)
+        back = _walk(rng, kept[0][1], before[::-1])
+        ahead = _walk(rng, kept[-1][1], after)
+        rows += [FxRate(currency, day, rate) for day, rate in (*back, *ahead)]
     return tuple(sorted(rows, key=lambda r: (r.currency, r.rate_date)))
 
 

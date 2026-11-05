@@ -12,8 +12,11 @@ the outside series, the stock and the jobs. Every generated row is named by a ha
 constraint, how much room is left or which day binds; it raises `Infeasible` naming the day
 and product, or the rule, that cannot be met.
 
-The quiet window (V3) is [5 Oct 2026 00:00, 10 Oct 2026 07:00] UTC: no generated step falls in
-it but NightlyExtract, and none sits at a moment of the script.
+The teaching window (V3, reopened in U7) is [5 Oct 2026 00:00, 10 Oct 2026 07:00] UTC. In it a
+generated step is only a Place or Pay of P-11 and P-21 lines by a customer registered before
+it, a Ship or Deliver of a generated parcel, or a NightlyExtract; none falls in the BLACKOUT
+before E-09's lone batch, and none sits at a moment of the script. After the window a generated
+Ship or Deliver may name a cast order; nothing else generated ever names a cast id.
 """
 
 from __future__ import annotations
@@ -109,7 +112,9 @@ WINDOW: Final = (dt.date(2024, 10, 1), dt.date(2026, 9, 30))
 """The tier-3 window: `daily_sales` fixes the web consumer bags of these days."""
 COUNTED_ON: Final = dt.date(2026, 9, 30)
 QUIET: Final = (_utc(2026, 10, 5, 0, 0), _utc(2026, 10, 10, 7, 0))
-"""The quiet window, both ends in it (V3)."""
+"""The teaching window, both ends in it (V3): only what `WINDOW_ACTIONS` names is generated."""
+BLACKOUT: Final = (_utc(2026, 10, 6, 14, 0), _utc(2026, 10, 6, 15, 21))
+"""Half-open: no generated step, so the 15:20:30 relay finds E-09 alone and takes nothing (W31)."""
 WEEK: Final = (dt.date(2026, 10, 5), dt.date(2026, 10, 9))
 FINLAND_WEEK: Final = (dt.date(2026, 4, 20), dt.date(2026, 4, 26))
 """ISO week 2026-W17, when Finland's consumers buy about a quarter as much (V8)."""
@@ -119,7 +124,8 @@ RULE_PERCENT: Final = 10
 """The subscriber rule, half-open (V7)."""
 OPENING_AT: Final = _utc(2026, 10, 4, 12, 0)
 OPENING: Final[Mapping[str, int]] = {'P-10': 42, 'P-11': 12, 'P-20': 5, 'P-21': 2}
-"""The stocktakes that land the balance before the week (V10, W8)."""
+"""The stocktakes that land the balance before the week (V10, W8). P-10 and P-20 are exact;
+P-11 and P-21 are floors, raised to cover the week's own filler."""
 AFTER_WEEK: Final = _utc(2026, 10, 10, 8, 0)
 """The first restock after the window."""
 
@@ -139,6 +145,8 @@ CUSTOMER_ACTIONS: Final = (
     Credit,
     Refund,
 )
+WINDOW_ACTIONS: Final = (Place, Pay, Ship, Deliver, NightlyExtract)
+"""What a generated step in the teaching window may be."""
 FORBIDDEN: Final = (
     script.AddCategory,
     AddProduct,
@@ -151,6 +159,9 @@ FORBIDDEN: Final = (
 
 PLACEHOLDER: Final = CustomerId('C-0')
 """A `PlaceOrder` holds a valid id; a generated Place names its customer by handle."""
+_CAST: Final = frozenset(
+    x.value for x in (*script.CAST.customers, *script.CAST.orders, *script.CAST.subscriptions)
+)
 COUNTRIES: Final[tuple[Country, ...]] = ('NO', 'SE', 'DK', 'FI')
 SHARE: Final[Mapping[str, int]] = {'NO': 48, 'SE': 25, 'DK': 12, 'FI': 15}
 """Who buys the filler, by country, per hundred orders."""
@@ -175,6 +186,12 @@ DELIVERY_DAYS: Final[Mapping[str, tuple[int, ...]]] = {
 }
 SUBSCRIPTION_MOVES: Final = 6
 """About one subscription in this many skips a month or pauses."""
+OCTOBER_STARTS: Final = 0.3
+"""The chance of a new subscription on a day after the window (about the volume's rate)."""
+OCTOBER_PAUSES: Final = 12
+"""About one running subscription in this many pauses after the window."""
+BUSINESS_DAILY: Final = 0.05
+"""The chance a business account orders on a weekday after the window: about its 2026 rate."""
 
 LOST_PARCEL: Final = 297
 REFUND: Final = 300
@@ -186,6 +203,8 @@ PAYMENT_FIRST: Final = 200001
 _P10, _P11, _P20, _P21 = script.P10, script.P11, script.P20, script.P21
 _STOCKED: Final = (_P10, _P11, _P20, _P21)
 _BEANS: Final = (_P10, _P11)
+_IN_WINDOW: Final = (_P11, _P21)
+"""What other customers buy in the teaching week: the cast's P-10 and P-20 stay its own."""
 _GREEN: Final[Mapping[ProductId, tuple[str, Decimal]]] = {
     _P10: ('Ethiopia', Decimal('92.00')),
     _P11: ('Brazil', Decimal('68.00')),
@@ -198,11 +217,41 @@ _COSTS: Final[Mapping[ProductId, tuple[Decimal, Decimal, Decimal]]] = {
 """A bag's green, packaging and roasting cost in 2024; each later year adds a little."""
 
 _NAMES: Final[Mapping[str, tuple[str, ...]]] = {
-    'NO': ('Kari', 'Ola', 'Nora', 'Emil', 'Sofie', 'Henrik', 'Ida', 'Jonas', 'Maja', 'Sigrid'),
-    'SE': ('Anna', 'Erik', 'Elsa', 'Johan', 'Oskar', 'Linnea', 'Nils', 'Ebba'),
-    'DK': ('Freja', 'Mads', 'Clara', 'Rasmus', 'Emma', 'Jens'),
-    'FI': ('Helmi', 'Juho', 'Venla', 'Onni', 'Lauri', 'Elina'),
+    'NO': tuple(
+        'Kari Ola Nora Emil Sofie Henrik Ida Jonas Maja Sigrid Astrid Bjorn Eirik Frida Geir'
+        ' Hanne Ivar Jorunn Kjell Liv Magnus Nils Oda Petter Ragnhild Silje Torunn Unni Vegard'
+        ' Wenche Anders Berit Camilla Dag Elin Finn Gunnhild Hakon Inger Jan Karin Leif Marit'
+        ' Nina Ole Per Randi Solveig Terje Trude Vidar Aud Bente Cecilie Erlend Gro Halvor'
+        ' Ingvild Jostein Kristin Lene Morten Oddny Ragnar Siri Steinar Thea Ulrik Vilde Anette'
+        ' Brede Didrik Eline Fredrik Guro Herman Iselin Jakob Kaja Linnea Mathias Synnove Arne'
+        ' Borghild Even Hedda Ottar'.split()
+    ),
+    'SE': tuple(
+        'Anna Erik Elsa Johan Oskar Linnea Nils Ebba Agnes Axel Birgitta Carl Dagny Elias Filip'
+        ' Gustav Hedvig Ingela Jonna Karl Lena Linus Malin Moa Olle Pernilla Rut Sixten Stina'
+        ' Tove Ulf Valter Viktor Wilma Alva Bengt Cecilia Daniel Emil Freja Gunnar Hampus Ivan'
+        ' Jenny Kerstin Lisa Ludvig Maria Mats Nora Ove Petra Rebecka Siv Svante Tilda Torsten'
+        ' Ulla Vera Yngve Albin Britt Elin Felicia Goran Hugo Ines Josefin Klara Leo Majken'
+        ' Max Selma Sten Thilde Vilgot Wera Ylva Ake Folke Greta Tyra Algot'.split()
+    ),
+    'DK': tuple(
+        'Freja Mads Clara Rasmus Emma Jens Anders Bente Christian Dorthe Esben Frederik Grethe'
+        ' Hans Ida Jakob Karen Lone Mette Niels Ole Pia Rikke Soren Tine Ulla Viggo Asger Birthe'
+        ' Carsten Ditte Erik Flemming Gitte Henrik Inge Jesper Kirsten Laura Morten Nanna Poul'
+        ' Rasmine Sanne Thomas Tove Vibeke Aksel Bodil Casper Dagmar Elise Finn Gry Holger Iben'
+        ' Jonas Kasper Lise Magnus Nikolaj Oliver Pernille Signe Sofus Trine Valdemar Agnete'
+        ' Bjarke Cecilie Emil Frida Gustav Helle Jeppe Kamma Lasse Marie Ebbe Jytte Knud'.split()
+    ),
+    'FI': tuple(
+        'Helmi Juho Venla Onni Lauri Elina Aada Antti Eero Eila Heikki Iida Ilkka Jaana Jari'
+        ' Kaarina Kalle Kirsi Lassi Leena Matti Merja Mikko Minna Niina Olli Paivi Pekka Pirjo'
+        ' Reijo Riikka Sami Sanna Seppo Taina Teemu Tuula Ville Aleksi Anni Eetu Emilia Hannu'
+        ' Heli Inkeri Jukka Kaisa Kimmo Linnea Markku Marjatta Nea Oskari Outi Pasi Raili Risto'
+        ' Saara Sakari Tarja Timo Topias Ulla Veikko Vilma Aarne Elias Emmi Hilkka Jouni Kerttu'
+        ' Lotta Mauno Oona Petra Tapio Veera Arvo Ilona Jarmo Sirpa Urho'.split()
+    ),
 }
+"""Generated first names, ASCII; none is a name of the cast or of the club's members (U7)."""
 _BUSINESS: Final = (
     ('Kaffebar Bryggen', 'NO', '5003'),
     ('Fjordkontoret', 'NO', '0150'),
@@ -215,11 +264,8 @@ _BUSINESS: Final = (
 )
 """The eight business accounts, two per country; the Bergen cafe takes order 600 (V6)."""
 
-_TILL_PIECES: Final = (
-    ('2000000000114', None),  # a bag of P-11
-    ('2000000000213', None),  # the kettle
-    ('2000000000992', Decimal('45.00')),  # the code with no product
-)
+_NO_PRODUCT: Final = ('2000000000992', Decimal('45.00'))
+"""The till's code with no product: a pastry."""
 _LOOSE: Final = '2100000000111'
 _LOOSE_GRAMS: Final = (100, 250, 500)
 
@@ -312,9 +358,8 @@ def _fit(targets: Targets) -> _Fit:
                 use[worst.order_date, each] -= qty
     filler: dict[tuple[dt.date, ProductId], int] = {}
     for day in _days(FIRST_DAY, LAST_DAY):
-        if WEEK[0] <= day <= WEEK[1]:
-            continue
-        for product in _STOCKED:
+        week = WEEK[0] <= day <= WEEK[1]
+        for product in _IN_WINDOW if week else _STOCKED:
             if WINDOW[0] <= day <= WINDOW[1]:
                 target = targets.daily_sales.get((day, product.value))
                 quota = 0 if target is None else target - use.get((day, product), 0)
@@ -327,18 +372,27 @@ def _fit(targets: Targets) -> _Fit:
     return _Fit(tuple(sorted(moved)), frozenset(big | moved), filler)
 
 
+def _settle_day(ordered: dt.date) -> dt.date:
+    """A business invoice's settle day: two weeks after the order, or its next settle day if
+    sooner. The settle days are the months' last days, the order's own day not counted."""
+    month_end = _months_after(ordered, 1) - dt.timedelta(days=1)
+    if month_end == ordered:
+        month_end = _months_after(ordered, 2) - dt.timedelta(days=1)
+    return min(ordered + dt.timedelta(days=14), month_end)
+
+
 def _lesson_ship(lesson: Lesson) -> dt.date:
     return lesson.order_date + dt.timedelta(days=1)
 
 
 def _deliver_moment(day: dt.date) -> dt.datetime:
-    """A delivery at 12:00 UTC; one dated 5 October lands at 22:30 UTC on the 4th, which is
-    already the 5th in every zone the shop sells to (V3)."""
-    if day == WEEK[0]:
-        return _at(day - dt.timedelta(days=1), 22, 30)
-    if WEEK[0] < day <= WEEK[1]:
-        raise Infeasible(f'{day}', 'a lesson delivery inside the quiet window')
+    """A lesson's delivery, at 12:00 UTC on its day."""
     return _at(day, 12)
+
+
+def _promised(shipped: dt.date) -> dt.date:
+    """A parcel's promised day: two days after it ships, as the script's (W31)."""
+    return shipped + dt.timedelta(days=2)
 
 
 def _week_balance() -> dict[ProductId, int]:
@@ -447,23 +501,21 @@ def feasibility(targets: Targets) -> Report:
         )
     )
 
-    # the quiet window: no lesson ship or delivery in it but the evening before
-    evening = []
+    # the lesson parcels: each ships the day after its order, no step in the blackout
     for d in targets.deliveries:
         lesson = by_lesson[d.order_no]
         if d.shipped_on != _lesson_ship(lesson):
             raise Infeasible(f'order {d.order_no}', 'deliveries ships it on another day')
-        if WEEK[0] <= d.shipped_on <= WEEK[1]:
-            raise Infeasible(f'{d.shipped_on} order {d.order_no}', 'a ship in the window')
         arrives = d.shipped_on + dt.timedelta(days=d.days)
-        if _deliver_moment(arrives).date() != arrives:
-            evening.append(f'order {d.order_no} delivered {arrives} at 22:30 UTC the day before')
+        for at in (_at(d.shipped_on, 9), _deliver_moment(arrives)):
+            if BLACKOUT[0] <= at < BLACKOUT[1]:
+                raise Infeasible(f'order {d.order_no}', f'a lesson step at {at}, in the blackout')
     last_in = max(d.shipped_on + dt.timedelta(days=d.days) for d in targets.deliveries)
     bounds.append(
         Bound(
-            'quiet window: no lesson step in it',
+            'lesson parcels: shipped the next day, none in the blackout',
             (QUIET[0].date() - last_in).days,
-            tuple(evening),
+            (),
             f'the last lesson delivery is on {last_in}',
         )
     )
@@ -664,7 +716,11 @@ class _Builder:
         self.pool: dict[str, list[str]] = {c: [] for c in COUNTRIES}
         self.first: dict[str, dt.datetime] = {}
         self.country: dict[str, str] = {}
-        self.fx = _Rates(series.fx())
+        self.ordered: dict[str, dt.datetime] = {}
+        """Each customer handle's first order."""
+        self.web_orders: list[tuple[dt.datetime, str]] = []
+        """Every generated web order's moment and customer handle (the web visits follow)."""
+        self.fx = _Rates(series.fx(seed=seed))
         self.campaigns = [
             (a.first_day, a.last_day, frozenset(a.product_ids), a.discount_pct)
             for s in self.script
@@ -674,16 +730,24 @@ class _Builder:
     # moments and steps
 
     def free(self, at: dt.datetime) -> dt.datetime:
-        """`at`, or the next minute no script step holds."""
-        while at in self.taken:
-            at += dt.timedelta(minutes=1)
+        """`at`, or the next minute no script step holds, past the blackout."""
+        while at in self.taken or BLACKOUT[0] <= at < BLACKOUT[1]:
+            at = BLACKOUT[1] if BLACKOUT[0] <= at < BLACKOUT[1] else at + dt.timedelta(minutes=1)
         return at
 
     def add(self, at: dt.datetime, action: Action) -> None:
         if at in self.taken:
             raise ValueError(f'a generated step at a script moment: {at} {action!r}')
-        if QUIET[0] <= at <= QUIET[1] and not isinstance(action, NightlyExtract):
-            raise ValueError(f'a generated step in the quiet window: {at} {action!r}')
+        if BLACKOUT[0] <= at < BLACKOUT[1]:
+            raise ValueError(f'a generated step in the blackout: {at} {action!r}')
+        window = QUIET[0] <= at <= QUIET[1]
+        if window and not isinstance(action, WINDOW_ACTIONS):
+            raise ValueError(f'a generated step in the teaching window: {at} {action!r}')
+        if window and isinstance(action, Place):
+            if any(item.product_id not in _IN_WINDOW for item in action.order.items):
+                raise ValueError(f'a P-10 or P-20 line in the teaching window: {at} {action!r}')
+        if (window or not isinstance(action, Ship | Deliver)) and _CAST & set(names(action)):
+            raise ValueError(f'a generated step names the cast: {at} {action!r}')
         self.steps.append((at, _PRIO[type(action)], len(self.steps), Step(at, 'simulator', action)))
 
     # customers
@@ -705,8 +769,13 @@ class _Builder:
         self.country[handle] = country
 
     def consumer(self, country: str, at: dt.datetime) -> str:
-        """A consumer of the pool: an earlier one, or now and then a new one."""
+        """A consumer of the pool: an earlier one, or now and then a new one; in the teaching
+        window only one who first bought before it, so no one registers in it."""
         known = self.pool[country]
+        if QUIET[0] <= at <= QUIET[1]:
+            handle = self.rng.choice([h for h in known if self.first[h] < QUIET[0]])
+            self.first[handle] = min(self.first[handle], at)
+            return handle
         if not known or self.rng.random() < NEW_CUSTOMER:
             handle = f'consumer {sum(map(len, self.pool.values())) + 1}'
             known.append(handle)
@@ -763,6 +832,9 @@ class _Builder:
             self.moves.append((at, product, -qty))
         order = PlaceOrder(PLACEHOLDER, channel, tuple(items))  # type: ignore[arg-type]
         self.add(at, Place(order, handle, customer))
+        self.ordered[customer] = min(self.ordered.get(customer, at), at)
+        if channel == 'web':
+            self.web_orders.append((at, customer))
         return handle, total
 
     def payment_id(self) -> PaymentId:
@@ -784,28 +856,51 @@ class _Builder:
         money = self.amount(country, nok, at.date())
         self.add(at, Settle(self.payment_id(), handle, money, at.date()))
 
-    def ship(self, at: dt.datetime, handle: str, days: int) -> dt.date:
-        """Ship and deliver a generated order; neither falls in the quiet window."""
-        if QUIET[0] <= at <= QUIET[1]:
-            at = at.replace(day=QUIET[1].day)
+    def invoice_paid(
+        self, ordered: dt.date, handle: str, country: str, nok: Decimal, *, status: str = ''
+    ) -> None:
+        """A business invoice settled on its settle day (`_settle_day`), at 14:00 UTC.
+
+        A lesson `paid` settles by the counted day; one `unpaid` stays open that day and is
+        settled late, on a weekday of 12 to 30 October at a drawn minute; nothing settles
+        after LAST_DAY.
+        """
+        day = _settle_day(ordered)
+        at = _at(day, 14)
+        if status == 'paid':
+            at = _at(min(day, COUNTED_ON), 14)
+        elif status == 'unpaid':
+            late = [
+                d for d in _days(dt.date(2026, 10, 12), dt.date(2026, 10, 30)) if d.weekday() < 5
+            ]
+            minute = self.rng.randrange(10 * 60, 15 * 60)
+            at = _at(self.rng.choice(late), minute // 60, minute % 60)
+        if at.date() > LAST_DAY:
+            return
+        self.settle(self.free(at), handle, country, nok)
+
+    def ship(self, at: dt.datetime, handle: str | OrderId, days: int) -> dt.date:
+        """Ship an order and deliver it `days` later at about noon; nothing after LAST_DAY."""
         if at.date() > LAST_DAY:
             return at.date()
         at = self.free(at)
-        self.add(at, Ship(handle, promised_by=at.date() + dt.timedelta(days=4)))
+        self.add(at, Ship(handle, promised_by=_promised(at.date())))
         arrives = self.free(_at(at.date() + dt.timedelta(days=days), 12, self.rng.randrange(60)))
-        if QUIET[0] <= arrives <= QUIET[1]:
-            arrives = self.free(_at(dt.date(2026, 10, 10), 12, self.rng.randrange(60)))
         if arrives.date() <= LAST_DAY:
             self.add(arrives, Deliver(handle))
         return at.date()
 
-    def business_order(self, at: dt.datetime, account: str, country: str) -> None:
-        """A business account's one bag of P-10 on the web: invoiced at place, settled two
-        weeks on (before the counted day), shipped the next day."""
-        handle, total = self.place(at, account, 'web', [(_P10, 1)])
-        settled = at.date() + dt.timedelta(days=14)
-        if settled <= COUNTED_ON:
-            self.settle(self.free(_at(settled, 14)), handle, country, total)
+    def business_order(
+        self,
+        at: dt.datetime,
+        account: str,
+        country: str,
+        lines: Sequence[tuple[ProductId, int]] = ((_P10, 1),),
+    ) -> None:
+        """A business account's web order (one bag of P-10 unless told): invoiced at place,
+        settled on its settle day, shipped the next day."""
+        handle, total = self.place(at, account, 'web', lines)
+        self.invoice_paid(at.date(), handle, country, total)
         ship = _at(at.date() + dt.timedelta(days=1), 9, self.rng.randrange(60))
         self.ship(ship, handle, self.rng.choice(DELIVERY_DAYS[country]))
 
@@ -886,15 +981,41 @@ def _postal(rng: Random, country: str) -> str:
 
 
 def _business(b: _Builder) -> dict[str, list[str]]:
-    """Step 4: the eight accounts, registered on 2 January 2024."""
+    """Step 4: the eight accounts' handles, by country (they register once their first order
+    is known, `_register_business`)."""
     accounts: dict[str, list[str]] = defaultdict(list)
+    for n, (_, country, _) in enumerate(_BUSINESS):
+        accounts[country].append(f'business {n + 1}')
+    return accounts
+
+
+def _register_business(b: _Builder) -> None:
+    """Each account registers three to five weeks before its first order, at 09:00 UTC."""
     for n, (name, country, postal) in enumerate(_BUSINESS):
         handle = f'business {n + 1}'
-        at = b.free(_utc(2024, 1, 2, 9, n))
+        first = b.ordered[handle].date() - dt.timedelta(days=b.rng.randrange(21, 36))
+        at = b.free(max(_at(first, 9, n), _utc(2024, 1, 2, 9, n)))
         mail = f'orders.{name.lower().replace(" ", ".")}@example.invalid'
         b.register(at, handle, name, country, postal, 'business', mail)  # type: ignore[arg-type]
-        accounts[country].append(handle)
-    return accounts
+
+
+def _october_business(b: _Builder, accounts: Mapping[str, list[str]]) -> None:
+    """Business trade after the week: on a weekday from 12 October each account orders with
+    a chance of BUSINESS_DAILY, two to ten bags of a bean, now and then of both."""
+    for day in _days(dt.date(2026, 10, 12), LAST_DAY):
+        if day.weekday() > 4:
+            continue
+        for country in COUNTRIES:
+            for account in accounts[country]:
+                if b.rng.random() >= BUSINESS_DAILY:
+                    continue
+                minute = b.rng.randrange(9 * 60 + 30, 15 * 60 + 30)
+                lines = [(b.rng.choice(_BEANS), b.rng.randrange(2, 11))]
+                if b.rng.random() < SECOND_LINE:
+                    other = _P11 if lines[0][0] == _P10 else _P10
+                    lines.append((other, b.rng.randrange(1, 5)))
+                at = b.free(_at(day, minute // 60, minute % 60))
+                b.business_order(at, account, country, lines)
 
 
 def _lessons(b: _Builder, accounts: Mapping[str, list[str]]) -> list[tuple[str, int, str]]:
@@ -928,9 +1049,7 @@ def _lessons(b: _Builder, accounts: Mapping[str, list[str]]) -> list[tuple[str, 
             raise Infeasible(f'order {i}', f'lines give {total}, order_values {lesson.amount}')
         after = b.free(at + dt.timedelta(minutes=1))
         if business:
-            if lesson.status == 'paid':
-                settled = min(lesson.order_date + dt.timedelta(days=14), COUNTED_ON)
-                b.settle(b.free(_at(settled, 14)), handle, country, total)
+            b.invoice_paid(lesson.order_date, handle, country, total, status=lesson.status)
         elif lesson.status == 'paid':
             b.pay(after, handle, country, total)
         elif lesson.status == 'unpaid':
@@ -938,7 +1057,7 @@ def _lessons(b: _Builder, accounts: Mapping[str, list[str]]) -> list[tuple[str, 
         if shop:
             continue
         ship = b.free(_at(_lesson_ship(lesson), 9))
-        b.add(ship, Ship(handle, promised_by=ship.date() + dt.timedelta(days=4)))
+        b.add(ship, Ship(handle, promised_by=_promised(ship.date())))
         b.add(b.free(_deliver_moment(ship.date() + dt.timedelta(days=days[i]))), Deliver(handle))
     return ids
 
@@ -951,7 +1070,7 @@ def _refund(b: _Builder, sale_day: dt.date) -> None:
     handle, total = b.place(at, customer, 'web', [(_P20, 1)], handle='sale of lesson 300')
     b.pay(b.free(at + dt.timedelta(minutes=1)), handle, 'NO', total)
     ship = b.free(_at(sale_day + dt.timedelta(days=1), 9, 30))
-    b.add(ship, Ship(handle, promised_by=ship.date() + dt.timedelta(days=4)))
+    b.add(ship, Ship(handle, promised_by=_promised(ship.date())))
     b.add(b.free(_at(ship.date() + dt.timedelta(days=1), 12)), Deliver(handle))
     credit = b.free(_at(credit_day, 10, 30))
     b.add(credit, Credit(handle, 1, f'lesson {REFUND}'))
@@ -1096,6 +1215,8 @@ def _filler(
         while any(n > 0 for n in left.values()):
             minute = b.rng.randrange(9 * 60 + 10, latest + 1)
             at = b.free(_at(day, minute // 60, minute % 60))
+            if BLACKOUT[0] - dt.timedelta(minutes=10) <= at < BLACKOUT[1] + dt.timedelta(minutes=5):
+                continue  # the order and its payment keep clear of the blackout
             if cut and quota > 0 and b.rng.random() < share:
                 country, quota = 'FI', quota - 1
             else:
@@ -1124,25 +1245,108 @@ def _week_visits(events: Sequence[WebEvent], first: int) -> tuple[list[WebEvent]
     return [replace(e, visit_id=numbered[e.event_id]) for e in events], visits
 
 
-def _till(rng: Random, receipts: Sequence[TillReceipt]) -> list[TillLine]:
-    """One or two lines for each walk-in receipt: loose P-11, a bag, the kettle, a pastry.
+def _october_subscriptions(b: _Builder, subs: list[_Sub]) -> None:
+    """Step 3 after the window: a few new subscriptions by pool consumers who already bought,
+    and pauses of running ones (half resumed by the end). No skip: a skip is dated in the
+    month whose bag it skips, and October's bags shipped on the 3rd."""
+    weights = [SHARE[c] for c in COUNTRIES]
+    taken: set[str] = set()
+    for day in _days(QUIET[1].date(), LAST_DAY):
+        if b.rng.random() >= OCTOBER_STARTS:
+            continue
+        at = b.free(_at(day, 10, b.rng.randrange(60)))
+        country = b.rng.choices(COUNTRIES, weights=weights)[0]
+        known = [h for h in b.pool[country] if b.first[h] < at - dt.timedelta(days=1)]
+        customer = b.rng.choice([h for h in known if h not in taken])
+        taken.add(customer)
+        product = b.rng.choice(_BEANS)
+        b.add(at, Subscribe(customer, product, f'october subscription {len(taken)}'))
+        subs.append(_Sub(product, at, None, set(), []))
+    for s, sub in zip(b.targets.subscribers, subs, strict=False):
+        if s.ended is not None or b.rng.randrange(OCTOBER_PAUSES):
+            continue
+        handle = f'subscription {s.subscription_id}'
+        paused = b.free(_at(dt.date(2026, 10, b.rng.randrange(12, 25)), 10, b.rng.randrange(60)))
+        b.add(paused, Pause(handle, b.rng.choice(('on holiday', 'enough left'))))
+        resumed = paused + dt.timedelta(days=b.rng.randrange(7, 15))
+        until = _at(LAST_DAY + dt.timedelta(days=1), 0)
+        if b.rng.random() < 0.5 and resumed.date() <= LAST_DAY:
+            resumed = b.free(resumed)
+            b.add(resumed, Resume(handle, 'back home'))
+            until = resumed
+        sub.paused.append((paused, until))
 
-    No piece of P-10 or P-20, as the till sold none in the week; at the list price of the day.
+
+def _cast_parcels(b: _Builder) -> None:
+    """The cast's parcels, in the volume only (U7): C-01's year orders ship the day after they
+    are placed, O-103 and O-108 on 12 October; each is delivered one to three days on.
+    O-107 is never paid, O-106 is cancelled and O-104 is a counter sale: none ships. O-105
+    stays unshipped too: C-05 gave no address (the app refuses, NoAddress), and a generated
+    step never changes the cast."""
+    parcels: list[tuple[dt.date, str | OrderId]] = [
+        (day + dt.timedelta(days=1), f'year {n}') for n, (day, _) in enumerate(script.YEAR, 1)
+    ]
+    parcels += [(dt.date(2026, 10, 12), OrderId(o)) for o in ('O-103', 'O-108')]
+    for day, order in parcels:
+        minute = b.rng.randrange(9 * 60, 16 * 60)
+        b.ship(_at(day, minute // 60, minute % 60), order, b.rng.randrange(1, 4))
+
+
+def _direct_visits(
+    b: _Builder, anchored: set[tuple[dt.datetime, str]], first_visit: int, first_event: int
+) -> tuple[list[WebVisit], list[WebEvent]]:
+    """Step 7, the rest of the web: a direct visit behind each web order no panel visit
+    anchors, with no referrer and no variant (V12 holds).
+
+    The ordering customer views 7 minutes before the order, carts at 3 and checks out at 1.
+    A customer is one visitor, DV-nnnnn; an order whose view comes within 30 minutes of that
+    visitor's last event continues its visit (the 30-minute rule, S18).
+    """
+    visitors: dict[str, str] = {}
+    last: dict[str, tuple[dt.datetime, int]] = {}
+    visits: list[WebVisit] = []
+    events: list[WebEvent] = []
+    for at, customer in sorted(o for o in b.web_orders if o not in anchored):
+        visitor = visitors.setdefault(customer, f'DV-{len(visitors) + 1:05d}')
+        start = at - dt.timedelta(minutes=7)
+        held = last.get(customer)
+        if held is not None and start - held[0] <= dt.timedelta(minutes=30):
+            visit_id = held[1]
+        else:
+            visit_id = first_visit + len(visits)
+            country = b.country[customer]
+            visits.append(WebVisit(visit_id, visitor, start.date(), country, None, None))
+        for kind, before in _DIRECT_STEPS:
+            event_id = f'WE-{first_event + len(events):06d}'
+            moment = at - dt.timedelta(minutes=before)
+            events.append(WebEvent(event_id, visitor, customer, kind, moment, visit_id))
+        last[customer] = (at - dt.timedelta(minutes=1), visit_id)
+    return visits, events
+
+
+_DIRECT_STEPS: Final = (('view', 7), ('cart', 3), ('checkout', 1))
+"""A direct visit's events, minutes before its order."""
+
+
+def _till(rng: Random, receipts: Sequence[TillReceipt]) -> list[TillLine]:
+    """One or two lines for each walk-in receipt: loose P-11 by weight, or a pastry.
+
+    Only what holds no bag of the app's stock: `stock_movements` counts whole bags and a loose
+    sale is grams from the open bin, so the walk-ins move no stock (U7); the week's loose lines
+    move none either. Loose beans cost the bag's list price of the day per kilo, as R-5002's.
     """
     lines = []
     for r in receipts:
         day = r.sold_at.date()
         for n in range(1, rng.choice((1, 1, 2)) + 1):
-            if rng.random() < 0.5:
+            if rng.random() < 0.7:
                 grams = rng.choice(_LOOSE_GRAMS)
                 price = script.list_price(_P11, day)
                 amount = (grams * price / 1000).quantize(Decimal('0.01'), ROUND_HALF_UP)
                 lines.append(TillLine(r.receipt_id, n, _LOOSE, grams, amount))
-                continue
-            ean, fixed = rng.choice(_TILL_PIECES)
-            product = _P11 if ean.endswith('114') else _P21
-            amount = fixed if fixed is not None else script.list_price(product, day)
-            lines.append(TillLine(r.receipt_id, n, ean, None, amount))
+            else:
+                ean, amount = _NO_PRODUCT
+                lines.append(TillLine(r.receipt_id, n, ean, None, amount))
     return lines
 
 
@@ -1204,11 +1408,13 @@ def _stock(b: _Builder, subs: Sequence[_Sub]) -> None:
             if qty < 0:
                 need[product] -= qty
         for product in _STOCKED:
-            if point == OPENING_AT:
-                b.add(point, Stocktake(product, OPENING[product.value]))
-                level[product] = OPENING[product.value]
-                continue
             want = need[product] + (need[product] // 5 + 4 if product in _BEANS else 1)
+            if point == OPENING_AT:
+                exact = product not in _IN_WINDOW
+                count = OPENING[product.value] if exact else max(OPENING[product.value], want)
+                b.add(point, Stocktake(product, count))
+                level[product] = count
+                continue
             if need[product] == 0 or want <= level[product]:
                 continue
             if product in _BEANS:
@@ -1229,7 +1435,11 @@ def _stock(b: _Builder, subs: Sequence[_Sub]) -> None:
             )
 
     weights = {p: Decimal(_weight(p)) / 1000 for p in _BEANS}
+    last_quarter = (LAST_DAY.year, (LAST_DAY.month - 1) // 3)
     for (year, quarter), bags in sorted(roasted.items()):
+        if (year, quarter) == last_quarter:  # the world ends a month in: buy for the quarter
+            before = [roasted[q] for q in sorted(roasted) if q < last_quarter][-4:]
+            bags = {p: max(bags[p], sum(x[p] for x in before) // len(before)) for p in _BEANS}
         day = dt.date(year, quarter * 3 + 1, 1)
         at = b.free(_utc(2024, 1, 1, 8, 35) if day == FIRST_DAY else _at(day, 9))
         for product in _BEANS:
@@ -1318,7 +1528,11 @@ def build(targets: Targets, *, seed: int) -> Volume:
         if v.reached == 4:
             anchors[v.visit_date].append(v)
     placed = _filler(b, anchors, accounts)
+    _october_business(b, accounts)
+    _october_subscriptions(b, subs)
+    _cast_parcels(b)
     b.register_pool()
+    _register_business(b)
     _finland_check(b)
     _stock(b, [*_cast_subs(b.script), *subs])
     _jobs(b)
@@ -1326,6 +1540,10 @@ def build(targets: Targets, *, seed: int) -> Volume:
     panel_visits, panel_events = panel_plan.facts(plan, placed)
     first_week_visit = panel_plan.PANEL_SIZE + len(plan.test) + 1
     week_events, week_visits = _week_visits(script.TRACKER, first_week_visit)
+    anchored = {(v.order_at, placed[v.visit_id]) for v in plan.visits if v.order_at is not None}
+    direct_visits, direct_events = _direct_visits(
+        b, anchored, first_week_visit + len(week_visits), len(panel_events) + 1
+    )
     walk_ins = series.walk_in_receipts(seed=seed)
     timed = [(s.at, -1, n, s) for n, s in enumerate(b.script)] + b.steps
     timed.sort(key=lambda t: (t[0], t[1], t[2]))
@@ -1333,14 +1551,14 @@ def build(targets: Targets, *, seed: int) -> Volume:
         steps=tuple(t[3] for t in timed),
         refuse=script.REFUSE,
         refund_ids=(REFUND_ID,),
-        fx=series.fx(),
+        fx=series.fx(seed=seed),
         managers=script.MANAGERS,
-        tracker=(*week_events, *panel_events),
+        tracker=(*week_events, *panel_events, *direct_events),
         till_codes=script.TILL_CODES,
         till_receipts=(*script.TILL_RECEIPTS, *walk_ins),
         till_lines=(*script.TILL_LINES, *_till(b.rng, walk_ins)),
         till_members=script.TILL_MEMBERS,
-        web_visits=(*panel_visits, *week_visits),
+        web_visits=(*panel_visits, *week_visits, *direct_visits),
         weather=series.weather(),
         door_counts=series.door_counts(),
         till_day_totals=series.till_day_totals(),
@@ -1392,9 +1610,9 @@ def generated(world: World) -> list[Step]:
 
 
 def cast_ids() -> frozenset[str]:
-    """The ids of the cast: customers, orders and subscriptions (no generated step names one)."""
-    cast = script.CAST
-    return frozenset(x.value for x in (*cast.customers, *cast.orders, *cast.subscriptions))
+    """The ids of the cast: customers, orders and subscriptions. A generated step names one only
+    to ship or deliver a cast order after the teaching window."""
+    return _CAST
 
 
 def names(action: Action) -> Iterable[str]:

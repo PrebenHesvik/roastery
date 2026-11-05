@@ -76,12 +76,12 @@ def test_series_rebuild_shop_days_on_its_window(targets) -> None:
     rebuilt = [(day, rain[day], doors[day], till[day]) for day, *_ in targets['shop_days']]
     assert rebuilt == targets['shop_days']
     assert min(rain) == dt.date(2024, 1, 1) and max(rain) == dt.date(2026, 10, 31)
-    assert max(till) == dt.date(2026, 10, 5)
+    assert max(till) == dt.date(2026, 10, 9)
     assert min(rain.values()) >= 0
 
 
 def test_fx_keeps_the_scripts_rows_and_the_walk_ins_follow_the_door(targets) -> None:
-    rows = series.fx()
+    rows = series.fx(seed=0)
     quiet = [r for r in rows if dt.date(2026, 10, 2) <= r.rate_date <= dt.date(2026, 10, 7)]
     assert sorted(quiet, key=lambda r: (r.currency, r.rate_date)) == sorted(
         FX, key=lambda r: (r.currency, r.rate_date)
