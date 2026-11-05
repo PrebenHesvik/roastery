@@ -35,6 +35,7 @@ Every name starts with `ROASTERY_`. A field's name in capitals, after the prefix
 Url = NewType('Url', str)
 """A URL with a scheme; it may hold a password."""
 
+
 class Secret:
     """A key or a password: str, repr and an f-string show `***`.
 
@@ -43,6 +44,7 @@ class Secret:
 
     def __init__(self, text: str) -> None: ...
     def reveal(self) -> str: ...
+
 
 Positive = NewType('Positive', int)
 """A whole number of 1 or more."""
