@@ -20,3 +20,6 @@ jobs:
       - run: uv run python -m pytest
       - run: uv run python -m roastery_sim tiny --out build/tiny
       - run: uv run python -m pytest packages/spec --tiny build/tiny/data
+      - run: uv run python -m roastery_sim volume --out build/volume
+      - run: uv run python -m pytest packages/spec --full build/volume/full/data --month build/volume/month/data --tiny build/tiny/data
+      - run: uv run python -m roastery_sim release --out build/release
