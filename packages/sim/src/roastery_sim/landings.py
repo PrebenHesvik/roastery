@@ -2,20 +2,23 @@
 pipeline (6.5, V14, V25).
 
 Five shapes, under `landing/`: the status feed as one jsonl file a night, the shop's csv
-export a folder a night, the new till's csv a file a day from 6 October, the three outside
-series as one csv each, and `loads.json`, the manifest. A file holds its rows as the system
-wrote them and nothing the pipeline adds: `_source_file` and `_loaded_at` are the pipeline's
-stamp, and `loads.json` says what each file's stamp is. Every file is UTF-8 with LF line
-ends; a key or column order is fixed; no path of the machine is in any.
+export a folder a night (the whole customer list, and the lines new since the export before:
+`raw_customers` loads by merge, `raw_lines` by append), the new till's csv a file a day from
+6 October, the three outside series as one csv each, and `loads.json`, the manifest. A file
+holds its rows as the system wrote them and nothing the pipeline adds: `_source_file` and
+`_loaded_at` are the pipeline's stamp, and `loads.json` says what each file's stamp is. Every
+file is UTF-8 with LF line ends; a key or column order is fixed; no path of the machine is in
+any.
 """
 
 from __future__ import annotations
 
 import csv
-import dataclasses
 import datetime as dt
+import hashlib
 import io
 import json
+import shutil
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from decimal import Decimal
@@ -24,7 +27,8 @@ from typing import TYPE_CHECKING, Final
 
 from roastery.pipeline import Rows
 
-from roastery_sim import extracts, faults, tiny
+from roastery_sim import extracts, faults
+from roastery_sim.extracts import FAULTED_NIGHT
 from roastery_sim.play import SHOP_ZONE
 
 if TYPE_CHECKING:
@@ -34,8 +38,6 @@ FIRST_NIGHT: Final = dt.date(2026, 10, 1)
 LAST_NIGHT: Final = dt.date(2026, 10, 31)
 FIRST_TILL_DAY: Final = dt.date(2026, 10, 6)
 """The new till's first day with a file (the plan's shape table)."""
-FAULTED_NIGHT: Final = dt.date(2026, 10, 9)
-"""The night of the export 6.4 plants its faults in (W12, W39)."""
 PICKUP: Final = dt.time(2, 0)
 """A night's files are picked up at 02:00 UTC the next day, after the night's jobs (the
 nightly run of `pipeline_runs`)."""
@@ -151,13 +153,9 @@ def _entry(file: str, strategy: Strategy, loaded: dt.datetime, rows: int) -> dic
     }
 
 
-def write(
-    volume: PlayedVolume, out: Path, *, month: extracts.Written | None = None
-) -> tuple[Path, ...]:
-    """The landing under `out` for 1 to 31 October 2026; the files written, sorted.
-
-    `month` is the extract if the caller has it already.
-    """
+def files(volume: PlayedVolume, month: extracts.Written | None = None) -> dict[str, str]:
+    """The landing for 1 to 31 October 2026: each file's text by its path under `landing/`,
+    `loads.json` with them. `month` is the extract if the caller has it already."""
     played = volume.played
     held = month or extracts.month(volume.world, played)
     tables = {rows.name: rows for rows in held.tables}
@@ -168,9 +166,6 @@ def write(
         files[file] = text
         entries.append(_entry(file, strategy, loaded, rows))
 
-    nights = [
-        FIRST_NIGHT + dt.timedelta(days=n) for n in range((LAST_NIGHT - FIRST_NIGHT).days + 1)
-    ]
     month_ends = _picked_up(LAST_NIGHT)
 
     # the status feed: what each night's relays loaded
@@ -180,17 +175,16 @@ def write(
         count = feed[night].count('\n')
         add(f'feed/{night}.jsonl', feed[night], FEED, _picked_up(night), count)
 
-    # the shop's csv export: the 9 October one with the writer's faults, the rest as written
-    for night in nights:
-        export = played.csv_exports.get(night)
-        if export is None:
+    # the shop's csv export: the 9 October one with the writer's faults (month's raw tables),
+    # the rest as written
+    for night, export in sorted(extracts.exports(played).items()):
+        if not FIRST_NIGHT <= night <= LAST_NIGHT:
             continue
-        if night == FAULTED_NIGHT:
-            given = tiny.inputs(dataclasses.replace(played, csv=export))
-            faulted, _ = faults.apply(given)
-            export = {f'{name}.csv': faults.csv_text(faulted[name]) for name in tiny.RAW}
         for name, strategy in (('raw_customers', CUSTOMERS), ('raw_lines', LINES)):
-            text = export[f'{name}.csv']
+            if night == FAULTED_NIGHT:
+                text = faults.csv_text(tables[name])
+            else:
+                text = export[f'{name}.csv']
             add(f'csv/{night}/{name}.csv', text, strategy, _picked_up(night), _count(text))
 
     # the new till, a file a day
@@ -206,10 +200,40 @@ def write(
 
     entries.sort(key=lambda e: str(e['_source_file']))
     files['loads.json'] = json.dumps(entries, indent=2, ensure_ascii=False) + '\n'
+    return dict(sorted(files.items()))
+
+
+def sha256(texts: Mapping[str, str]) -> dict[str, str]:
+    """Each file's sha256 by its path, as `write` puts its bytes on disk."""
+    return {file: hashlib.sha256(text.encode('utf-8')).hexdigest() for file, text in texts.items()}
+
+
+def _clear(out: Path) -> None:
+    """`out` emptied of an earlier landing; a folder holding something else is refused."""
+    if not out.exists():
+        return
+    if any(out.iterdir()) and not (out / 'loads.json').is_file():
+        raise ValueError(f'{out.name}: not a landing (no loads.json), so not cleared')
+    shutil.rmtree(out)
+
+
+def write(
+    volume: PlayedVolume,
+    out: Path,
+    *,
+    month: extracts.Written | None = None,
+    texts: Mapping[str, str] | None = None,
+) -> tuple[Path, ...]:
+    """The landing under `out`, cleared first; the files written, sorted.
+
+    `month` is the extract and `texts` the landing's files if the caller has them already.
+    """
+    texts = texts if texts is not None else files(volume, month)
+    _clear(out)
     written = []
-    for file in sorted(files):
+    for file in sorted(texts):
         path = out / file
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(files[file].encode('utf-8'))
+        path.write_bytes(texts[file].encode('utf-8'))
         written.append(path)
     return tuple(written)

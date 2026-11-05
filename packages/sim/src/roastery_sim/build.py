@@ -9,6 +9,7 @@ landing.
 from __future__ import annotations
 
 import datetime as dt
+import importlib.metadata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +18,18 @@ from typing import Literal
 
 from roastery.pipeline import Rows
 
-from roastery_sim import dataset_sql, extracts, faults, folder, landings, play, targets, tiny, world
+from roastery_sim import (
+    dataset_sql,
+    extracts,
+    faults,
+    folder,
+    landings,
+    play,
+    release,
+    targets,
+    tiny,
+    world,
+)
 
 
 @dataclass(frozen=True)
@@ -137,31 +149,46 @@ def play_volume(*, seed: int = 0) -> PlayedVolume:
     return PlayedVolume(built, played, fitted)
 
 
+def installed() -> dict[str, str]:
+    """The installed versions of the workspace's three packages, by distribution name."""
+    return {name: importlib.metadata.version(name) for name in folder.PACKAGES}
+
+
 def write_volume(
-    volume: PlayedVolume, out: Path, *, seed: int, shop_version: str
+    volume: PlayedVolume, out: Path, *, seed: int, packages: Mapping[str, str]
 ) -> tuple[Path, ...]:
     """`out/full/data`, `out/month/data` (each its parquet files and manifest) and
-    `out/month/landing`; the files written."""
+    `out/month/landing`; the files written. `packages` gives the versions the manifests name
+    (`installed()` for a release; a test fixes them so a version bump moves no byte).
+
+    The landing is made first: month's manifest holds each landing file's sha256."""
     events = extracts.scripted_events(volume.world, volume.played)
-    written: list[Path] = []
     month = extracts.month(volume.world, volume.played)
-    for extract in (extracts.full(volume.world, volume.played, volume.targets), month):
+    texts = landings.files(volume, month)
+    landed = landings.sha256(texts)
+    written: list[Path] = []
+    for extract, landing in (
+        (extracts.full(volume.world, volume.played, volume.targets), None),
+        (month, landed),
+    ):
         data = out / extract.name / 'data'
         manifest = folder.write_rows(
             extract.tables,
             data,
             extract=extract.name,
             seed=seed,
-            shop_version=shop_version,
+            version=release.VERSION,
+            packages=packages,
             defects=[d.as_dict() for d in extract.defects],
             scripted_events=events,
+            landing=landing,
         )
         written += [data / name for name in manifest['sha256']]
         written.append(data / 'manifest.json')
-    written += landings.write(volume, out / 'month' / 'landing', month=month)
+    written += landings.write(volume, out / 'month' / 'landing', texts=texts)
     return tuple(written)
 
 
-def volume(out: Path, *, seed: int = 0, shop_version: str) -> tuple[Path, ...]:
+def volume(out: Path, *, seed: int = 0, packages: Mapping[str, str]) -> tuple[Path, ...]:
     """Play the volume once and write `full` and `month` under `out`; the files written."""
-    return write_volume(play_volume(seed=seed), out, seed=seed, shop_version=shop_version)
+    return write_volume(play_volume(seed=seed), out, seed=seed, packages=packages)

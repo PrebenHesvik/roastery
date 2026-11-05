@@ -11,8 +11,10 @@ tables (`dated_lines`, `latest_stock`, `customer_months`) are tiny's alone.
 
 from __future__ import annotations
 
+import csv
 import dataclasses
 import datetime as dt
+import io
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -36,6 +38,9 @@ SHOP_ZONE: Final = ZoneInfo('Europe/Oslo')
 """The till's `sold_at` is Bergen time, naive."""
 
 LESSON_IDS: Final = ('lesson_set', 'row_no', 'shop_id')
+
+FAULTED_NIGHT: Final = dt.date(2026, 10, 9)
+"""The night of the export 6.4 plants its faults in (W12, W39); month's raw tables are it."""
 
 _SPECS: Final = MappingProxyType({t.name: t for t in TABLES})
 
@@ -95,6 +100,32 @@ def at_snapshot(played: Played, moment: dt.datetime) -> Played:
     return dataclasses.replace(
         played, tables=held.tables, feed=held.feed, payments=held.payments, csv=held.csv
     )
+
+
+def _new_lines(text: str, before: frozenset[str]) -> tuple[str, frozenset[str]]:
+    """raw_lines' text cut to the lines whose id is not in `before`, written as the app writes
+    it (the header, then a row a line, LF); and every id the whole text holds."""
+    found = list(csv.reader(io.StringIO(text, newline='')))
+    out = io.StringIO(newline='')
+    writer = csv.writer(out, lineterminator='\n')
+    writer.writerow(found[0])
+    writer.writerows(row for row in found[1:] if row[0] not in before)
+    return out.getvalue(), frozenset(row[0] for row in found[1:])
+
+
+def exports(played: Played) -> dict[dt.date, Mapping[str, str]]:
+    """The nightly csv exports as they land, unfaulted: `raw_customers` is the whole snapshot
+    each night (it loads by merge on `customer_id`), `raw_lines` the lines new since the
+    previous export (it loads by append), so the first export holds every line so far."""
+    landed: dict[dt.date, Mapping[str, str]] = {}
+    before: frozenset[str] = frozenset()
+    for night in sorted(played.csv_exports):
+        export = played.csv_exports[night]
+        lines, before = _new_lines(export['raw_lines.csv'], before)
+        landed[night] = MappingProxyType(
+            {'raw_customers.csv': export['raw_customers.csv'], 'raw_lines.csv': lines}
+        )
+    return landed
 
 
 # Cut ------------------------------------------------------------------------
@@ -272,10 +303,15 @@ def full(volume: Volume, played: Played, targets: Targets) -> Written:
 
 def month(volume: Volume, played: Played) -> Written:
     """The end of the play, faulted, cut to October 2026 (V5): dated facts by their day,
-    lines and stamps by their order, the state and reference tables whole."""
-    tables, log = faults.apply(inputs(volume, played))
+    lines and stamps by their order, the state and reference tables whole. The raw tables are
+    the landing's 9 October files, the faulted ones; `lesson_ids` keeps its subscribers rows
+    (its order_values rows name orders of earlier months)."""
+    landed = dataclasses.replace(played, csv=exports(played)[FAULTED_NIGHT])
+    tables, log = faults.apply(inputs(volume, landed))
     dated = {name: _days(column, *MONTH) for name, column in MONTH_DAYS.items()}
-    return _assemble('month', _cut(tables, dated), log)
+    cut = _cut(tables, dated)
+    cut['lesson_ids'] = _keep(cut['lesson_ids'], lambda row: row['lesson_set'] == 'subscribers')
+    return _assemble('month', cut, log)
 
 
 def scripted_events(volume: Volume, played: Played) -> dict[str, object]:

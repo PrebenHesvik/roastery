@@ -9,6 +9,7 @@ views for the allocator, and `demand`, the daily_sales formula for any day of 20
 from __future__ import annotations
 
 import hashlib
+import operator
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -143,7 +144,10 @@ class Targets:
         base = _BASE[product]
         december = base if day.month == 12 and day.day <= 23 else 0
         growth = base * min(max(n - 365, 0), 90) // 360
-        noise = _cmod(n * 7919 + int(product[2:]) * 104729, 5) - 2
+        # SQL's % on the window; before it Python's floored %, as `series` extends its rows,
+        # so the noise keeps its -2 to 2 and the orders take no step in May 2024
+        mod = _cmod if n >= 0 else operator.mod
+        noise = mod(n * 7919 + int(product[2:]) * 104729, 5) - 2
         return max(0, base * _WEEK[day.isoweekday() - 1] // 4 + december + growth + noise)
 
 

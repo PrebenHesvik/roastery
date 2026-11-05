@@ -1293,39 +1293,96 @@ def _cast_parcels(b: _Builder) -> None:
 
 
 def _direct_visits(
-    b: _Builder, anchored: set[tuple[dt.datetime, str]], first_visit: int, first_event: int
+    b: _Builder,
+    anchored: set[tuple[dt.datetime, str]],
+    first_visit: int,
+    first_event: int,
+    *,
+    seed: int,
 ) -> tuple[list[WebVisit], list[WebEvent]]:
     """Step 7, the rest of the web: a direct visit behind each web order no panel visit
-    anchors, with no referrer and no variant (V12 holds).
+    anchors, and the direct visits that buy nothing; no referrer and no variant (V12 holds).
 
     The ordering customer views 7 minutes before the order, carts at 3 and checks out at 1.
-    A customer is one visitor, DV-nnnnn; an order whose view comes within 30 minutes of that
-    visitor's last event continues its visit (the 30-minute rule, S18).
+    Beside each such order come one to three browse-only visits (a view, or a view and a cart)
+    in the week up to it, by a pool consumer who has bought before or by an anonymous visitor
+    (`AV-nnnnn`, no customer), so direct traffic converts at about a third; none falls in the
+    teaching window. A customer is one visitor, DV-nnnnn. A visitor's events make one visit
+    while no gap is over 30 minutes (the 30-minute rule, S18); visits and events are numbered
+    in time order.
     """
+    rng = Random(f'browse {seed}')
+    orders = sorted(o for o in b.web_orders if o not in anchored)
+    bought = sorted((b.first[h], h) for hs in b.pool.values() for h in hs)
+    firsts = [at for at, _ in bought]
+    anonymous: list[tuple[str, str]] = []
+    # (visitor key, customer, country) -> its events; a customer's key is the handle
+    events: dict[tuple[str, str | None, str], list[tuple[dt.datetime, str]]] = defaultdict(list)
+    for at, customer in orders:
+        who = (customer, customer, b.country[customer])
+        events[who] += [(at - dt.timedelta(minutes=before), kind) for kind, before in _DIRECT_STEPS]
+        for _ in range(rng.choice(_BROWSE_PER_ORDER)):
+            day = max(FIRST_DAY, at.date() - dt.timedelta(days=rng.randrange(7)))
+            view = _at(day, 8) + dt.timedelta(minutes=rng.randrange(12 * 60))
+            steps = [(view, 'view')]
+            if rng.random() < _BROWSE_CART:
+                steps.append((view + dt.timedelta(minutes=rng.randrange(1, 15)), 'cart'))
+            if any(QUIET[0] <= m <= QUIET[1] for m, _ in steps):
+                continue
+            known = bisect.bisect_left(firsts, view)
+            if known and rng.random() < _BROWSE_KNOWN:
+                handle = bought[rng.randrange(known)][1]
+                who = (handle, handle, b.country[handle])
+            elif anonymous and rng.random() < _BROWSE_RETURN:
+                visitor, country = anonymous[rng.randrange(len(anonymous))]
+                who = (visitor, None, country)
+            else:
+                visitor = f'AV-{len(anonymous) + 1:05d}'
+                country = rng.choices(COUNTRIES, [SHARE[c] for c in COUNTRIES])[0]
+                anonymous.append((visitor, country))
+                who = (visitor, None, country)
+            events[who] += steps
+    # each visitor's visits by the 30-minute rule, then numbered by their first event
+    found: list[tuple[dt.datetime, str, str | None, str, list[tuple[dt.datetime, str]]]] = []
+    for (key, customer, country), held in events.items():
+        visit: list[tuple[dt.datetime, str]] = []
+        for moment, kind in sorted(set(held), key=lambda e: (e[0], _KIND_ORDER[e[1]])):
+            if visit and moment - visit[-1][0] > dt.timedelta(minutes=30):
+                found.append((visit[0][0], key, customer, country, visit))
+                visit = []
+            visit.append((moment, kind))
+        found.append((visit[0][0], key, customer, country, visit))
+    found.sort(key=lambda v: (v[0], v[1]))
     visitors: dict[str, str] = {}
-    last: dict[str, tuple[dt.datetime, int]] = {}
     visits: list[WebVisit] = []
-    events: list[WebEvent] = []
-    for at, customer in sorted(o for o in b.web_orders if o not in anchored):
-        visitor = visitors.setdefault(customer, f'DV-{len(visitors) + 1:05d}')
-        start = at - dt.timedelta(minutes=7)
-        held = last.get(customer)
-        if held is not None and start - held[0] <= dt.timedelta(minutes=30):
-            visit_id = held[1]
+    flat: list[tuple[dt.datetime, int, str, str | None, str, int]] = []
+    for n, (start, key, customer, country, held) in enumerate(found):
+        if customer is None:
+            visitor = key
         else:
-            visit_id = first_visit + len(visits)
-            country = b.country[customer]
-            visits.append(WebVisit(visit_id, visitor, start.date(), country, None, None))
-        for kind, before in _DIRECT_STEPS:
-            event_id = f'WE-{first_event + len(events):06d}'
-            moment = at - dt.timedelta(minutes=before)
-            events.append(WebEvent(event_id, visitor, customer, kind, moment, visit_id))
-        last[customer] = (at - dt.timedelta(minutes=1), visit_id)
-    return visits, events
+            visitor = visitors.setdefault(key, f'DV-{len(visitors) + 1:05d}')
+        visit_id = first_visit + n
+        visits.append(WebVisit(visit_id, visitor, start.date(), country, None, None))
+        flat += [(m, _KIND_ORDER[k], visitor, customer, k, visit_id) for m, k in held]
+    flat.sort(key=lambda e: (e[0], e[2], e[1]))
+    return visits, [
+        WebEvent(f'WE-{first_event + n:06d}', visitor, customer, kind, moment, visit_id)
+        for n, (moment, _, visitor, customer, kind, visit_id) in enumerate(flat)
+    ]
 
 
 _DIRECT_STEPS: Final = (('view', 7), ('cart', 3), ('checkout', 1))
 """A direct visit's events, minutes before its order."""
+_KIND_ORDER: Final = {'view': 0, 'cart': 1, 'checkout': 2}
+_BROWSE_PER_ORDER: Final = (1, 2, 2, 3)
+"""Browse-only direct visits drawn beside each direct order: two on average, so a third of
+the direct visits convert."""
+_BROWSE_CART: Final = 0.4
+"""The chance a browse-only visit puts a bag in the cart."""
+_BROWSE_KNOWN: Final = 0.55
+"""The chance a browse-only visit is a pool consumer's, signed in; else anonymous."""
+_BROWSE_RETURN: Final = 0.3
+"""The chance an anonymous browse visit is an earlier anonymous visitor's return."""
 
 
 def _till(rng: Random, receipts: Sequence[TillReceipt]) -> list[TillLine]:
@@ -1542,7 +1599,7 @@ def build(targets: Targets, *, seed: int) -> Volume:
     week_events, week_visits = _week_visits(script.TRACKER, first_week_visit)
     anchored = {(v.order_at, placed[v.visit_id]) for v in plan.visits if v.order_at is not None}
     direct_visits, direct_events = _direct_visits(
-        b, anchored, first_week_visit + len(week_visits), len(panel_events) + 1
+        b, anchored, first_week_visit + len(week_visits), len(panel_events) + 1, seed=seed
     )
     walk_ins = series.walk_in_receipts(seed=seed)
     timed = [(s.at, -1, n, s) for n, s in enumerate(b.script)] + b.steps

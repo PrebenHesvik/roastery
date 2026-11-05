@@ -76,6 +76,8 @@ def write(
 
 
 ROW_GROUP_SIZE: Final = 100_000
+PACKAGES: Final = ('roastery', 'roastery-sim', 'roastery-spec')
+"""The workspace's packages whose versions a volume manifest names, in this order."""
 
 
 def _type_of(name: str, column: str) -> str:
@@ -145,16 +147,24 @@ def write_rows(
     *,
     extract: str,
     seed: int,
-    shop_version: str,
+    version: str,
+    packages: Mapping[str, str],
     defects: Sequence[Mapping[str, str]],
     scripted_events: Mapping[str, object],
+    landing: Mapping[str, str] | None = None,
 ) -> dict:
     """The data folder of `month` or `full` straight from `Rows` (W37); its manifest.
 
     The settings are `write`'s: UTC, one thread, a fixed row group size, rows ordered by
-    contract A's key (a keyless table by all its columns). The manifest keeps `write`'s key
-    order, `until` null, with `scripted_events` last.
+    contract A's key (a keyless table by all its columns). The manifest (plan §4.4, §5) keeps a
+    fixed key order: `write`'s keys with the data `version` after `serves` and `until` null;
+    then the versions of the three `packages` (`shop` is roastery's), DuckDB's, and the
+    sha256 of the baseline's two files from PROVENANCE.toml; then the defects,
+    `scripted_events`, and, for month, `landing`: every landing file's sha256 by its path.
     """
+    if set(packages) != set(PACKAGES):
+        raise ValueError(f'the package versions name {sorted(packages)}, not {list(PACKAGES)}')
+    origin = baseline.provenance()
     con = duckdb.connect()
     con.execute("SET TimeZone = 'UTC'")
     con.execute('SET threads = 1')
@@ -184,13 +194,22 @@ def write_rows(
     manifest = {
         'extract': extract,
         'serves': [extract],
+        'version': version,
         'tables': counts,
         'sha256': dict(sorted(hashes.items())),
         'seed': seed,
         'until': None,
-        'shop': shop_version,
+        'shop': packages['roastery'],
+        'packages': {name: packages[name] for name in PACKAGES},
+        'duckdb': duckdb.__version__,
+        'baseline': {
+            'dataset.sql': origin['dataset_sql']['sha256'],
+            'tier3.sql': origin['tier3_sql']['sha256'],
+        },
         'defects': [dict(d) for d in defects],
         'scripted_events': dict(scripted_events),
     }
+    if landing is not None:
+        manifest['landing'] = dict(sorted(landing.items()))
     (out / 'manifest.json').write_bytes((json.dumps(manifest, indent=2) + '\n').encode('utf-8'))
     return manifest

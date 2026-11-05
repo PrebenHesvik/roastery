@@ -53,8 +53,7 @@ def _print(paths: Sequence[Path]) -> None:
 
 
 def _volume(args: argparse.Namespace) -> int:
-    shop = importlib.metadata.version('roastery')
-    _print(build.volume(args.out, seed=args.seed, shop_version=shop))
+    _print(build.volume(args.out, seed=args.seed, packages=build.installed()))
     return 0
 
 
