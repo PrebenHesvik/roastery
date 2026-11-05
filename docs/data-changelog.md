@@ -47,7 +47,12 @@ fa728cbbcecdf3fc47577117bd8f883be141d3dbe9ba0e6f828907a3f2326dec  roastery-data-
   nightly csv export (`raw_customers` whole, `raw_lines` as the lines new since the last export;
   9 October's carries the planted faults); the till's file per day from 6 October; the door
   counter, weather and old till's totals as csv series; `loads.json` names each file's table,
-  load strategy, keys and watermark, as `model.sql`'s `loads` does. API pages are not landed yet.
+  load strategy, keys and watermark, as `model.sql`'s `loads` does (`raw_customers`, `till_lines`
+  and the three series are not in `model.sql`; their rows are the simulator's). API pages are not
+  landed yet.
+- **Reading the csv landings:** an empty quoted cell (`""`) is an empty string and a bare empty
+  cell is NULL (9 October's export tells C-05's e-mail apart this way). DuckDB's `read_csv` reads
+  both as NULL unless it is given `allow_quoted_nulls = false`.
 
 ### Planted faults and the answer key
 
@@ -76,7 +81,8 @@ Among them:
 - Parcels ship and deliver on Sundays too: `deliveries` ships the day after the order.
 - month is cut by each table's own day:
   - it holds some events, payments and shipments of September's orders;
-  - orders are cut by the Bergen date, and stamps by their UTC date.
+  - orders are cut by the Bergen date, `order_events` by the UTC day it was loaded (as the feed's
+    files), and other stamps by their UTC date.
 - full's raw tables are 9 October's export whole; month's are that export's landed files.
 - Loading `raw_customers` by merge leaves four rows whose key the faults dirtied (`'C-01 '`,
   `c-02`, a tab before C-03, a no-break space after C-04). That is the lesson the faults teach.
