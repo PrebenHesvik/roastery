@@ -345,6 +345,28 @@ CREATE TABLE IF NOT EXISTS outbox (
     sent INTEGER NOT NULL DEFAULT 0,
     source TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS outbox_batch
+    ON outbox (batch, sent);
+CREATE INDEX IF NOT EXISTS outbox_unsent
+    ON outbox (sent, batch);
+CREATE INDEX IF NOT EXISTS order_lines_order
+    ON order_lines (order_id, line_no);
+CREATE INDEX IF NOT EXISTS line_stamps_order
+    ON line_stamps (order_id);
+CREATE INDEX IF NOT EXISTS orders_credit_of
+    ON orders (credit_of);
+CREATE INDEX IF NOT EXISTS payments_order
+    ON payments (order_id, payment_id);
+CREATE INDEX IF NOT EXISTS subscriptions_customer
+    ON subscriptions (customer_id, subscription_id);
+CREATE INDEX IF NOT EXISTS subscription_events_sub
+    ON subscription_events (subscription_id, event_at, event_id);
+CREATE INDEX IF NOT EXISTS subscription_shipments_sub
+    ON subscription_shipments (subscription_id, shipped_on, bag_id);
+CREATE INDEX IF NOT EXISTS stock_movements_product
+    ON stock_movements (product_id, moved_at, movement_id, qty);
+CREATE INDEX IF NOT EXISTS stock_daily_date
+    ON stock_daily (stock_date);
 """
 """The app database: its own schema, not contract A (ADR 0003)."""
 
