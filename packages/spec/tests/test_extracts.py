@@ -96,10 +96,12 @@ def test_every_tiny_row_of_a_derived_table_follows_from_its_extract(request, tin
         query = """
         SELECT 'C-01' AS customer_id, m AS month,
             CASE WHEN m = DATE '2026-10-01' THEN (SELECT count(DISTINCT o.order_id) FROM orders o
-                WHERE o.customer_id = 'C-01') END AS orders,
+                WHERE o.customer_id = 'C-01'
+                AND date_trunc('month', o.order_date) = m) END AS orders,
             CASE WHEN m = DATE '2026-10-01' THEN (SELECT sum(l.qty * l.unit_price)
                 FROM orders o JOIN order_lines l USING (order_id)
-                WHERE o.customer_id = 'C-01') END AS spend_nok,
+                WHERE o.customer_id = 'C-01'
+                AND date_trunc('month', o.order_date) = m) END AS spend_nok,
             EXISTS (SELECT 1 FROM subscriptions s WHERE s.customer_id = 'C-01'
                 AND s.started <= m AND (s.ended IS NULL OR m < s.ended)) AS subscribed
         FROM (SELECT unnest(generate_series(DATE '2025-11-01', DATE '2026-10-01',

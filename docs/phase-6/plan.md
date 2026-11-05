@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (6.5 has no plan file yet: write it first, as 6.4 did; [6.4-week.md](6.4-week.md) and the 6.4 Note below list what 6.5 inherits), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row (6.5's is [6.5-volume.md](6.5-volume.md)), and work from its first unticked unit.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
@@ -25,7 +25,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
 | 6.3 app core and service layer | [x] [6.3-app.md](6.3-app.md); closed 2026-11-04 |
 | 6.4 the teaching week through the simulator (contract B frozen) | [x] [6.4-week.md](6.4-week.md); closed 2026-11-05; the gate holds; security review closed (W42); tagged `shop-0.1.0` (`498d909`) |
-| 6.5 the volume, `roastery-data 1.0` | [ ] |
+| 6.5 the volume, `roastery-data 1.0` | [ ] [6.5-volume.md](6.5-volume.md); U0 done |
 | 6.6 data-docs reads the release | [ ] |
 
 Notes:
@@ -58,7 +58,7 @@ Notes:
 
 - 2026-11-04 (6.3): the shop app is built (`packages/shop`, 37 modules; the four api modules wait, C14) and tested on both stores; decisions A1 to A42 in [6.3-app.md](6.3-app.md). What 6.4 must know: a credit order's VAT follows its sale, an amendment to C10 for credit orders only (A40); a subscription move is dated in the customer's zone and the command carries its `day`, replacing A30's UTC day (A41); the app db has app-only columns the export writer must project around (`payments.status`, `subscription_events.day`, `orders.credit_of`, `vat_amount`; `product_costs` keeps one `currency`, `subscription_shipments` keys on `bag_id`: A33); the contract B snapshot also pins the services' and fakes' constructors as built, which 6.4 confirms before the tag (A39, §5); and 6.3-app.md §4: the refund currency on a sale paid in another currency, the column projections, `FakeFeed`'s rule, the batch size. The independent review found 14 defects, one a blocker (A40), all fixed (A40 to A42).
 
-- 2026-11-05 (6.4): the simulator plays the teaching week and C-01's year through contract B, and the gate holds: `python -m roastery_sim tiny` gives a tiny equal to `dataset.sql` cell for cell in all 30 tables, on both stores, and the spec's ported claims pass on it (449, with 46 awaiting 1.0's tables); CI runs both, and tiny's sha256 is committed. Decisions W1 to W41 in [6.4-week.md](6.4-week.md). Contract B changed three times, each a row and a snapshot commit: `Jobs.app_tables()` and `Rows`, every app-database table of contract A with `source` last (W2); `Url`, `Secret`, `Positive` (W38); the fields of its value types and the members of its literals (W41). The constructors stay as built (A39, W25). What 6.5 inherits: `month` and `full` are written from `Rows` straight to parquet and played on sqlite (W37, C32); a credit is refunded only from a sale paid in the lines' currency, so order 300 is a Norwegian consumer's NOK sale (W16); weather, the door counter, the old till's totals, `budget` and `web_visits` are 6.5's writers (W17, the owner); the bag job and the pre-week stock that follows from it (W9); the landing csv's quoting and its reader's NULL rule (W39); a malformed amount is refused at the call (W34). The plan's §4.2 named O-106 among the plants; the app's own cancel makes it (W19). Two independent reviews found 20 points between them, none in a tiny cell; all are fixed or rows. Not pushed: the 6.3 and 6.4 commits wait for the owner.
+- 2026-11-05 (6.4): the simulator plays the teaching week and C-01's year through contract B, and the gate holds: `python -m roastery_sim tiny` gives a tiny equal to `dataset.sql` cell for cell in all 30 tables, on both stores, and the spec's ported claims pass on it (449, with 46 awaiting 1.0's tables); CI runs both, and tiny's sha256 is committed. Decisions W1 to W41 in [6.4-week.md](6.4-week.md). Contract B changed three times, each a row and a snapshot commit: `Jobs.app_tables()` and `Rows`, every app-database table of contract A with `source` last (W2); `Url`, `Secret`, `Positive` (W38); the fields of its value types and the members of its literals (W41). The constructors stay as built (A39, W25). What 6.5 inherits: `month` and `full` are written from `Rows` straight to parquet and played on sqlite (W37, C32); a credit is refunded only from a sale paid in the lines' currency, so order 300 is a Norwegian consumer's NOK sale (W16); weather, the door counter, the old till's totals, `budget` and `web_visits` are 6.5's writers (W17, the owner); the bag job and the pre-week stock that follows from it (W9); the landing csv's quoting and its reader's NULL rule (W39); a malformed amount is refused at the call (W34). The plan's §4.2 named O-106 among the plants; the app's own cancel makes it (W19). Two independent reviews found 20 points between them, none in a tiny cell; all are fixed or rows. Pushed on the owner's word on 2026-11-05; the security review on `packages/shop` closed two lows before the tag (W42), and `shop-0.1.0` tags `498d909`.
 
 ---
 
@@ -124,7 +124,7 @@ agreed before the code it binds.
   - caller-supplied ids for scripted rows (O-101, PAY-1…);
   - channel `web | shop`;
   - the customer `account_kind` (D7, S17);
-  - `log_event` with source, variant and step;
+  - web events with source, variant and step (an outside system, C11);
   - stock movements with a reason;
   - promised and actual delivery;
   - VAT by kind;
