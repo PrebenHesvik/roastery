@@ -12,8 +12,9 @@ from collections import Counter
 from collections.abc import Mapping
 from functools import cache
 
+import pytest
 from roastery.pipeline import Rows
-from roastery_sim import faults, play, tiny
+from roastery_sim import build, extracts, faults, play, tiny
 
 ADDED = ('duplicate', 'orphan', 'resent')
 """The kinds whose row the app has not got."""
@@ -152,8 +153,9 @@ def _changes(
     return found
 
 
-def test_the_log_names_every_change_and_only_changes() -> None:
-    given, faulted, log = _faulted()
+def _names_every_change(
+    given: Mapping[str, Rows], faulted: Mapping[str, Rows], log: tuple[faults.Defect, ...]
+) -> None:
     assert set(faulted) == set(given)
     changes = _changes(given, faulted)
     # order_events is logged once per order, however many events the order lost
@@ -164,3 +166,19 @@ def test_the_log_names_every_change_and_only_changes() -> None:
         named[entry] = changes[entry]
     assert changes == named
     assert all(count == 1 for key, count in named.items() if key not in dropped)
+
+
+def test_the_log_names_every_change_and_only_changes() -> None:
+    _names_every_change(*_faulted())
+
+
+@pytest.mark.parametrize('moment', ['end', 'snapshot'])
+def test_on_the_volume_the_log_names_every_change_and_only_changes(
+    volume: build.PlayedVolume, moment: str
+) -> None:
+    """The faults on the volume's uncut tables, at `month`'s end and at `full`'s snapshot."""
+    played = volume.played
+    if moment == 'snapshot':
+        played = extracts.at_snapshot(played, extracts.SNAPSHOT)
+    given = extracts.inputs(volume.world, played)
+    _names_every_change(given, *faults.apply(given))

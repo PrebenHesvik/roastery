@@ -17,7 +17,7 @@ from typing import Literal
 
 from roastery.pipeline import Rows
 
-from roastery_sim import dataset_sql, faults, folder, play, tiny
+from roastery_sim import dataset_sql, extracts, faults, folder, play, targets, tiny, world
 
 
 @dataclass(frozen=True)
@@ -117,3 +117,52 @@ def write(
     written.append(data / 'manifest.json')
     written += [_bytes(out / 'landing' / name, text) for name, text in built.landing.items()]
     return tuple(written)
+
+
+@dataclass(frozen=True)
+class PlayedVolume:
+    """The volume's world, its one play and the targets it was fitted to."""
+
+    world: world.Volume
+    played: play.Played
+    targets: targets.Targets
+
+
+def play_volume(*, seed: int = 0) -> PlayedVolume:
+    """Build the world from the targets and play it to the end on sqlite, with the snapshot
+    `full` is cut from."""
+    fitted = targets.build()
+    built = world.build(fitted, seed=seed)
+    played = play.play(built, seed=seed, store='sqlite', snapshots=(extracts.SNAPSHOT,))
+    return PlayedVolume(built, played, fitted)
+
+
+def write_volume(
+    volume: PlayedVolume, out: Path, *, seed: int, shop_version: str
+) -> tuple[Path, ...]:
+    """`out/full/data` and `out/month/data`, each its parquet files and manifest; the files
+    written."""
+    events = extracts.scripted_events(volume.world, volume.played)
+    written: list[Path] = []
+    for extract in (
+        extracts.full(volume.world, volume.played, volume.targets),
+        extracts.month(volume.world, volume.played),
+    ):
+        data = out / extract.name / 'data'
+        manifest = folder.write_rows(
+            extract.tables,
+            data,
+            extract=extract.name,
+            seed=seed,
+            shop_version=shop_version,
+            defects=[d.as_dict() for d in extract.defects],
+            scripted_events=events,
+        )
+        written += [data / name for name in manifest['sha256']]
+        written.append(data / 'manifest.json')
+    return tuple(written)
+
+
+def volume(out: Path, *, seed: int = 0, shop_version: str) -> tuple[Path, ...]:
+    """Play the volume once and write `full` and `month` under `out`; the files written."""
+    return write_volume(play_volume(seed=seed), out, seed=seed, shop_version=shop_version)
