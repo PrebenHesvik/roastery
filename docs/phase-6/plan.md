@@ -24,7 +24,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.1 contract A: data | [x] [6.1-contract.md](6.1-contract.md); closed and pushed 2026-11-04, CI green |
 | 6.2 contract C: architecture | [x] [6.2-architecture.md](6.2-architecture.md); closed 2026-11-04, read by the owner |
 | 6.3 app core and service layer | [x] [6.3-app.md](6.3-app.md); closed 2026-11-04 |
-| 6.4 the teaching week through the simulator (contract B frozen) | [x] [6.4-week.md](6.4-week.md); closed 2026-11-05; the gate holds; the tag `shop 0.1.0` waits for the owner's word |
+| 6.4 the teaching week through the simulator (contract B frozen) | [x] [6.4-week.md](6.4-week.md); closed 2026-11-05; the gate holds; security review closed (W42); tagged `shop-0.1.0` (`498d909`) |
 | 6.5 the volume, `roastery-data 1.0` | [ ] |
 | 6.6 data-docs reads the release | [ ] |
 
