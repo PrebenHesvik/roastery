@@ -136,7 +136,8 @@ Rows.fields[01] columns: tuple[str, ...]
 Rows.fields[02] rows: tuple[tuple[object, ...], ...]
 ScriptedIds.__init__(self, script: Mapping[IdKind, Sequence[str]], then: Ids) -> None
 ScriptedIds.next(self, kind: IdKind) -> str
-Secret = NewType(str)
+Secret.__init__(self, text: str) -> None
+Secret.reveal(self) -> str
 SequentialIds.__init__(self, start: Mapping[IdKind, int], skip: frozenset[str] = frozenset()) -> None
 SequentialIds.next(self, kind: IdKind) -> str
 Settings.fields[00] database_url: Url

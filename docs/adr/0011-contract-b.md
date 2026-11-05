@@ -142,7 +142,7 @@ O-106's cancel does put its bag back. L-10 left at `place` (E-11, 6 Oct 21:30 UT
 
 It compares that text with the committed `packages/shop/tests/contract_b.txt`. A second assertion checks that no module but `errors.py` defines a member. 6.4 pins the file at its tag.
 
-6.4 widened what the file pins before the tag: `Jobs.app_tables` and `Rows` (W2), the settings' field types `Url`, `Secret` and `Positive` (W38), and the fields of every value type a signature names (`BeanDetails`, `Money`, `Head`, the ids and the rest) with the members of `Country`, `AccountKind`, `Channel` and `Status` (W41). A name the simulator may import is pinned by its shape, not only its name: the simulator builds `BeanDetails` by position and reads `place(...).head.order_id`.
+6.4 widened what the file pins before the tag: `Jobs.app_tables` and `Rows` (W2), the settings' field types `Url`, `Secret` and `Positive` (W38), and the fields of every value type a signature names (`BeanDetails`, `Money`, `Head`, the ids and the rest) with the members of `Country`, `AccountKind`, `Channel` and `Status` (W41). The security review before the tag made `Secret` a class with `reveal()` (ADR 0014), and the file pins its two methods. A name the simulator may import is pinned by its shape, not only its name: the simulator builds `BeanDetails` by position and reads `place(...).head.order_id`.
 
 ## Alternatives refused
 

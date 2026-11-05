@@ -30,8 +30,38 @@ PREFIX: Final = 'ROASTERY_'
 Url = NewType('Url', str)
 """A URL with a scheme; it may hold a password."""
 
-Secret = NewType('Secret', str)
-"""A key or a password: never shown."""
+
+class Secret:
+    """A key or a password: str, repr and an f-string show `***`.
+
+    Only reveal() gives the text, so the key cannot reach a log or
+    an error by being printed; asdict keeps it a Secret (ADR 0014).
+    """
+
+    __slots__ = ('_text',)
+
+    def __init__(self, text: str) -> None:
+        if not isinstance(text, str):
+            raise TypeError('a secret is text')
+        self._text = text
+
+    def reveal(self) -> str:
+        """The text itself, for the one call that sends it."""
+        return self._text
+
+    def __repr__(self) -> str:
+        return "Secret('***')"
+
+    __str__ = __repr__
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Secret):
+            return NotImplemented
+        return self._text == other._text
+
+    def __hash__(self) -> int:
+        return hash(self._text)
+
 
 Positive = NewType('Positive', int)
 """A whole number of 1 or more."""
@@ -110,9 +140,10 @@ def oslo() -> ZoneInfo:
 class Settings:
     """The shop's settings; a field with a default is optional.
 
-    The URLs and the key are left out of repr and str; asdict, vars
-    and the attribute still give them. A field type PARSERS lacks
-    is a bug, and raises KeyError.
+    The URLs and the key are left out of repr and str. asdict and
+    the attribute still give the URLs; the key stays a Secret,
+    whose text only reveal() gives. A field type PARSERS lacks is
+    a bug, and raises KeyError.
     """
 
     database_url: Url = field(repr=False)

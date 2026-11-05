@@ -83,6 +83,7 @@ SNAPSHOT = Path(__file__).with_name('contract_b.txt')
 
 CLASSES = (
     App,
+    Secret,
     Jobs,
     Customers,
     Catalogue,
@@ -147,7 +148,7 @@ LITERALS = (
     ('Channel', Channel),
     ('Status', Status),
 )
-NEW_TYPES = (Url, Secret, Positive)
+NEW_TYPES = (Url, Positive)
 """The constructors of Settings' field types, which the simulator
 calls: each is pinned with the type it wraps."""
 PORT_ERRORS = (FeedDown, ProviderRefused, ProviderUnavailable)

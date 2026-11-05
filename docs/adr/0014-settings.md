@@ -22,7 +22,7 @@ Every name starts with `ROASTERY_`. A field's name in capitals, after the prefix
 |---|---|---|---|
 | `ROASTERY_DATABASE_URL` | `Url` | required | a URL with a scheme; hidden from the repr |
 | `ROASTERY_PROVIDER_URL` | `Url` | required | a URL with a scheme; hidden from the repr |
-| `ROASTERY_PROVIDER_KEY` | `Secret` | required | any text that is not empty; hidden from the repr |
+| `ROASTERY_PROVIDER_KEY` | `Secret` | required | any text that is not empty; never printed, `reveal()` gives it |
 | `ROASTERY_PRICE_TTL` | `int` | `300` | seconds, a whole number of 0 or more |
 | `ROASTERY_SHOP_ZONE` | `ZoneInfo` | `Europe/Oslo` | a zone name `zoneinfo` knows |
 | `ROASTERY_RELAY_BATCH` | `Positive` | `5` | a whole number of 1 or more |
@@ -35,8 +35,14 @@ Every name starts with `ROASTERY_`. A field's name in capitals, after the prefix
 Url = NewType('Url', str)
 """A URL with a scheme; it may hold a password."""
 
-Secret = NewType('Secret', str)
-"""A key or a password: never shown."""
+class Secret:
+    """A key or a password: str, repr and an f-string show `***`.
+
+    Only reveal() gives the text; asdict keeps it a Secret.
+    """
+
+    def __init__(self, text: str) -> None: ...
+    def reveal(self) -> str: ...
 
 Positive = NewType('Positive', int)
 """A whole number of 1 or more."""
@@ -89,6 +95,8 @@ PARSERS: Final[Mapping[object, Callable[[str], object]]] = (
 ```
 
 A field type the table lacks is a bug, and raises `KeyError`.
+
+`Secret` is a class, not a `NewType` as `Url` and `Positive` are: a `NewType` is the text itself, so `str()`, an f-string or `asdict` printed the key, and only the dataclass repr hid it. The security review before 6.5 found this; the class prints `***` everywhere and the one adapter that sends the key calls `reveal()` (ADR 0004 refuses a `NewType` for the same reason: it checks nothing at run time).
 
 ### One error, every problem
 

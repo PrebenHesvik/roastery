@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import unicodedata
 from dataclasses import dataclass
 from typing import Final, Literal
 
@@ -26,6 +27,10 @@ Op = Literal['insert', 'update', 'delete']
 """What a log row says was done, as `customer_changes.op` holds it."""
 
 OPS: Final[tuple[Op, ...]] = ('delete', 'insert', 'update')
+
+FORMULA_STARTS: Final = frozenset('=+-@')
+"""What a spreadsheet reads as a formula at a cell's start: a name
+goes out as a cell of raw_customers.csv, so it never starts so."""
 
 
 @dataclass(frozen=True)
@@ -69,6 +74,13 @@ class Customer:
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
             raise ValueError('name must be text that is not blank')
+        if self.name[0] in FORMULA_STARTS or any(
+            unicodedata.category(c) == 'Cc' for c in self.name
+        ):
+            raise ValueError(
+                'name must not start a formula or hold a control'
+                ' character'
+            )
         _check_country(self.country)
         if self.account_kind not in ACCOUNT_KINDS:
             raise ValueError(
