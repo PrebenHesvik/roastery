@@ -150,6 +150,6 @@ FACTS = {
 @pytest.mark.parametrize('name', sorted(FACTS))
 def test_a_fact_type_has_the_columns_of_its_table(name: str) -> None:
     [table] = [t for t in TABLES if t.name == name]
-    columns = tuple(c.name for c in table.columns)
+    columns = tuple(c.name for c in (*table.columns, *table.added))  # `added`: month and full
     assert tuple(f.name for f in dataclasses.fields(FACTS[name])) == columns
     assert getattr(outside, name)(()).columns == columns

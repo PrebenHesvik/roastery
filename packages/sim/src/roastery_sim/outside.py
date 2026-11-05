@@ -94,6 +94,43 @@ class WebEvent:
     customer_id: str | None
     event: str
     event_at: dt.datetime
+    visit_id: int | None = None
+
+
+@dataclass(frozen=True)
+class WebVisit:
+    """One visit to the web shop; no referrer is a direct visit, no variant is outside the test."""
+
+    visit_id: int
+    visitor_id: str
+    visit_date: dt.date
+    country: str
+    referrer: str | None
+    variant: str | None
+
+
+@dataclass(frozen=True)
+class WeatherDay:
+    """The rain that fell in Bergen on a day."""
+
+    shop_date: dt.date
+    rain_mm: int
+
+
+@dataclass(frozen=True)
+class DoorCount:
+    """The people the door counter counted on a day."""
+
+    shop_date: dt.date
+    walk_ins: int
+
+
+@dataclass(frozen=True)
+class TillDayTotal:
+    """The receipts the old till rang on a day."""
+
+    shop_date: dt.date
+    receipts: int
 
 
 @dataclass(frozen=True)
@@ -161,3 +198,19 @@ def till_lines(facts: Iterable[TillLine]) -> Rows:
 
 def till_members(facts: Iterable[TillMember]) -> Rows:
     return _rows('till_members', TillMember, facts)
+
+
+def web_visits(facts: Iterable[WebVisit]) -> Rows:
+    return _rows('web_visits', WebVisit, facts)
+
+
+def weather_days(facts: Iterable[WeatherDay]) -> Rows:
+    return _rows('weather_days', WeatherDay, facts)
+
+
+def door_counts(facts: Iterable[DoorCount]) -> Rows:
+    return _rows('door_counts', DoorCount, facts)
+
+
+def till_day_totals(facts: Iterable[TillDayTotal]) -> Rows:
+    return _rows('till_day_totals', TillDayTotal, facts)
