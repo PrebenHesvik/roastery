@@ -6,13 +6,29 @@ import datetime as dt
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from roastery.catalogue import BeanDetails
+from roastery.checkout import Item, PlaceOrder
+from roastery.ids import CategoryId, CustomerId, PaymentId, PostalCode, ProductId
+from roastery.money import Money, Qty
 from roastery.pipeline import Rows
 from roastery_sim.build import build, write
 from roastery_sim.play import Played, PlayStopped, play
+from roastery_sim.script import (
+    AddCategory,
+    AddProduct,
+    Pay,
+    Place,
+    Register,
+    Roast,
+    SetPrice,
+    Step,
+    World,
+)
 
 
 def _at(day: int, hour: int, minute: int = 0, second: int = 0) -> dt.datetime:
@@ -190,3 +206,63 @@ def test_a_manifest_says_where_a_play_stopped(tmp_path: Path) -> None:
     assert kept[1]['until'] == '2026-10-05T00:00:00+00:00'
     keys = list(kept[0])
     assert keys.index('until') == keys.index('seed') + 1
+
+
+def _sorted(tables: Mapping[str, Rows]) -> dict[str, list[tuple[object, ...]]]:
+    """Each table's rows in a fixed order, the stores' own order aside."""
+    return {name: sorted(rows.rows, key=repr) for name, rows in tables.items()}
+
+
+def test_a_payment_names_its_order_by_the_places_handle() -> None:
+    def at(minute: int) -> dt.datetime:
+        return dt.datetime(2024, 1, 1, 9, minute, tzinfo=dt.UTC)
+
+    product = ProductId('P-1')
+    beans = BeanDetails(250, 'Ethiopia', 'light', 'washed')
+    steps = (
+        Step(at(0), 'scripted', AddCategory('Beans', None, 1), {'category': ('CAT-1',)}),
+        Step(
+            at(1),
+            'scripted',
+            AddProduct('Beans', CategoryId('CAT-1'), beans),
+            {'product': ('P-1',)},
+        ),
+        Step(at(2), 'simulator', SetPrice(product, Money(Decimal('100.00'), 'NOK'), at(2).date())),
+        Step(at(3), 'simulator', Roast(product, Qty(5))),
+        Step(
+            at(4),
+            'scripted',
+            Register('Kari', None, 'NO', PostalCode('5003')),
+            {'customer': ('C-1',)},
+        ),
+        Step(
+            at(5),
+            'simulator',
+            Place(PlaceOrder(CustomerId('C-1'), 'web', (Item(product, Qty(2)),)), 'kari'),
+        ),
+        Step(
+            at(6),
+            'simulator',
+            Pay(PaymentId('PAY-1'), 'kari', Money(Decimal('200.00'), 'NOK'), at(6).date()),
+        ),
+    )
+    world = World(steps=steps, refuse={})
+    memory, sqlite = (play(world, store=store) for store in ('memory', 'sqlite'))
+    assert memory.handles == sqlite.handles == {'kari': 'O-000001'}
+    assert _sorted(memory.tables) == _sorted(sqlite.tables)
+    assert memory.payments.rows == sqlite.payments.rows
+    [paid] = memory.payments.rows
+    assert paid[:2] == ('PAY-1', 'O-000001')
+    assert [row[:2] for row in memory.tables['orders'].rows] == [('O-000001', 'C-1')]
+
+
+def test_a_snapshot_is_the_play_cut_at_its_moment() -> None:
+    moment = _at(7, 0)  # no step is at midnight UTC
+    whole = play(snapshots=(moment,))
+    cut = play(until=moment + dt.timedelta(microseconds=1))
+    snapshot = whole.snapshots[moment]
+    assert snapshot.tables == cut.tables
+    assert snapshot.feed == cut.feed
+    assert snapshot.payments == cut.payments
+    assert snapshot.csv == cut.csv
+    assert snapshot.tables != whole.tables

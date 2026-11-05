@@ -15,6 +15,12 @@ plays no refusal (W27), never runs `ship_subscription_bags` (W9) and
 sets no subscriber discount (A14). The writer's planted rows (L-05,
 L-09, the 26, the 06:30 resend, the raw cells) are not here: they
 are the export writer's, after a correct app (D10).
+
+`world()` gives all of it as a `World`, the shape `play` reads; the
+volume's allocator builds others of the same shape (6.5, V1). The
+action types cover every call of contract B the volume makes; a step
+names a generated order or subscription by the handle of the call
+that made it, never by a predicted id (V4).
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from roastery.ids import (
     Country,
     CustomerId,
     EventId,
+    LineId,
     OrderId,
     PaymentId,
     PostalCode,
@@ -42,7 +49,6 @@ from roastery.ids import (
     SubscriptionId,
 )
 from roastery.money import Money, Qty
-from roastery.payments import PaymentMessage
 from roastery.ports import IdKind
 
 from roastery_sim.outside import (
@@ -57,6 +63,13 @@ from roastery_sim.outside import (
 
 Wiring = Literal['scripted', 'simulator']
 """Which of the two wirings over the one store makes the call (C7)."""
+
+type OrderRef = OrderId | str
+"""An order a step names: a scripted id, or the handle of the `Place` or `Credit` that made it
+(6.5, V4). `play` resolves a handle to the id the call returned."""
+
+type SubscriptionRef = SubscriptionId | str
+"""A subscription a step names: a scripted id, or the handle of its `Subscribe` (V4)."""
 
 
 # The actions: one frozen type per kind of step ---------------------
@@ -92,17 +105,42 @@ class Erase:
 
 @dataclass(frozen=True)
 class Subscribe:
-    """`subscriptions.subscribe`, started on the customer's day."""
+    """`subscriptions.subscribe`, started on the customer's day; `handle` names what it returns."""
 
     customer_id: CustomerId
     product_id: ProductId
+    handle: str | None = None
 
 
 @dataclass(frozen=True)
 class CancelSubscription:
     """`subscriptions.cancel`, ended on the customer's day."""
 
-    subscription_id: SubscriptionId
+    subscription_id: SubscriptionRef
+    reason: str
+
+
+@dataclass(frozen=True)
+class Skip:
+    """`subscriptions.skip`: no bag in this month."""
+
+    subscription_id: SubscriptionRef
+    reason: str
+
+
+@dataclass(frozen=True)
+class Pause:
+    """`subscriptions.pause`: no bag until it is resumed."""
+
+    subscription_id: SubscriptionRef
+    reason: str
+
+
+@dataclass(frozen=True)
+class Resume:
+    """`subscriptions.resume`."""
+
+    subscription_id: SubscriptionRef
     reason: str
 
 
@@ -134,6 +172,25 @@ class SetPrice:
 
 
 @dataclass(frozen=True)
+class SetCost:
+    """`catalogue.set_cost`."""
+
+    product_id: ProductId
+    valid_from: dt.date
+    green: Money
+    packaging: Money
+    roasting: Money
+
+
+@dataclass(frozen=True)
+class SetSubscriberDiscount:
+    """`catalogue.set_subscriber_discount`; None opens no rule."""
+
+    percent: int | None
+    valid_from: dt.date
+
+
+@dataclass(frozen=True)
 class AddCampaign:
     """`catalogue.add_campaign`."""
 
@@ -161,10 +218,28 @@ class Stocktake:
 
 
 @dataclass(frozen=True)
+class WriteOff:
+    """`stock.write_off`: bags out."""
+
+    product_id: ProductId
+    qty: Qty
+
+
+@dataclass(frozen=True)
+class BuyGreen:
+    """`stock.buy_green`: a purchase of green beans, bought today."""
+
+    origin: str
+    kg: Decimal
+    nok_per_kg: Money
+
+
+@dataclass(frozen=True)
 class Place:
-    """`checkout.place`."""
+    """`checkout.place`; `handle` names the order it returns."""
 
     order: PlaceOrder
+    handle: str | None = None
 
 
 @dataclass(frozen=True)
@@ -172,17 +247,63 @@ class Pay:
     """The provider's message: `ProviderLog.deliver`, then
     `payments.handle_message` with what it gives back (W22).
 
-    A redelivery is a second step with the same message.
+    A redelivery is a second step with the same fields. A negative
+    amount is a refund's message, which the provider must have sent
+    after a `Refund` (S14).
     """
 
-    message: PaymentMessage
+    payment_id: PaymentId
+    order_id: OrderRef
+    amount: Money
+    paid_on: dt.date
+
+
+@dataclass(frozen=True)
+class Settle:
+    """The provider's message for an open invoice: `ProviderLog.deliver`,
+    then `payments.settle` (S13)."""
+
+    payment_id: PaymentId
+    order_id: OrderRef
+    amount: Money
+    paid_on: dt.date
+
+
+@dataclass(frozen=True)
+class Invoice:
+    """`payments.invoice`: a consumer's placed order put on invoice (S13)."""
+
+    order_id: OrderRef
+
+
+@dataclass(frozen=True)
+class Credit:
+    """`checkout.credit_for`: a credit order for one line of a paid sale (S14).
+
+    `line` is the line's id, or its position among the sale's lines
+    from 1: a generated order's line ids are the sequence's, never
+    predicted. `handle` names the credit order.
+    """
+
+    order_id: OrderRef
+    line: LineId | int
+    handle: str | None = None
+
+
+@dataclass(frozen=True)
+class Refund:
+    """`payments.refund`: the money back for a credit order or a
+    cancelled paid order. The provider's negative message is a later
+    `Pay` step."""
+
+    order_id: OrderRef
 
 
 @dataclass(frozen=True)
 class Ship:
     """`fulfilment.ship`. `play` keeps the shipment id it returns."""
 
-    order_id: OrderId
+    order_id: OrderRef
     promised_by: dt.date
 
 
@@ -190,20 +311,25 @@ class Ship:
 class Deliver:
     """`fulfilment.deliver` of the shipment `ship` returned for the order."""
 
-    order_id: OrderId
+    order_id: OrderRef
 
 
 @dataclass(frozen=True)
 class CancelOrder:
     """`checkout.cancel`."""
 
-    order_id: OrderId
+    order_id: OrderRef
     reason: str
 
 
 @dataclass(frozen=True)
 class Relay:
     """`jobs.relay`."""
+
+
+@dataclass(frozen=True)
+class ShipBags:
+    """`jobs.ship_subscription_bags`."""
 
 
 @dataclass(frozen=True)
@@ -227,25 +353,37 @@ type Action = (
     | Erase
     | Subscribe
     | CancelSubscription
+    | Skip
+    | Pause
+    | Resume
     | AddCategory
     | AddProduct
     | SetPrice
+    | SetCost
+    | SetSubscriberDiscount
     | AddCampaign
     | Roast
     | Stocktake
+    | WriteOff
+    | BuyGreen
     | Place
     | Pay
+    | Settle
+    | Invoice
+    | Credit
+    | Refund
     | Ship
     | Deliver
     | CancelOrder
     | Relay
+    | ShipBags
     | CountAtClose
     | NightlyExtract
     | CsvExport
 )
 """Every kind of step; each is one call of contract B."""
 
-JOBS: Final = (Relay, CountAtClose, NightlyExtract, CsvExport)
+JOBS: Final = (Relay, ShipBags, CountAtClose, NightlyExtract, CsvExport)
 """The action types that are jobs of contract B."""
 
 _NO_IDS: Final[Mapping[IdKind, tuple[str, ...]]] = MappingProxyType({})
@@ -559,22 +697,18 @@ YEAR_PAYMENT_FIRST: Final = 1001
 
 def _year() -> list[Step]:
     """17 web orders of C-01 through the simulator wiring, each paid a
-    minute later. Its orders are the sequence's first: O-000001 on
-    (nothing draws an order from the sequence before them)."""
+    minute later. Each payment names its order by the place's handle
+    (V4): the id is the one `place` returns, never predicted."""
     steps = []
     for n, (day, lines) in enumerate(YEAR, 1):
         items = tuple(Item(product_id, Qty(qty)) for product_id, qty in lines)
         total = sum((list_price(pid, day) * qty for pid, qty in lines), Decimal('0.00'))
-        message = PaymentMessage(
-            PaymentId(f'PAY-{YEAR_PAYMENT_FIRST + n - 1}'),
-            OrderId(hidden('order', n)),
-            Money(total, 'NOK'),
-            day,
-        )
+        handle = f'year {n}'
+        payment = PaymentId(f'PAY-{YEAR_PAYMENT_FIRST + n - 1}')
         placed = dt.datetime.combine(day, YEAR_PLACED, tzinfo=dt.UTC)
         paid = dt.datetime.combine(day, YEAR_PAID, tzinfo=dt.UTC)
-        steps.append(Step(placed, 'simulator', Place(PlaceOrder(C01, 'web', items))))
-        steps.append(Step(paid, 'simulator', Pay(message)))
+        steps.append(Step(placed, 'simulator', Place(PlaceOrder(C01, 'web', items), handle)))
+        steps.append(Step(paid, 'simulator', Pay(payment, handle, Money(total, 'NOK'), day)))
     return steps
 
 
@@ -601,11 +735,9 @@ def _pay(
     at: dt.datetime, payment: str, order: str, amount: str, currency: str, event: str | None
 ) -> Step:
     """A provider message; `event` None for a redelivery, which draws none."""
-    message = PaymentMessage(
-        PaymentId(payment), OrderId(order), Money(Decimal(amount), currency), at.date()
-    )
+    action = Pay(PaymentId(payment), OrderId(order), Money(Decimal(amount), currency), at.date())
     ids = _NO_IDS if event is None else _ids(event=(event,))
-    return Step(at, 'scripted', Pay(message), ids)
+    return Step(at, 'scripted', action, ids)
 
 
 def _nok(amount: str) -> Money:
@@ -858,3 +990,45 @@ TILL_MEMBERS: Final = (
     TillMember(1006, 'Hilde', 'hilde@example.invalid', '5007', dt.date(2026, 10, 10)),
 )
 """The club's nightly lists; the till's own spelling of the e-mails."""
+
+
+# The world: everything a play reads (6.5, V1) -------------------------
+
+
+@dataclass(frozen=True)
+class World:
+    """What `play` plays: its steps and what the systems around the app are told.
+
+    `steps` are in moment order, read once from the first (`play` refuses a step before the one
+    it follows). Their scripted ids, the shared sequence's skip set and the play's first moment
+    come from the whole sequence, so a play cut short by `until` is a prefix of the whole.
+    The facts are the outside systems' rows, written as they are (W17).
+    """
+
+    steps: Sequence[Step]
+    refuse: Mapping[EventId, dt.datetime]
+    """The feed refuses a batch holding the event while now is before this (W5)."""
+    refund_ids: tuple[PaymentId, ...] = ()
+    """The provider's refund ids, in the order it gives them."""
+    fx: tuple[FxRate, ...] = ()
+    managers: tuple[Manager, ...] = ()
+    tracker: tuple[WebEvent, ...] = ()
+    till_codes: tuple[ProductCode, ...] = ()
+    till_receipts: tuple[TillReceipt, ...] = ()
+    till_lines: tuple[TillLine, ...] = ()
+    till_members: tuple[TillMember, ...] = ()
+
+
+def world() -> World:
+    """Tiny's world: the week's script, its refusals and its facts."""
+    return World(
+        steps=steps(),
+        refuse=REFUSE,
+        fx=FX,
+        managers=MANAGERS,
+        tracker=TRACKER,
+        till_codes=TILL_CODES,
+        till_receipts=TILL_RECEIPTS,
+        till_lines=TILL_LINES,
+        till_members=TILL_MEMBERS,
+    )
