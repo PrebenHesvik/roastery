@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (6.4's is [6.4-week.md](6.4-week.md)), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row (6.5 has no plan file yet: write it first, as 6.4 did; [6.4-week.md](6.4-week.md) and the 6.4 Note below list what 6.5 inherits), and work from its first unticked unit.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.

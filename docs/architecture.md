@@ -1207,6 +1207,7 @@ As 6.3 built it (6.3-app.md, A19 and A39), the snapshot pins a little more than 
 - each dataclass field's default (`Item.price = None`, `Settings.price_ttl = 300`, `Settings.relay_batch = 5`);
 - the port's errors `ProviderRefused` and `ProviderUnavailable` beside `FeedDown`;
 - the settings' field types `Url`, `Secret` and `Positive`, which the simulator builds `Settings` with (6.4, W38); and `Jobs.app_tables` with `Rows` (6.4, W2);
+- the fields of the value types the signatures name (`BeanDetails`, `EquipmentDetails`, `Money`, `Qty`, `Email`, `PostalCode`, the nine id types, `Head`, `OrderLine`, `Placed`, `Invoiced`) and the members of the literals `Country`, `AccountKind`, `Channel` and `Status`: the simulator builds and reads them, so a reordered field or a renamed one would change contract B under the tag (6.4, W41);
 - not `Fulfilment.late_shipments`, a read the pages call ("Not in contract B" above): the test leaves it out by name.
 
 The raises table above is not checked by the test. The review checks it against the family's names (6.2 U6, then each change).
