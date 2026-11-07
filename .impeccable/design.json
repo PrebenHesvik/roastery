@@ -1,0 +1,637 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-07T12:53:32+00:00",
+  "title": "Design System: Sydvest Kaffebrenneri",
+  "extensions": {
+    "themes": {
+      "default": "dark",
+      "selector": {
+        "dark": ":root, :root[data-theme='dark']",
+        "light": ":root[data-theme='light']"
+      },
+      "source": "apps/storefront/src/styles/tokens.css",
+      "note": "Frontmatter colours are the dark (default) values; colorMeta.<token>.light carries the light theme."
+    },
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Wet Slate",
+        "canonical": "#11161b",
+        "light": "#e4e8eb",
+        "cssVar": "--ground",
+        "tonalRamp": [
+          "#1b1f23",
+          "#333d47",
+          "#4a5b6d",
+          "#5e7994",
+          "#8298ad",
+          "#a9b6c3",
+          "#ced4da",
+          "#f1f2f4"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Raised Slate",
+        "canonical": "#1a2128",
+        "light": "#f3f5f6",
+        "cssVar": "--surface",
+        "tonalRamp": [
+          "#1b1f22",
+          "#343d46",
+          "#4b5b6b",
+          "#607992",
+          "#8498ab",
+          "#aab6c2",
+          "#ced4da",
+          "#f1f2f4"
+        ]
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Raised Slate, Lit",
+        "canonical": "#212a32",
+        "light": "#ffffff",
+        "cssVar": "--surface-raised",
+        "tonalRamp": [
+          "#1b1f22",
+          "#343d46",
+          "#4b5c6b",
+          "#617b91",
+          "#8599ab",
+          "#aab6c1",
+          "#ced4da",
+          "#f1f2f4"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Chalk",
+        "canonical": "#e9e6df",
+        "light": "#1a232c",
+        "cssVar": "--text",
+        "tonalRamp": [
+          "#22201b",
+          "#454035",
+          "#69614d",
+          "#8f8263",
+          "#a99e86",
+          "#c0baab",
+          "#d9d6cf",
+          "#f3f3f1"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "#a7afb7",
+        "light": "#465361",
+        "cssVar": "--muted",
+        "tonalRamp": [
+          "#1d1f20",
+          "#393d41",
+          "#535b63",
+          "#6e7985",
+          "#8e98a1",
+          "#b0b6bb",
+          "#d1d4d7",
+          "#f2f2f3"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#2a323a",
+        "light": "#c3cbd1",
+        "cssVar": "--rule",
+        "tonalRamp": [
+          "#1c1f21",
+          "#363d44",
+          "#4f5b67",
+          "#66798c",
+          "#8998a6",
+          "#adb6bf",
+          "#d0d4d8",
+          "#f1f2f3"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "#3d4751",
+        "light": "#8f9ba6",
+        "cssVar": "--rule-strong",
+        "tonalRamp": [
+          "#1c1f21",
+          "#373d43",
+          "#505b66",
+          "#69798a",
+          "#8a98a5",
+          "#aeb6be",
+          "#d0d4d8",
+          "#f1f2f3"
+        ]
+      },
+      "oilskin": {
+        "role": "primary",
+        "displayName": "Oilskin Yellow",
+        "canonical": "#f3c623",
+        "light": "#f3c623",
+        "cssVar": "--oilskin",
+        "tonalRamp": [
+          "#2f280f",
+          "#645316",
+          "#a08216",
+          "#e3b50f",
+          "#ebc744",
+          "#e8d284",
+          "#ede2bc",
+          "#f8f6ec"
+        ]
+      },
+      "oilskin-hover": {
+        "role": "primary",
+        "displayName": "Bright Oilskin",
+        "canonical": "#ffd84a",
+        "light": "#ffd84a",
+        "cssVar": "--oilskin-hover",
+        "tonalRamp": [
+          "#30290d",
+          "#685511",
+          "#a8870e",
+          "#efbc03",
+          "#f4cc3b",
+          "#eed67e",
+          "#efe4b9",
+          "#f9f6ec"
+        ]
+      },
+      "oilskin-edge": {
+        "role": "primary",
+        "displayName": "Oilskin Edge",
+        "canonical": "#f3c623",
+        "light": "#1b1608",
+        "cssVar": "--oilskin-edge",
+        "tonalRamp": [
+          "#2f280f",
+          "#645316",
+          "#a08216",
+          "#e3b50f",
+          "#ebc744",
+          "#e8d284",
+          "#ede2bc",
+          "#f8f6ec"
+        ]
+      },
+      "oilskin-text": {
+        "role": "primary",
+        "displayName": "Oilskin as Text",
+        "canonical": "#f3c623",
+        "light": "#6e5200",
+        "cssVar": "--oilskin-text",
+        "tonalRamp": [
+          "#2f280f",
+          "#645316",
+          "#a08216",
+          "#e3b50f",
+          "#ebc744",
+          "#e8d284",
+          "#ede2bc",
+          "#f8f6ec"
+        ]
+      },
+      "on-oilskin": {
+        "role": "primary",
+        "displayName": "Oil Ink",
+        "canonical": "#1b1608",
+        "light": "#1b1608",
+        "cssVar": "--on-oilskin",
+        "tonalRamp": [
+          "#282315",
+          "#544825",
+          "#856f31",
+          "#b99839",
+          "#caaf65",
+          "#d4c497",
+          "#e3dbc5",
+          "#f6f4ef"
+        ]
+      },
+      "on-oilskin-muted": {
+        "role": "primary",
+        "displayName": "Oil Ink, Muted",
+        "canonical": "#4a3d0c",
+        "light": "#4a3d0c",
+        "cssVar": "--on-oilskin-muted",
+        "tonalRamp": [
+          "#2b2612",
+          "#5c4f1e",
+          "#927b24",
+          "#ceab24",
+          "#dabe55",
+          "#decd8d",
+          "#e8dfc0",
+          "#f7f5ee"
+        ]
+      },
+      "window": {
+        "role": "secondary",
+        "displayName": "Window Amber",
+        "canonical": "#e8a04a",
+        "light": "#8a4a00",
+        "cssVar": "--window",
+        "tonalRamp": [
+          "#2c2011",
+          "#5e401b",
+          "#976020",
+          "#d5811e",
+          "#df9e50",
+          "#e1ba8a",
+          "#e9d6bf",
+          "#f7f3ed"
+        ]
+      },
+      "window-field": {
+        "role": "secondary",
+        "displayName": "Window Field",
+        "canonical": "#e8a04a",
+        "light": "#f2b866",
+        "cssVar": "--window-field",
+        "tonalRamp": [
+          "#2c2011",
+          "#5e401b",
+          "#976020",
+          "#d5811e",
+          "#df9e50",
+          "#e1ba8a",
+          "#e9d6bf",
+          "#f7f3ed"
+        ]
+      },
+      "on-window": {
+        "role": "secondary",
+        "displayName": "Ink on the Window",
+        "canonical": "#1b1608",
+        "light": "#1b1608",
+        "cssVar": "--on-window",
+        "tonalRamp": [
+          "#282315",
+          "#544825",
+          "#856f31",
+          "#b99839",
+          "#caaf65",
+          "#d4c497",
+          "#e3dbc5",
+          "#f6f4ef"
+        ]
+      },
+      "on-window-muted": {
+        "role": "secondary",
+        "displayName": "Ink on the Window, Muted",
+        "canonical": "#4a2f0c",
+        "light": "#4a2f0c",
+        "cssVar": "--on-window-muted",
+        "tonalRamp": [
+          "#2b2012",
+          "#5c411e",
+          "#926224",
+          "#ce8424",
+          "#daa055",
+          "#debb8d",
+          "#e8d7c0",
+          "#f7f3ee"
+        ]
+      },
+      "danger": {
+        "role": "neutral",
+        "displayName": "Danger",
+        "canonical": "#f2937f",
+        "light": "#9b2c17",
+        "cssVar": "--danger",
+        "tonalRamp": [
+          "#2d1510",
+          "#602619",
+          "#9a321c",
+          "#da3b19",
+          "#e3664c",
+          "#e49888",
+          "#eac5be",
+          "#f8efed"
+        ]
+      },
+      "scale-off": {
+        "role": "neutral",
+        "displayName": "Scale Off",
+        "canonical": "#343c45",
+        "light": "#c9d0d6",
+        "cssVar": "--scale-off",
+        "tonalRamp": [
+          "#1c1e21",
+          "#373c43",
+          "#505a66",
+          "#69788a",
+          "#8b97a5",
+          "#aeb5be",
+          "#d0d4d8",
+          "#f1f2f3"
+        ]
+      },
+      "focus": {
+        "role": "neutral",
+        "displayName": "Focus",
+        "canonical": "#f3c623",
+        "light": "#1a232c",
+        "cssVar": "--focus",
+        "tonalRamp": [
+          "#2f280f",
+          "#645316",
+          "#a08216",
+          "#e3b50f",
+          "#ebc744",
+          "#e8d284",
+          "#ede2bc",
+          "#f8f6ec"
+        ]
+      },
+      "window-glow": {
+        "role": "secondary",
+        "displayName": "Window Glow",
+        "canonical": "rgb(232 160 74 / 0.2)",
+        "light": "rgb(232 160 74 / 0.14)",
+        "cssVar": "--window-glow",
+        "note": "Radial glow at the stage foot and in the hours panel. Sidecar only; not a frontmatter token."
+      },
+      "window-spill": {
+        "role": "secondary",
+        "displayName": "Window Spill",
+        "canonical": "rgb(232 160 74 / 0.16)",
+        "light": "rgb(232 160 74 / 0.22)",
+        "cssVar": "--window-spill",
+        "note": "Linear spill across the counter pane. Sidecar only; not a frontmatter token."
+      },
+      "streak": {
+        "role": "neutral",
+        "displayName": "Rain Streak",
+        "canonical": "rgb(233 230 223 / 0.035)",
+        "light": "rgb(26 35 44 / 0.04)",
+        "cssVar": "--streak",
+        "note": "1px line every 47px at 100deg on the fixed ground. Sidecar only; not a frontmatter token."
+      },
+      "rain": {
+        "role": "neutral",
+        "displayName": "Rain",
+        "canonical": "rgb(233 230 223 / 0.16)",
+        "light": "rgb(26 35 44 / 0.14)",
+        "cssVar": "--rain, --rain-alpha",
+        "note": "Rain canvas stroke: an RGB triplet and an alpha. Sidecar only; not a frontmatter token."
+      },
+      "selection": {
+        "role": "neutral",
+        "displayName": "Selection",
+        "canonical": "rgb(243 198 35 / 0.32)",
+        "light": "rgb(243 198 35 / 0.55)",
+        "cssVar": "--selection",
+        "note": "Text selection. Sidecar only; not a frontmatter token."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The coat headline only. 4.75rem under 1180px; clamp(3rem, 15vw, 4.5rem) under 960px. The closing coat uses 4.5rem / 0.95."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles; 4rem / 0.95 on product, order, visit and not found; 2.125rem (2.75rem for the large ones) under 960px."
+      },
+      "section": {
+        "displayName": "Section",
+        "purpose": "Home section titles; 2rem under 960px."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card names, legends, panel headings, totals (700 to 800)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text; ledes 1.0625 to 1.1875rem at 30rem to 64ch."
+      },
+      "small": {
+        "displayName": "Small",
+        "purpose": "Facts lines, notes, footer, crumbs."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase, only for the roast scale ends."
+      },
+      "figures": {
+        "displayName": "Figures",
+        "purpose": "Prices, totals, quantities: tabular numerals, never wrapped."
+      }
+    },
+    "shadows": [
+      {
+        "name": "coat-hang",
+        "value": "0 18px 40px -24px rgb(0 0 0 / 0.7)",
+        "light": "0 18px 36px -26px rgb(26 35 44 / 0.45)",
+        "cssVar": "--shadow",
+        "purpose": "The hero coat only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "160ms ease-out",
+        "purpose": "Colour, background and border changes on buttons, links, fields, chips."
+      },
+      {
+        "name": "card-border",
+        "value": "200ms ease-out",
+        "purpose": "Card border on hover."
+      },
+      {
+        "name": "ease-arrive",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Things arriving: the bag count bump (420ms) and the roast fill."
+      },
+      {
+        "name": "roast-fill",
+        "value": "900ms cubic-bezier(0.16, 1, 0.3, 1), 90ms stagger per step",
+        "purpose": "Roast steps scale up from the bottom when the scale enters view."
+      },
+      {
+        "name": "shimmer",
+        "value": "1.6s linear infinite",
+        "purpose": "Skeleton loading."
+      },
+      {
+        "name": "rain",
+        "value": "canvas, at most 140 drops, 3 alpha layers, slant 0.2, 520 to 820 px/s",
+        "purpose": "Home first viewport only; stops off-screen and when hidden; one still frame under reduced motion."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "durations 0.01ms",
+        "purpose": "prefers-reduced-motion: reduce collapses every animation and transition."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stage",
+        "value": "1180px"
+      },
+      {
+        "name": "mobile",
+        "value": "960px"
+      }
+    ],
+    "container": {
+      "maxWidth": "1328px",
+      "gutter": "56px",
+      "gutterMobile": "20px"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Every primary action and Add on slate: the oilskin field with oil ink.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Add to bag</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 11px 20px; border: 1px solid transparent; border-radius: 0; font-family: var(--font-sans); font-weight: 700; font-size: 0.9375rem; line-height: 1.2; cursor: pointer; transition: background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out; } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-btn-primary { background: var(--oilskin); color: var(--on-oilskin); border-color: var(--oilskin-edge); } .ds-btn-primary:hover { background: var(--oilskin-hover); } .ds-btn-primary:disabled { background: var(--scale-off); color: var(--muted); border-color: var(--scale-off); cursor: not-allowed; }"
+    },
+    {
+      "name": "Ink Buttons",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "The actions inside a coat: ink (oil ink with yellow text) and ink line.",
+      "html": "<div class=\"ds-coat-mini\"><button class=\"ds-btn ds-btn-ink\">See the whole shop</button><button class=\"ds-btn ds-btn-ink-line\">Look in your bag</button></div>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 11px 20px; border: 1px solid transparent; border-radius: 0; font-family: var(--font-sans); font-weight: 700; font-size: 0.9375rem; line-height: 1.2; cursor: pointer; transition: background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out; } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-coat-mini { display: flex; gap: 14px; padding: 24px; background: var(--oilskin); border: 1px solid var(--oilskin-edge); } .ds-btn-ink { background: var(--on-oilskin); color: var(--oilskin); border-color: var(--on-oilskin); } .ds-btn-ink-line { background: transparent; color: var(--on-oilskin); border-color: var(--on-oilskin); } .ds-btn-ink:focus-visible, .ds-btn-ink-line:focus-visible { outline-color: var(--on-oilskin); }"
+    },
+    {
+      "name": "Line Button",
+      "kind": "button",
+      "refersTo": "button-line",
+      "description": "A secondary action on slate; fills with oilskin on hover.",
+      "html": "<button class=\"ds-btn ds-btn-line\">About the counter</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 11px 20px; border: 1px solid transparent; border-radius: 0; font-family: var(--font-sans); font-weight: 700; font-size: 0.9375rem; line-height: 1.2; cursor: pointer; transition: background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out; } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-btn-line { background: transparent; color: var(--oilskin-text); border-color: var(--oilskin-text); } .ds-btn-line:hover { background: var(--oilskin); color: var(--on-oilskin); border-color: var(--oilskin-edge); }"
+    },
+    {
+      "name": "Quiet and Soon Buttons",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Quiet: a neutral switch (Show SEK). Soon: a dashed, disabled stand-in for an unpriced product.",
+      "html": "<button class=\"ds-btn ds-btn-small ds-btn-quiet\">Show SEK</button> <button class=\"ds-btn ds-btn-small ds-btn-soon\" disabled>Soon</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 11px 20px; border: 1px solid transparent; border-radius: 0; font-family: var(--font-sans); font-weight: 700; font-size: 0.9375rem; line-height: 1.2; cursor: pointer; transition: background-color 160ms ease-out, color 160ms ease-out, border-color 160ms ease-out; } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-btn-small { min-height: 38px; padding: 8px 14px; font-size: 0.875rem; } .ds-btn-quiet { background: transparent; color: var(--text); border-color: var(--rule-strong); } .ds-btn-quiet:hover { border-color: var(--text); } .ds-btn-soon { background: transparent; color: var(--muted); border: 1px dashed var(--muted); cursor: not-allowed; }"
+    },
+    {
+      "name": "Bag Chip",
+      "kind": "chip",
+      "refersTo": "bag-chip",
+      "description": "The bag in the header, always an oilskin chip with its count.",
+      "html": "<a class=\"ds-bag-chip\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><path d=\"M5 8h14l-1 12H6L5 8Zm4 0V6a3 3 0 0 1 6 0v2\"/></svg><span>Bag</span><span class=\"ds-bag-chip__count\">2</span></a>",
+      "css": ".ds-bag-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--oilskin); color: var(--on-oilskin); border: 1px solid var(--oilskin-edge); font-family: var(--font-sans); font-weight: 700; text-decoration: none; transition: background-color 160ms ease-out; } .ds-bag-chip:hover { background: var(--oilskin-hover); } .ds-bag-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; } .ds-bag-chip svg { width: 16px; height: 16px; } .ds-bag-chip__count { font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Product Card with Roast Scale",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The shelf's one container: name, facts, the seven-step roast scale filled in window amber, and the buy row.",
+      "html": "<article class=\"ds-card\"><h3 class=\"ds-card__name\">Dark espresso</h3><p class=\"ds-card__facts\">Brazil · natural · 1000 g</p><div class=\"ds-roast\"><div class=\"ds-roast__steps\"><i style=\"height:20%\"></i><i style=\"height:32%\"></i><i style=\"height:44%\"></i><i style=\"height:56%\"></i><i style=\"height:68%\"></i><i class=\"on\" style=\"height:84%\"></i><i class=\"on\" style=\"height:100%\"></i></div><div class=\"ds-roast__ends\"><span>Light</span><span>Dark</span></div></div><div class=\"ds-buy-row\"><span class=\"ds-price\">NOK 349.00</span><button class=\"ds-add\">Add</button></div></article>",
+      "css": ".ds-card { display: flex; flex-direction: column; max-width: 300px; padding: 22px; background: var(--surface); color: var(--text); border: 1px solid var(--rule); font-family: var(--font-sans); transition: border-color 200ms ease-out; } .ds-card:hover { border-color: var(--rule-strong); } .ds-card__name { margin: 0; font-size: 1.375rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; } .ds-card__facts { margin: 6px 0 0; color: var(--muted); font-size: 0.875rem; } .ds-roast { margin: 18px 0 2px; } .ds-roast__steps { display: grid; grid-template-columns: repeat(7, 1fr); align-items: end; gap: 3px; height: 34px; } .ds-roast__steps i { display: block; background: var(--scale-off); } .ds-roast__steps i.on { background: var(--window); } .ds-roast__ends { display: flex; justify-content: space-between; margin-top: 6px; color: var(--muted); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; } .ds-buy-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 16px; } .ds-price { font-size: 1.0625rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; } .ds-add { min-height: 38px; padding: 8px 14px; background: transparent; color: var(--oilskin-text); border: 1px solid var(--oilskin-text); border-radius: 0; font: inherit; font-size: 0.875rem; font-weight: 700; cursor: pointer; transition: background-color 160ms ease-out, color 160ms ease-out; } .ds-add:hover { background: var(--oilskin); color: var(--on-oilskin); border-color: var(--oilskin-edge); } .ds-add:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "field-input",
+      "description": "Checkout fields: square, on the ground, label above, hint below.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field__label\">E-mail</span><input class=\"ds-input\" type=\"email\" placeholder=\"you@example.invalid\"><span class=\"ds-field__hint\">The order link goes here.</span></label>",
+      "css": ".ds-field { display: grid; gap: 6px; max-width: 360px; font-family: var(--font-sans); color: var(--text); } .ds-field__label { font-size: 0.875rem; font-weight: 700; } .ds-input { width: 100%; min-height: 46px; padding: 10px 12px; background: var(--ground); color: var(--text); border: 1px solid var(--rule-strong); border-radius: 0; font: inherit; transition: border-color 160ms ease-out; } .ds-input:hover { border-color: var(--muted); } .ds-input:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; border-color: var(--focus); } .ds-input[aria-invalid=\"true\"] { border-color: var(--danger); } .ds-field__hint { color: var(--muted); font-size: 0.8125rem; }"
+    },
+    {
+      "name": "Header Navigation",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Wordmark, mist links, an oilskin-text underline on the current page.",
+      "html": "<header class=\"ds-header\"><a class=\"ds-wordmark\" href=\"#\">Sydvest</a><nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Beans</a><a href=\"#\">Gear</a><a href=\"#\">The counter</a></nav></header>",
+      "css": ".ds-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 24px; background: var(--ground); font-family: var(--font-sans); } .ds-wordmark { color: var(--text); font-size: 1.5rem; font-weight: 800; letter-spacing: 0.02em; text-decoration: none; } .ds-wordmark:hover { color: var(--oilskin-text); } .ds-nav { display: flex; gap: 30px; font-size: 0.9375rem; } .ds-nav a { color: var(--muted); text-decoration: none; padding: 6px 0; border-bottom: 1px solid transparent; transition: color 160ms ease-out; } .ds-nav a:hover { color: var(--text); } .ds-nav a[aria-current=\"page\"] { color: var(--text); border-bottom-color: var(--oilskin-text); } .ds-nav a:focus-visible, .ds-wordmark:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "Choice Option",
+      "kind": "chip",
+      "refersTo": "choice-option-selected",
+      "description": "Country choice at checkout: square ground tiles; the checked one becomes oilskin.",
+      "html": "<div class=\"ds-choices\"><label class=\"ds-choice\"><input type=\"radio\" name=\"c\" checked><b>Norway</b><span>NOK</span></label><label class=\"ds-choice\"><input type=\"radio\" name=\"c\"><b>Sweden</b><span>SEK</span></label></div>",
+      "css": ".ds-choices { display: grid; grid-template-columns: repeat(2, 160px); gap: 10px; font-family: var(--font-sans); color: var(--text); } .ds-choice { position: relative; display: grid; gap: 2px; padding: 14px 16px; background: var(--ground); border: 1px solid var(--rule-strong); cursor: pointer; transition: border-color 160ms ease-out; } .ds-choice:hover { border-color: var(--muted); } .ds-choice input { position: absolute; inset: 0; opacity: 0; cursor: pointer; } .ds-choice span { font-size: 0.875rem; color: var(--muted); } .ds-choice:has(input:checked) { background: var(--oilskin); color: var(--on-oilskin); border-color: var(--oilskin-edge); } .ds-choice:has(input:checked) span { color: var(--on-oilskin-muted); } .ds-choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 3px; }"
+    },
+    {
+      "name": "The Coat",
+      "kind": "custom",
+      "refersTo": "coat",
+      "description": "The oilskin panel with its one curved corner, the display headline and the ink action.",
+      "html": "<section class=\"ds-coat\"><h2 class=\"ds-coat__title\">Rain all week. Coffee all week.</h2><button class=\"ds-coat__add\">Add Morning roast</button></section>",
+      "css": ".ds-coat { max-width: 520px; padding: 48px 40px 40px; background: var(--oilskin); color: var(--on-oilskin); border: 1px solid var(--oilskin-edge); border-left: 0; border-top-right-radius: 220px 120px; box-shadow: var(--shadow); font-family: var(--font-sans); } .ds-coat__title { margin: 0 0 32px; font-size: 4rem; line-height: 0.9; font-weight: 800; letter-spacing: -0.035em; text-wrap: balance; } .ds-coat__add { min-height: 56px; padding: 16px 26px; background: var(--on-oilskin); color: var(--oilskin); border: 1px solid var(--on-oilskin); border-radius: 0; font: inherit; font-size: 1.0625rem; font-weight: 700; cursor: pointer; } .ds-coat__add:focus-visible { outline: 2px solid var(--on-oilskin); outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Oilskin Coat in the Rain",
+    "overview": "Sydvest is a Bergen roaster seen on a dark, wet evening. The ground is wet slate with a faint slanted rain streak; the brand is an oilskin-yellow coat, a flat material field that carries the headline and every primary action. Warmth comes from one other source only: window amber, the light of the counter seen from the street, used for what is \"inside and warm\" (the counter, its hours, the roast scale). Dark is the default whatever the system prefers; a considered light theme (\"overcast noon\") puts the same coat on fog grey with slate ink.\n\nThe system is square and plain. Everything is cut with 0 radius and 1px rules except the coat, which has one curved oilskin edge. One typeface, Schibsted Grotesk, does everything from a 96px heavy headline to tabular prices. Depth is tonal: slate steps up to raised slate, and the coat alone casts a soft shadow. Density is moderate: the home page is a sequence of distinct shapes (coat and shelf, gear split, lit window, four-column money rows, closing coat); the working pages (shop, product, bag, checkout, pay, order, the counter) are quiet two-column layouts with a surface side panel.\n\nThe build refuses the roaster default of kraft paper, stamps and cream, and it ships no photography: products are named, described in facts, and shown by their roast scale.",
+    "keyCharacteristics": [
+      "Oilskin yellow as a material field, never a tint: flat, edged, with oil-ink text on it.",
+      "Window amber only for the counter, hours and roast fill; never on an action.",
+      "Square everywhere; one curved coat edge per coat.",
+      "One grotesk, heavy and tight at display sizes, tabular in figures.",
+      "Tonal slate layering with 1px rules; the coat is the only lifted thing.",
+      "Rain is ambient: a fixed slanted streak on the ground and a quiet canvas behind the home page's first viewport."
+    ],
+    "rules": [
+      {
+        "name": "The Coat Rule",
+        "body": "Oilskin fields and actions are opaque yellow, never a wash or a gradient; the one translucent oilskin is the text-selection highlight. On it, text is oil ink (`on-oilskin`); in the light theme every oilskin field carries a 1px ink edge (`oilskin-edge`).",
+        "section": "colors"
+      },
+      {
+        "name": "The Window Rule",
+        "body": "Amber means \"inside, warm\": the counter, its hours, the roast. No button, link, selection or price is amber.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Themes Rule",
+        "body": "Every colour is a token with a dark and a light value; no colour is written for one theme only. Dark is the default regardless of the system preference.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tight Heavy Rule",
+        "body": "Display, headline and section titles are 800 with negative tracking (-0.015em base, -0.03em to -0.035em at headline and display) and `text-wrap: balance`. Body never goes below 400 or above 1.1875rem.",
+        "section": "typography"
+      },
+      {
+        "name": "The Honest Figures Rule",
+        "body": "Prices, totals, quantities and outputs use tabular numerals, never break across lines, and are set at 700 or 800.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Hung Coat Rule",
+        "body": "Only the hero coat casts a shadow. Cards, panels and buttons stay flat; depth elsewhere is tone and rule.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do put every primary action and every selection on oilskin yellow, with oil-ink text and the `oilskin-edge` border.",
+      "Do use the ink button for the action inside a coat, and the ink-line button for its second action.",
+      "Do keep amber to the counter, its hours and the roast scale fill.",
+      "Do set every colour through a token that has both a dark and a light value; keep dark the default.",
+      "Do keep corners square; give a coat one curved corner (220px by 120px) and sit it flush on a page edge.",
+      "Do show prices in tabular figures at 700 or more, with their currency, and never wrapped.",
+      "Do mark a fact the shop has not settled (address, shipping) as italic muted text rather than inventing it.",
+      "Do honour `prefers-reduced-motion`: the rain stills and all transitions collapse."
+    ],
+    "donts": [
+      "Don't put amber on a button, link, price or selection.",
+      "Don't round a button, card, input or panel.",
+      "Don't add a second typeface.",
+      "Don't cast shadows from cards, panels or buttons; the hero coat is the only hung thing.",
+      "Don't use kraft paper, stamps, cream paper or stock photos of coffee bags.",
+      "Don't fade or gradient an oilskin field or action; translucent oilskin is for text selection only."
+    ]
+  }
+}
