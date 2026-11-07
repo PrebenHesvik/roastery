@@ -13,6 +13,7 @@ from typing import Any, Final, Literal
 
 from roastery.api import JSON, STATUS, Handler, Request, RequestValidationError, Response
 from roastery.clock import ZONES, local_date
+from roastery.errors import IllegalTransition
 from roastery.ids import PaymentId
 from roastery.order import PaymentMessage
 from roastery.ports import Clock, Ids, ProviderRefused, ProviderUnavailable
@@ -43,6 +44,10 @@ def payments_handler(state: State, ids: Ids, clock: Clock) -> Handler[Deps]:
             raise RequestValidationError('the body needs a token and an outcome')
         order_id = state.order_of(token)
         shown = deps.storefront.order(order_id)
+        if shown.status != 'placed':
+            # Refused before the provider sees it, so the fake provider never
+            # holds a payment the shop turned down, and no PAY-n is spent.
+            raise IllegalTransition(order_id, shown.status, 'pay')
         if outcome == 'decline':
             raise ProviderRefused('the sandbox declined the payment')
         if outcome == 'outage':

@@ -10,7 +10,7 @@ has been through real refactoring (F7).
 
 1. Read **Status** below: the first step that is not ticked is the current one.
 2. Read `CLAUDE.md` at the repository root: the rules, the freezes, how agents are briefed.
-3. The decisions (F1–F9 and each ADR) are made. A change is a new numbered row, with its reason.
+3. The decisions (F1–F10 and each ADR) are made. A change is a new numbered row, with its reason.
 4. Contract B does not move in this phase: `packages/shop/tests/contract_b.txt` and
    `packages/sim/tests/tiny.sha256` stay byte-identical, so there is no new data version.
 5. Before the context runs low, write where you stand into Status and Notes.
@@ -23,7 +23,7 @@ has been through real refactoring (F7).
 |---|---|
 | 7.0 decisions and design direction | [x] ADRs 0016–0019 accepted 2026-11-07; Sydvest chosen |
 | 7.1 the shop's HTTP edge (`packages/shop`) | [x] `28d8a40`, `9b5d951`; closed 2026-11-07, 899 passed, contract B and tiny unchanged |
-| 7.2 `packages/api`: FastAPI on sqlite | [ ] |
+| 7.2 `packages/api`: FastAPI on sqlite | [x] `06e61d7` and this commit; closed 2026-11-07, 938 passed; the real server serves the seeded shop |
 | 7.3 the contract to TypeScript | [ ] |
 | 7.4 the storefront shell (`apps/storefront`) | [ ] |
 | 7.5 the shop flow | [ ] |
@@ -38,6 +38,13 @@ Notes:
   - Handlers are `(request, deps) -> {status, content_type, body}`; `Deps` holds `customers`, `checkout`, `storefront`. `checkout_handler` reads the guest's number from `request['guest']`, which the API draws from its counter; the shop never sees the real name, e-mail or street (F1). The idempotency digest hashes the body only, so a retry's new guest number is not a new body.
   - A failure after `register` raises `Orphaned(customer_id)` from its cause; `problem()` renders the cause's status, and the API logs the orphan (F2). `PriceChanged` (409), `RequestValidationError` (400) and `Forbidden` (403) are plain exceptions in `STATUS`, not `ShopError`s, so contract B holds.
 
+- 2026-11-07 (7.2): `packages/api` (`roastery_api`) is built, with `roastery_sim.seed` (on the private `_setup`, `_do`, `_State`; tiny unchanged). What 7.3 to 7.6 build on, and what differs from the plan:
+  - Run it as `uv run python -m roastery_api seed`, then `uv run python -m uvicorn roastery_api.app:app`. The settings are `ROASTERY_DATABASE_URL` (the shop), `SHOP_API_STATE_URL` (the API's state db) and `SHOP_API_CORS_ORIGINS` (ADR 0016's name; the plan said `SHOP_API_ORIGINS`). An unknown `SHOP_API_*` name is refused; the provider's settings get placeholders when unset (F9). `app` is the one module-level object (F10).
+  - Endpoints: `GET /products?country=` (200, 400), `GET /products/{id}?country=` (200, 404 `UnknownId`), `POST /quote` (200, 422), `POST /checkout` (201 with the token; 409 `PriceChanged`, `OutOfStock` or `KeyReused`; 422; 400 with no `Idempotency-Key`), `POST /sandbox/payments` (201, 402, 503, 409 `IllegalTransition`, 404), `GET /orders/{token}` (200, 404 `UnknownToken`). Every error is problem+json. FastAPI's default 422 is removed from the OpenAPI document. The checkout reply leaves out `customer_id`.
+  - The VAT wording goes out as codes (`incl_vat`, `import_vat_estimate`, `vat_excise_and_fees`); the words live in the storefront's `en.json` (ADR 0018). No import-VAT estimate is shown when any line's rate is unknown.
+  - **A declined payment is stored under its key**, so the storefront takes a new `Idempotency-Key` for each pay attempt (7.5).
+  - The lead's change before closing: the sandbox refuses an order that is not `placed` (409 `IllegalTransition`) before the provider sees it, so the fake provider never holds a payment the shop refused and no `PAY-n` is spent. `PAY-n` and guest numbers are unpadded.
+  - `uv run uvicorn` fails on Windows ("Access denied" on the new `uvicorn.exe`); `python -m uvicorn` works. The TestClient warns that Starlette wants `httpx2`; watch it in CI.
 ---
 
 ## 0. Context
@@ -85,6 +92,7 @@ The outcome:
 | F7 | The storefront is phase 7. Design Patterns, the live shop, DevOps and the medallion pipeline are renumbered when each is planned | the owner, 2026-11-07: pages should teach a server changed under pressure, not the first build |
 | F8 | The API reads the wall clock once per request (`RequestClock`), and a quote builds a throwaway draft order so `vat.scheme_for` prices it (ADR 0016, 0017) | the re-quote and `place` price on the same day; VAT has one home for phase 8's IOSS |
 | F9 | The fake provider's required settings take placeholder values (ADR 0016) | nothing reads them until real payments |
+| F10 | `roastery_api.app:app` is the package's one module-level object, for uvicorn's import string; it reads no setting on import, only when the server starts | uvicorn needs the object; the rule "no module state" holds for everything else |
 
 ## 3. The steps
 
@@ -135,7 +143,7 @@ Its parts:
   - `GET /products`, `GET /products/{id}`;
   - `POST /quote`;
   - `POST /checkout`, with `Idempotency-Key`; it re-quotes and answers 409 `PriceChanged`;
-  - `POST /sandbox/payments`: approve, decline (402) or outage (503);
+  - `POST /sandbox/payments`: approve, decline (402) or outage (503); each pay attempt takes a new `Idempotency-Key`, since a declined reply is stored under its key;
   - `GET /orders/{token}`.
 
   Errors are problem+json.
@@ -161,7 +169,7 @@ it into `src/api/schema.d.ts`, and `openapi-fetch` is the client. CI fails on dr
 ### 7.5 The shop flow
 
 - **Routes:** `/`, `/shop`, `/shop/:id`, `/cart`, `/checkout`, `/pay/:token` (a labelled test
-  payment), `/orders/:token`, `/visit` (the Bergen counter).
+  payment; a new idempotency key per pay attempt), `/orders/:token`, `/visit` (the Bergen counter).
 - **States:** loading, empty cart, out of stock, coming soon, decline, outage with retry, unknown
   token.
 - **Tests:** a Playwright smoke against the real API on a fresh seeded db, approve and decline;
@@ -179,6 +187,6 @@ it into `src/api/schema.d.ts`, and `openapi-fetch` is the client. CI fails on dr
 
 - `uv run python -m pytest`, `uv run ruff check`, `uv run ruff format --check`. `contract_b.txt` and
   `tiny.sha256` are unchanged.
-- `uv run python -m roastery_api seed`, then `uv run uvicorn roastery_api.app:app`, then
+- `uv run python -m roastery_api seed`, then `uv run python -m uvicorn roastery_api.app:app` (Windows refuses the new `uvicorn.exe`; the module form works everywhere), then
   `npm run dev` in `apps/storefront`. Walk the shop in both themes, in NO, SE and DK.
 - `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npx playwright test`.
