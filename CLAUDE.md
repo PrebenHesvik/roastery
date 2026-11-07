@@ -7,8 +7,8 @@ and the commands; `docs/phase-6/plan.md` is the plan.
 ## Start here
 
 1. Read **Status** at the top of `docs/phase-6/plan.md`; the first unticked step is current.
-2. Read that step's plan file (none yet for 6.6; 6.5's is `docs/phase-6/6.5-volume.md`) and work from its first
-   unticked unit.
+2. Read that step's plan file and work from its first unticked unit. Phase 6 is done (6.6's plan is in data-docs,
+   `docs/proposal-roastery/phase-6.md`); `docs/phase-6/plan.md` says what is next.
 3. The record lives in files, not in a session:
    - a step's box is ticked, with its commit hash, in the commit that finishes the step;
    - what turned out different goes in the Notes, dated, with the step or unit;

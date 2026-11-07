@@ -8,7 +8,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 ## Start here
 
 1. Read **Status** below: the first step that is not ticked is the current one.
-2. Read that step's own plan, linked from its row (6.6 has no plan file yet: write it first, in data-docs as plan §6.6 says; plan.md's 6.5 Note lists what it inherits), and work from its first unticked unit.
+2. Read that step's own plan, linked from its row, and work from its first unticked unit. Every step of phase 6 is ticked: see **What is next** below Status.
 3. Read `CLAUDE.md` at the repository root: the rules, the freezes, and how agents are briefed.
 4. The decisions (D1–D15 and each step's own) are made. Do not reopen them; a change is a new numbered row, with its reason.
 5. The data-docs side of the phase lives in that repository's `docs/proposal-roastery/phase-6.md`; steps 6.1 to 6.5 never touch data-docs.
@@ -26,7 +26,13 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 | 6.3 app core and service layer | [x] [6.3-app.md](6.3-app.md); closed 2026-11-04 |
 | 6.4 the teaching week through the simulator (contract B frozen) | [x] [6.4-week.md](6.4-week.md); closed 2026-11-05; the gate holds; security review closed (W42); tagged `shop-0.1.0` (`498d909`) |
 | 6.5 the volume, `roastery-data 1.0` | [x] [6.5-volume.md](6.5-volume.md); closed 2026-11-05; released `roastery-data-1.0.0` and `shop-0.1.1` on `57f1064` |
-| 6.6 data-docs reads the release | [ ] |
+| 6.6 data-docs reads the release | [x] data-docs' `docs/proposal-roastery/phase-6.md`; merged `e20e792`, released as data-docs v0.13.0 on 2026-11-05 |
+
+**What is next.** Phase 6 is done (2026-11-05). In order of need:
+
+1. In this repository, two follow-ups from 6.6 (Notes, 6.6): contract A's `daily_sales` and `subscribers` grains take data-docs' new sentences, and `PROVENANCE.toml` stops naming `tier3.sql`; whether the contract test's frozen baseline must move with them is decided there.
+2. Phase 7 in data-docs: Design Patterns on how the app was built (contract C, a pinned `shop` release), and Python converts. Planned with the owner first.
+3. The plans of §8, each planned separately: the medallion pipeline on `month` (it takes the 6.5 landing items), the live shop, DevOps (phase 8), the storefront (phase 9).
 
 Notes:
 
@@ -60,6 +66,7 @@ Notes:
 
 - 2026-11-05 (6.4): the simulator plays the teaching week and C-01's year through contract B, and the gate holds: `python -m roastery_sim tiny` gives a tiny equal to `dataset.sql` cell for cell in all 30 tables, on both stores, and the spec's ported claims pass on it (449, with 46 awaiting 1.0's tables); CI runs both, and tiny's sha256 is committed. Decisions W1 to W41 in [6.4-week.md](6.4-week.md). Contract B changed three times, each a row and a snapshot commit: `Jobs.app_tables()` and `Rows`, every app-database table of contract A with `source` last (W2); `Url`, `Secret`, `Positive` (W38); the fields of its value types and the members of its literals (W41). The constructors stay as built (A39, W25). What 6.5 inherits: `month` and `full` are written from `Rows` straight to parquet and played on sqlite (W37, C32); a credit is refunded only from a sale paid in the lines' currency, so order 300 is a Norwegian consumer's NOK sale (W16); weather, the door counter, the old till's totals, `budget` and `web_visits` are 6.5's writers (W17, the owner); the bag job and the pre-week stock that follows from it (W9); the landing csv's quoting and its reader's NULL rule (W39); a malformed amount is refused at the call (W34). The plan's §4.2 named O-106 among the plants; the app's own cancel makes it (W19). Two independent reviews found 20 points between them, none in a tiny cell; all are fixed or rows. Pushed on the owner's word on 2026-11-05; the security review on `packages/shop` closed two lows before the tag (W42), and `shop-0.1.0` tags `498d909`.
 - 2026-11-05 (6.5): the volume is built and checked; plan, decisions V1 to V26 and Notes in [6.5-volume.md](6.5-volume.md); the release notes are `docs/data-changelog.md`'s 1.0.0 section. What 6.6 inherits: the release `roastery-data-1.0.0` (three zips; their sha256 in the changelog) and `shop-0.1.1`; `tier3_release.sql` reads the release's parquet; besides the grain rewrites D7 and D8 plan, two of tiny's grains stay word for word (`customer_extracts` "two nightly copies", `till_receipts` "of a listed member") while month runs an extract every night and rings anonymous walk-ins, so the pages' wording changes, not the grains; `model.sql`'s `loads` lacks rows for `raw_customers` (merge on `customer_id`), `till_lines` and the three series, whose strategies the landing's `loads.json` sets; the csv landings need `allow_quoted_nulls = false`; API-page landings come after 1.0.
+- 2026-11-05 (6.6): data-docs reads the release. Its plan, decisions and notes are in that repository's `docs/proposal-roastery/phase-6.md`; merged there as `e20e792` and released as data-docs v0.13.0. `roastery_data/release.py` downloads `roastery-data-1.0.0` once into a gitignored cache, checked against the pinned sha256 and the manifest; `tier3_release.sql` reads the eight tier 3 tables from `full`; `tier3.sql` is deleted. The release equals the old formulas in types, rows and order, and `npm run export` changed only the two grains of D7 and D8. 17 pages were reworded where they told a cut as the business. Left for this repository: contract A's grains of `daily_sales` and `subscribers` should take the new sentences ("…, of the web shop's consumer sales." and "One subscription (240) of the other subscribers, outside the teaching week's cast, …"), and `PROVENANCE.toml` names `data_docs_export/roastery_data/tier3.sql`, which is gone. The 6.5 items for the landings (`loads` rows, `allow_quoted_nulls`, API landings) go to the medallion pipeline (§8), unbuilt. Phase 6 is done.
 
 ---
 
