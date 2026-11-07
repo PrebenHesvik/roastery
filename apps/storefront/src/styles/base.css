@@ -398,6 +398,20 @@ output {
   border-color: var(--oilskin-edge);
 }
 
+.btn--ink-line {
+  background: transparent;
+  color: var(--on-oilskin);
+  border-color: var(--on-oilskin);
+}
+
+.btn--ink-line:hover {
+  background: rgb(27 22 8 / 0.08);
+}
+
+.btn--ink-line:focus-visible {
+  outline-color: var(--on-oilskin);
+}
+
 .btn--quiet {
   background: transparent;
   color: var(--text);
@@ -454,14 +468,6 @@ output {
   font-size: 1.0625rem;
 }
 
-.section-label {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 .crumbs {
   display: flex;
   gap: 8px;
@@ -476,6 +482,12 @@ output {
 
 .crumbs a:hover {
   color: var(--text);
+}
+
+/* A fact the shop has not settled yet, marked as such. */
+.unset {
+  color: var(--muted);
+  font-style: italic;
 }
 
 /* Designed states */

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useProducts, type Listed } from '../api/queries';
 import { AddButton } from '../components/AddButton';
+import { Icon } from '../components/Icon';
 import { Price } from '../components/Price';
 import { ProductCard } from '../components/ProductCard';
 import { RainCanvas } from '../components/RainCanvas';
@@ -87,7 +88,10 @@ function MoneyWhereYouAre() {
               </div>
               <p>{t(MONEY_ROWS[country])}</p>
               {here ? (
-                <span className="money__here">{t('home.money.here')}</span>
+                <span className="money__here">
+                  <Icon name="check" />
+                  {t('home.money.here')}
+                </span>
               ) : (
                 <button
                   type="button"
@@ -146,7 +150,7 @@ export default function Home() {
           </div>
         </div>
         <div className="street">
-          <h2 className="section-label">{t('home.shelf')}</h2>
+          <h2 className="street__title">{t('home.shelf')}</h2>
           {products.isError ? (
             <ErrorState
               error={products.error}
@@ -190,43 +194,53 @@ export default function Home() {
 
       <section className="window wrap" aria-labelledby="window-title">
         <div className="window__pane">
-          <h2 id="window-title" className="window__title">
-            {t('home.window.title')}
-          </h2>
-          <p className="window__lede">{t('home.window.lede')}</p>
-          <dl className="window__facts">
-            <div>
-              <dt>{t('home.window.hours_label')}</dt>
-              <dd>{t('home.window.hours')}</dd>
-            </div>
-            <div>
-              <dt>{t('home.window.loose_label')}</dt>
-              <dd>{t('home.window.loose')}</dd>
-            </div>
-            <div>
-              <dt>{t('home.window.club_label')}</dt>
-              <dd>{t('home.window.club')}</dd>
-            </div>
-          </dl>
-          <Link className="btn btn--line" to="/visit">
-            {t('home.window.more')}
-          </Link>
+          <div className="window__text">
+            <h2 id="window-title" className="window__title">
+              {t('home.window.title')}
+            </h2>
+            <p className="window__lede">{t('home.window.lede')}</p>
+            <Link className="btn btn--line" to="/visit">
+              {t('home.window.more')}
+            </Link>
+          </div>
+          <div className="window__light">
+            <dl className="window__facts">
+              <div>
+                <dt>{t('home.window.hours_label')}</dt>
+                <dd>{t('home.window.hours')}</dd>
+              </div>
+              <div>
+                <dt>{t('home.window.loose_label')}</dt>
+                <dd>{t('home.window.loose')}</dd>
+              </div>
+              <div>
+                <dt>{t('home.window.club_label')}</dt>
+                <dd>{t('home.window.club')}</dd>
+              </div>
+              <div>
+                <dt>{t('home.window.where_label')}</dt>
+                <dd className="unset">{t('address.unset')}</dd>
+              </div>
+            </dl>
+          </div>
         </div>
       </section>
 
       <MoneyWhereYouAre />
 
-      <section className="close wrap" aria-labelledby="close-title">
-        <h2 id="close-title" className="close__title">
-          <span>{t('home.close.rain')}</span> <span>{t('home.close.coffee')}</span>
-        </h2>
-        <div className="close__actions">
-          <Link className="btn btn--primary" to="/shop">
-            {t('home.close.shop')}
-          </Link>
-          <Link className="btn btn--quiet" to="/cart">
-            {t('home.close.bag')}
-          </Link>
+      <section className="close" aria-labelledby="close-title">
+        <div className="close__coat">
+          <h2 id="close-title" className="close__title">
+            <span>{t('home.close.rain')}</span> <span>{t('home.close.coffee')}</span>
+          </h2>
+          <div className="close__actions">
+            <Link className="btn btn--ink" to="/shop">
+              {t('home.close.shop')}
+            </Link>
+            <Link className="btn btn--ink-line" to="/cart">
+              {t('home.close.bag')}
+            </Link>
+          </div>
         </div>
       </section>
     </div>

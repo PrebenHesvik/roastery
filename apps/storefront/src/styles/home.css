@@ -99,6 +99,13 @@
   padding: 56px 56px 36px 64px;
 }
 
+.street__title {
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
 .street__cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -325,24 +332,22 @@
   margin-top: 128px;
 }
 
+/* The counter as a lit window: text on the wet side, the facts in the warm light. */
 .window__pane {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  grid-template-areas:
-    'title facts'
-    'lede facts'
-    'more facts';
-  align-items: start;
-  gap: 18px 72px;
-  padding: 64px 56px;
-  background:
-    radial-gradient(ellipse 70% 90% at 100% 100%, var(--window-glow), transparent 70%),
-    var(--surface);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   border: 1px solid var(--rule);
+  background: linear-gradient(100deg, transparent 35%, var(--window-spill) 100%), var(--surface);
+}
+
+.window__text {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 64px 56px;
 }
 
 .window__title {
-  grid-area: title;
   font-size: 3rem;
   line-height: 1;
   font-weight: 800;
@@ -350,83 +355,95 @@
 }
 
 .window__lede {
-  grid-area: lede;
   max-width: 44ch;
   color: var(--muted);
   font-size: 1.125rem;
 }
 
-.window__pane > .btn {
-  grid-area: more;
+.window__text > .btn {
   justify-self: start;
   margin-top: 12px;
 }
 
-.window__facts {
-  grid-area: facts;
-  display: grid;
-  gap: 0;
+.window__light {
+  padding: 48px 48px 40px;
+  background:
+    linear-gradient(100deg, transparent 0 58%, rgb(255 244 214 / 0.32) 58% 70%, transparent 70%),
+    var(--window-field);
+  color: var(--on-window);
 }
 
 .window__facts > div {
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 110px 1fr;
   gap: 16px;
-  padding: 18px 0;
-  border-top: 1px solid var(--rule);
+  padding: 16px 0;
+  border-top: 1px solid rgb(27 22 8 / 0.22);
 }
 
 .window__facts > div:last-child {
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid rgb(27 22 8 / 0.22);
 }
 
 .window__facts dt {
-  color: var(--window);
-  font-size: 0.8125rem;
+  color: var(--on-window-muted);
+  font-size: 0.875rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 .window__facts dd {
   font-size: 1.0625rem;
 }
 
+.window__facts .unset {
+  color: var(--on-window-muted);
+}
+
+/* Money: the four countries side by side, a different shape from the splits above. */
 .money {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 56px;
   margin-top: 128px;
+}
+
+.money__intro {
+  max-width: 64ch;
 }
 
 .money__intro p {
   margin-top: 16px;
-  max-width: 42ch;
   color: var(--muted);
 }
 
-.money__row {
+.money__rows {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 150px;
-  align-items: center;
-  gap: 24px;
-  padding: 20px 0;
-  border-top: 1px solid var(--rule);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 28px;
+  margin-top: 40px;
 }
 
-.money__row:last-child {
-  border-bottom: 1px solid var(--rule);
+.money__row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule-strong);
+}
+
+.money__row[data-here='true'] {
+  border-top: 3px solid var(--text);
+  padding-top: 16px;
 }
 
 .money__where {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .money__country {
-  font-weight: 700;
-  font-size: 1.0625rem;
+  font-weight: 800;
+  font-size: 1.25rem;
 }
 
 .money__currency {
@@ -435,6 +452,7 @@
 }
 
 .money__row p {
+  flex: 1;
   color: var(--muted);
   font-size: 0.9375rem;
 }
@@ -445,24 +463,37 @@
 
 .money__row .btn,
 .money__here {
-  justify-self: end;
+  align-self: start;
 }
 
 .money__here {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   min-height: 38px;
-  padding: 8px 14px;
-  background: var(--oilskin);
-  color: var(--on-oilskin);
-  border: 1px solid var(--oilskin-edge);
+  color: var(--text);
   font-size: 0.875rem;
   font-weight: 700;
 }
 
+.money__here svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The close: back into the coat, flush to the right edge, curved where the hero's is not. */
 .close {
   margin-top: 144px;
-  text-align: left;
+  padding-left: max(56px, calc((100% - 1328px) / 2 + 56px));
+}
+
+.close__coat {
+  padding: 96px 56px 80px 72px;
+  background: var(--oilskin);
+  color: var(--on-oilskin);
+  border: 1px solid var(--oilskin-edge);
+  border-right: 0;
+  border-top-left-radius: 220px 120px;
 }
 
 .close__title {
@@ -476,15 +507,11 @@
   display: block;
 }
 
-.close__title > span + span {
-  color: var(--oilskin-text);
-}
-
 .close__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  margin-top: 36px;
+  margin-top: 40px;
 }
 
 @media (max-width: 1180px) {
@@ -542,9 +569,12 @@
 
   .gear,
   .money {
+    margin-top: 88px;
+  }
+
+  .gear {
     grid-template-columns: minmax(0, 1fr);
     gap: 28px;
-    margin-top: 88px;
   }
 
   .gear__cards {
@@ -557,8 +587,14 @@
 
   .window__pane {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'title' 'lede' 'facts' 'more';
-    padding: 36px 20px;
+  }
+
+  .window__text {
+    padding: 36px 20px 28px;
+  }
+
+  .window__light {
+    padding: 28px 20px;
   }
 
   .window__title,
@@ -571,27 +607,19 @@
     gap: 4px;
   }
 
-  .money__row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: 'where action' 'text text';
-    gap: 10px 16px;
-  }
-
-  .money__where {
-    grid-area: where;
-  }
-
-  .money__row p {
-    grid-area: text;
-  }
-
-  .money__row .btn,
-  .money__here {
-    grid-area: action;
+  .money__rows {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
   }
 
   .close {
     margin-top: 96px;
+    padding-left: 20px;
+  }
+
+  .close__coat {
+    padding: 56px 20px 40px 28px;
+    border-top-left-radius: 120px 72px;
   }
 
   .close__title {

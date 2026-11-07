@@ -90,6 +90,17 @@ test('screenshots for review', async ({ page }) => {
 
   await page.setViewportSize({ width: 390, height: 844 });
   await capture(page, '/', 'mobile', 'dark');
+
+  // The roast scale fills when a bean card scrolls into view: motion on, after the fill.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/');
+  const scale = page.locator('.street .roast').first();
+  await expect(scale).toHaveAttribute('data-shown', 'false');
+  await scale.scrollIntoViewIfNeeded();
+  await expect(scale).toHaveAttribute('data-shown', 'true');
+  await page.waitForTimeout(1600);
+  await page.screenshot({ path: `${REVIEW}scale.png` });
+
   await capture(page, '/', 'mobile-light', 'light');
 
   // The checkout, with a Swedish bag: the foreign VAT wording and the NOK charge.

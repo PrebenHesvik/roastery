@@ -23,3 +23,44 @@ jobs:
       - run: uv run python -m roastery_sim volume --out build/volume
       - run: uv run python -m pytest packages/spec --full build/volume/full/data --month build/volume/month/data --tiny build/tiny/data
       - run: uv run python -m roastery_sim release --out build/release
+
+  storefront:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/storefront
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/storefront/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/storefront/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm run gen:check
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [storefront]
+    env:
+      PYTHONTZPATH: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/storefront/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/storefront/package-lock.json
+      - run: npm ci
+        working-directory: apps/storefront
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/storefront
+      - run: npm run e2e
+        working-directory: apps/storefront

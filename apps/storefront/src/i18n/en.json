@@ -89,6 +89,8 @@
   "home.window.club_label": "The club",
   "home.window.club": "The counter keeps a club of its own. Ask at the till.",
   "home.window.more": "About the counter",
+  "home.window.where_label": "Where",
+  "address.unset": "Street address: to come",
   "home.money.title": "What the price means where you are",
   "home.money.lede": "Every price comes from the shop, in your currency, with the VAT said plainly. Every order is charged in Norwegian kroner. You check out as a guest, and a private link follows your order.",
   "home.money.NO": "Prices in kroner, VAT included.",
@@ -158,6 +160,8 @@
   "cart.more": "Keep shopping",
 
   "totals.total": "Total",
+  "totals.shipping": "Shipping",
+  "totals.shipping_unset": "Not set yet",
   "totals.vat": "VAT",
   "totals.vat_included": "Of which VAT",
   "totals.charged": "Charged in NOK",

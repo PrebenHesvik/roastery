@@ -40,7 +40,7 @@ export default function Visit() {
           </section>
         </div>
         <aside className="hours" aria-labelledby="hours-title">
-          <h2 id="hours-title" className="hours__title">
+          <h2 id="hours-title" className="hours__heading">
             {t('visit.hours')}
           </h2>
           <ul className="hours__days">
@@ -51,6 +51,7 @@ export default function Visit() {
               </li>
             ))}
           </ul>
+          <p className="hours__where unset">{t('address.unset')}</p>
         </aside>
       </div>
     </div>

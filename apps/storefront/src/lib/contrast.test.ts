@@ -38,6 +38,8 @@ const BODY_PAIRS: [string, string][] = [
   ['danger', 'surface'],
   ['text', 'surface-raised'],
   ['muted', 'surface-raised'],
+  ['on-window', 'window-field'],
+  ['on-window-muted', 'window-field'],
 ];
 
 const THEMES = {

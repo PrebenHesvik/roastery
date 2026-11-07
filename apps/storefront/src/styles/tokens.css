@@ -19,6 +19,10 @@
   --oilskin-text: #f3c623;
   --window: #e8a04a;
   --window-glow: rgb(232 160 74 / 0.2);
+  --window-field: #e8a04a;
+  --window-spill: rgb(232 160 74 / 0.16);
+  --on-window: #1b1608;
+  --on-window-muted: #4a2f0c;
   --danger: #f2937f;
   --scale-off: #343c45;
   --streak: rgb(233 230 223 / 0.035);
@@ -49,6 +53,10 @@
   --oilskin-text: #6e5200;
   --window: #8a4a00;
   --window-glow: rgb(232 160 74 / 0.14);
+  --window-field: #f2b866;
+  --window-spill: rgb(232 160 74 / 0.22);
+  --on-window: #1b1608;
+  --on-window-muted: #4a2f0c;
   --danger: #9b2c17;
   --scale-off: #c9d0d6;
   --streak: rgb(26 35 44 / 0.04);

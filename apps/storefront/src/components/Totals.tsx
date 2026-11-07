@@ -45,6 +45,10 @@ export function Totals({ quote }: { quote: QuoteBody }) {
             </dd>
           </div>
         )}
+        <div className="totals__unset">
+          <dt>{t('totals.shipping')}</dt>
+          <dd className="unset">{t('totals.shipping_unset')}</dd>
+        </div>
         {abroad ? (
           <div>
             <dt>{t('totals.charged')}</dt>
