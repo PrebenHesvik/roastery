@@ -16,14 +16,8 @@ from roastery.architecture import (
 
 PACKAGE_DIR = Path(roastery.__file__).parent
 
-# Modules named in LAYERS and not built yet; ends as the four api
-# modules (C14).
-AWAITING = (
-    'api',
-    'cli',
-    'idempotency',
-    'middleware',
-)
+# Modules named in LAYERS and not built yet.
+AWAITING = ('cli',)
 
 
 def test_imports_point_inward() -> None:
