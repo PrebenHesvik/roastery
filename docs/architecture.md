@@ -51,6 +51,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             'payments',
             'reports',
             'stock',
+            'storefront',
             'subscriptions',
         ),
         'api': ('api', 'cli', 'idempotency', 'middleware'),
@@ -127,6 +128,7 @@ imports the other. Only adapters and bootstrap see the vendor.
 | `payments` | service | `Payments`: a provider message handled once, invoice, settle | [0011](adr/0011-contract-b.md) |
 | `reports` | service | the read side: rows, never frames | [0002](adr/0002-no-dependencies.md) |
 | `stock` | service | `Stock`: the movements (roast, write-off) and the count at close | [0011](adr/0011-contract-b.md) |
+| `storefront` | service | `Storefront`: the products, a quote and an order, read for a buyer; not on `App` | [0017](adr/0017-storefront-read-side.md) |
 | `subscriptions` | service | `Subscriptions`: the commands run, with a reason each | [0011](adr/0011-contract-b.md) |
 | `api` | api | handlers: a request dict in, a response dict out; `ShopError` to statuses | [0013](adr/0013-wiring-and-the-api.md) |
 | `cli` | api | the nightly jobs as a command, for the CronJob | [0013](adr/0013-wiring-and-the-api.md) |

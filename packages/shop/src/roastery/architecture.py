@@ -59,6 +59,7 @@ LAYERS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
             'payments',
             'reports',
             'stock',
+            'storefront',
             'subscriptions',
         ),
         'api': ('api', 'cli', 'idempotency', 'middleware'),
