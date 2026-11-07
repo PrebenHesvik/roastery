@@ -86,6 +86,8 @@ test('screenshots for review', async ({ page }) => {
   await capture(page, '/', 'desktop', 'dark');
   await capture(page, '/', 'desktop-light', 'light');
   await capture(page, '/shop', 'shop', 'dark');
+  await capture(page, '/visit', 'visit', 'dark');
+  await expect(page.getByText('Street address: to come')).toBeVisible();
   if (paidOrder !== '') await capture(page, paidOrder, 'order', 'dark');
 
   await page.setViewportSize({ width: 390, height: 844 });
