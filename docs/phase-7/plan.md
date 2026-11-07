@@ -22,7 +22,7 @@ has been through real refactoring (F7).
 | step | state |
 |---|---|
 | 7.0 decisions and design direction | [x] ADRs 0016–0019 accepted 2026-11-07; Sydvest chosen |
-| 7.1 the shop's HTTP edge (`packages/shop`) | [ ] |
+| 7.1 the shop's HTTP edge (`packages/shop`) | [x] `28d8a40`, `9b5d951`; closed 2026-11-07, 899 passed, contract B and tiny unchanged |
 | 7.2 `packages/api`: FastAPI on sqlite | [ ] |
 | 7.3 the contract to TypeScript | [ ] |
 | 7.4 the storefront shell (`apps/storefront`) | [ ] |
@@ -32,6 +32,11 @@ has been through real refactoring (F7).
 Notes:
 
 - 2026-11-07 (7.0): `PRODUCT.md` is written. The direction round dealt the coastal-ferry timetable ("Departures from Bergen") as the roll and Sydvest as Claude's pick; the owner chose **Sydvest**, and named the shop **Sydvest Kaffebrenneri** (wordmark "Sydvest"). The direction contract is in `.impeccable/surfaces/apps-storefront-src-pages-home-tsx.md`, and the chosen first-viewport sketch is `.impeccable/mocks/decision/model-pick.html`. Code-led: no image generation here. ADRs 0016–0019 are written and accepted by the owner (F8, F9 added; F1 amended). They found the plan off in five places, each kept as an open point in its ADR: VAT is `VatRates.rate_on` and a module `vat_of`; `local_date` is in `clock.py`; `SequentialIds` counts in memory, so the state db keeps a counter; `fx.py` copies `script.FX`'s latest rates and a dev test pins them; ADR 0013's "built before phase 7" is stale.
+- 2026-11-07 (7.1): the shop's HTTP edge is built: `storefront.py`, `api.py`, `idempotency.py`, `middleware.py`; `AWAITING` keeps only `cli`. What 7.2 wires to, and where the code differs from ADRs 0016 and 0017:
+  - `Storefront(uow, clock, rules)`: each method opens the unit of work itself, so `live.py` takes the lock around the handler, not around a unit of work. `quote` does not raise `OutOfStock`: each line carries `on_hand`, and `Quoted.check_stock()` raises; `checkout_handler` calls it before `register` (F2). `rate` is `None` on an export day with no rate row. `GUEST`, `DRAFT` and `DRAFT_LINE` are text constants wrapped where used, because `test_teachable` refuses typed module state.
+  - `Storefront.product` raises `UnknownProduct` (422, ADR 0006); `product_handler` turns it into 404 `UnknownId`, as ADR 0016 wants for `GET /products/{id}`. An unknown id inside a POST body stays 422 `UnknownProduct`.
+  - Handlers are `(request, deps) -> {status, content_type, body}`; `Deps` holds `customers`, `checkout`, `storefront`. `checkout_handler` reads the guest's number from `request['guest']`, which the API draws from its counter; the shop never sees the real name, e-mail or street (F1). The idempotency digest hashes the body only, so a retry's new guest number is not a new body.
+  - A failure after `register` raises `Orphaned(customer_id)` from its cause; `problem()` renders the cause's status, and the API logs the orphan (F2). `PriceChanged` (409), `RequestValidationError` (400) and `Forbidden` (403) are plain exceptions in `STATUS`, not `ShopError`s, so contract B holds.
 
 ---
 
