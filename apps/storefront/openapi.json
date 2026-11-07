@@ -8,6 +8,7 @@
             "examples": [
               "129.00"
             ],
+            "maxLength": 32,
             "title": "Amount",
             "type": "string"
           },
@@ -15,6 +16,7 @@
             "examples": [
               "NOK"
             ],
+            "maxLength": 3,
             "title": "Currency",
             "type": "string"
           }
@@ -61,6 +63,8 @@
             "examples": [
               "P-10"
             ],
+            "maxLength": 32,
+            "minLength": 1,
             "title": "Product Id",
             "type": "string"
           },
@@ -68,6 +72,7 @@
             "examples": [
               2
             ],
+            "maximum": 999.0,
             "minimum": 1.0,
             "title": "Qty",
             "type": "integer"
@@ -109,6 +114,7 @@
             "items": {
               "$ref": "#/components/schemas/CartItem"
             },
+            "maxItems": 50,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -700,6 +706,7 @@
             "items": {
               "$ref": "#/components/schemas/CartItem"
             },
+            "maxItems": 50,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -822,6 +829,7 @@
             "type": "string"
           },
           "token": {
+            "maxLength": 128,
             "minLength": 1,
             "title": "Token",
             "type": "string"
@@ -973,6 +981,21 @@
               }
             },
             "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Content Too Large"
           },
           "422": {
             "content": {
@@ -1210,6 +1233,21 @@
             },
             "description": "Bad Request"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Content Too Large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1328,6 +1366,21 @@
               }
             },
             "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Content Too Large"
           },
           "503": {
             "content": {

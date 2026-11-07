@@ -19,6 +19,7 @@ PREFIX: Final = 'SHOP_API_'
 
 STATE_URL: Final = 'SHOP_API_STATE_URL'
 CORS_ORIGINS: Final = 'SHOP_API_CORS_ORIGINS'
+SANDBOX: Final = 'SHOP_API_SANDBOX'
 DEFAULT_ORIGINS: Final = 'http://localhost:5173'
 
 PLACEHOLDERS: Final[Mapping[str, str]] = MappingProxyType(
@@ -33,10 +34,11 @@ when the environment does not set them, as the play does."""
 
 @dataclass(frozen=True)
 class ApiSettings:
-    """Where the state db is, and which origins may call."""
+    """Where the state db is, which origins may call, and whether the sandbox is mounted."""
 
     state_url: str
     cors_origins: tuple[str, ...] = (DEFAULT_ORIGINS,)
+    sandbox: bool = False
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Self:
@@ -54,14 +56,17 @@ class ApiSettings:
         )
         if '*' in origins:
             problems.append(f'{CORS_ORIGINS} takes no wildcard')
+        sandbox = env.get(SANDBOX, '0')
+        if sandbox not in ('0', '1'):
+            problems.append(f'{SANDBOX} must be 0 or 1')
         problems += [
             f'{name} is not a setting'
             for name in sorted(env)
-            if name.startswith(PREFIX) and name not in (STATE_URL, CORS_ORIGINS)
+            if name.startswith(PREFIX) and name not in (STATE_URL, CORS_ORIGINS, SANDBOX)
         ]
         if problems:
             raise SettingsError(problems)
-        return cls(state_url, origins)
+        return cls(state_url, origins, sandbox == '1')
 
 
 def shop_settings(env: Mapping[str, str]) -> Settings:

@@ -11,6 +11,24 @@
         ],
         "createdAt": "2026-11-07T10:29:35.995Z",
         "reason": "Claude: the detector reads the body's rgba(232,160,74,.22) glow as opaque #faead7; the real ground is #11161b slate, text #e9e6df / #a7afb7 on it is above 7:1. Decision sketch only."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "schibsted grotesk",
+        "files": [
+          ".impeccable/mocks/decision/assigned.html"
+        ],
+        "createdAt": "2026-11-07T12:54:02.555Z",
+        "reason": "Claude: DESIGN.md names the same family as 'Schibsted Grotesk Variable'; these are the frozen decision-round sketches, kept as the critique reference."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "schibsted grotesk",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-11-07T12:54:02.809Z",
+        "reason": "Claude: DESIGN.md names the same family as 'Schibsted Grotesk Variable'; these are the frozen decision-round sketches, kept as the critique reference."
       }
     ]
   }

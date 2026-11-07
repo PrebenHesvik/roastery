@@ -10,7 +10,7 @@ has been through real refactoring (F7).
 
 1. Read **Status** below: the first step that is not ticked is the current one.
 2. Read `CLAUDE.md` at the repository root: the rules, the freezes, how agents are briefed.
-3. The decisions (F1–F11 and each ADR) are made. A change is a new numbered row, with its reason.
+3. The decisions (F1–F13 and each ADR) are made. A change is a new numbered row, with its reason.
 4. Contract B does not move in this phase: `packages/shop/tests/contract_b.txt` and
    `packages/sim/tests/tiny.sha256` stay byte-identical, so there is no new data version.
 5. Before the context runs low, write where you stand into Status and Notes.
@@ -39,13 +39,14 @@ Notes:
   - A failure after `register` raises `Orphaned(customer_id)` from its cause; `problem()` renders the cause's status, and the API logs the orphan (F2). `PriceChanged` (409), `RequestValidationError` (400) and `Forbidden` (403) are plain exceptions in `STATUS`, not `ShopError`s, so contract B holds.
 
 - 2026-11-07 (7.2): `packages/api` (`roastery_api`) is built, with `roastery_sim.seed` (on the private `_setup`, `_do`, `_State`; tiny unchanged). What 7.3 to 7.6 build on, and what differs from the plan:
-  - Run it as `uv run python -m roastery_api seed`, then `uv run python -m uvicorn roastery_api.app:app`. The settings are `ROASTERY_DATABASE_URL` (the shop), `SHOP_API_STATE_URL` (the API's state db) and `SHOP_API_CORS_ORIGINS` (ADR 0016's name; the plan said `SHOP_API_ORIGINS`). An unknown `SHOP_API_*` name is refused; the provider's settings get placeholders when unset (F9). `app` is the one module-level object (F10).
+  - Run it as `uv run python -m roastery_api seed`, then `SHOP_API_SANDBOX=1 uv run python -m uvicorn roastery_api.app:app --no-access-log` (the sandbox route exists only with `SHOP_API_SANDBOX=1`, else 404; no access log, because order tokens travel in URLs). The settings are `ROASTERY_DATABASE_URL` (the shop), `SHOP_API_STATE_URL` (the API's state db) and `SHOP_API_CORS_ORIGINS` and `SHOP_API_SANDBOX` (`1` mounts `POST /sandbox/payments`; unset is off) (ADR 0016's name; the plan said `SHOP_API_ORIGINS`). An unknown `SHOP_API_*` name is refused; the provider's settings get placeholders when unset (F9). `app` is the one module-level object (F10).
   - Endpoints: `GET /products?country=` (200, 400), `GET /products/{id}?country=` (200, 404 `UnknownId`), `POST /quote` (200, 422), `POST /checkout` (201 with the token; 409 `PriceChanged`, `OutOfStock` or `KeyReused`; 422; 400 with no `Idempotency-Key`), `POST /sandbox/payments` (201, 402, 503, 409 `IllegalTransition`, 404), `GET /orders/{token}` (200, 404 `UnknownToken`). Every error is problem+json. FastAPI's default 422 is removed from the OpenAPI document. The checkout reply leaves out `customer_id`.
   - The VAT wording goes out as codes (`incl_vat`, `import_vat_estimate`, `vat_excise_and_fees`); the words live in the storefront's `en.json` (ADR 0018). No import-VAT estimate is shown when any line's rate is unknown.
   - **A declined payment is stored under its key**, so the storefront takes a new `Idempotency-Key` for each pay attempt (7.5).
   - The lead's change before closing: the sandbox refuses an order that is not `placed` (409 `IllegalTransition`) before the provider sees it, so the fake provider never holds a payment the shop refused and no `PAY-n` is spent. `PAY-n` and guest numbers are unpadded.
   - `uv run uvicorn` fails on Windows ("Access denied" on the new `uvicorn.exe`); `python -m uvicorn` works. The TestClient warns that Starlette wants `httpx2`; watch it in CI.
 - 2026-11-07 (7.3, 7.4 scaffold): `uv run python -m roastery_api.openapi` writes `apps/storefront/openapi.json` (a Python test and `npm run gen:check` hold it and `src/api/schema.d.ts` to the API). `apps/storefront` is scaffolded: React 19, Vite 8, strict TypeScript ~5.9 (openapi-typescript needs 5.x), eslint 9 (jsx-a11y needs it), Vitest, MSW, Node 26 (`.nvmrc`). Routes are placeholders; `t()` and `en.json` carry the four VAT codes the API sends (`incl_vat`, `no_norwegian_vat`, `import_vat_estimate`, `vat_excise_and_fees`); money is formatted from the decimal string, never a float. Theme tokens: dark as in the direction contract; light ground #e4e8eb, ink #1a232c, muted #465361, oilskin text #6e5200, window #8a4a00; a test holds every text pair at 4.5:1 or more. **Oilskin yellow on the light fog ground is 1.3:1**, so light-theme yellow fills need an ink edge (7.5). Ports 8000 and 5173 are taken by other programs on the owner's machine; the lead ran the API on 8700 and Vite on 5180 with `STOREFRONT_API_URL` (F11), and `/api/products?country=SE` came through the proxy in SEK. `npm audit` reports a moderate issue in a dev-only dependency (minimatch), left.
+- 2026-11-07 (7.6): the finish review returned **fix** (six material points: a marked shipping line, no eyebrow labels, "your prices" as status, the counter as a lit window, a marked address placeholder, the close back on the coat), then **ship** on the verdict pass, scoped to those six; the product, bag and pay screens were not captured and so not reviewed (`c5388c0`, `ddee4ab`, `ae547eb`). `DESIGN.md` and `.impeccable/design.json` record the system as built (`e17c9f0`); the documenter flags five hard-coded one-off colours with no light value as drift, not repaired. The security review found 2 high, 4 medium, 3 low; fixed: the sandbox gate, tokens hashed and kept out of logs and referrers, size limits, `*.db` ignored, a post-commit failure no longer places a second order on retry (F12); open for the live shop: F13. Existing dev databases must be re-seeded (the link column is now `token_hash`). The run command is now `SHOP_API_SANDBOX=1 uv run python -m uvicorn roastery_api.app:app --no-access-log`.
 ---
 
 ## 0. Context
@@ -95,6 +96,8 @@ The outcome:
 | F9 | The fake provider's required settings take placeholder values (ADR 0016) | nothing reads them until real payments |
 | F10 | `roastery_api.app:app` is the package's one module-level object, for uvicorn's import string; it reads no setting on import, only when the server starts | uvicorn needs the object; the rule "no module state" holds for everything else |
 | F11 | The storefront calls the API on its own origin under `/api`; in dev, Vite proxies `/api` to `STOREFRONT_API_URL` (default `http://127.0.0.1:8000`), stripping the prefix. ADR 0019's `VITE_API_URL` is not used | one origin means no CORS in dev and no API URL baked into the bundle; the target is configurable because port 8000 is taken on the owner's machine |
+| F12 | The sandbox payment route exists only when `SHOP_API_SANDBOX=1`; unset, it is a 404. Order tokens are stored as their sha256; the request body is capped at 64 KiB, a cart at 50 lines and `qty` at 1..999; the storefront sends no referrer and the API runs with `--no-access-log` | the security review of 7.6: once hosted, an always-on sandbox lets any buyer mark an order paid; tokens must not sit readable in a db, a log or a referrer |
+| F13 | Open for the live shop: an unpaid order holds its stock forever (a script can empty the shelf through checkout), and stored idempotency replies never expire. Both need a time limit and a rate limit, which belong with hosting | the security review of 7.6, findings 2 and 5; harmless on a local sandbox |
 
 ## 3. The steps
 
@@ -189,6 +192,6 @@ it into `src/api/schema.d.ts`, and `openapi-fetch` is the client. CI fails on dr
 
 - `uv run python -m pytest`, `uv run ruff check`, `uv run ruff format --check`. `contract_b.txt` and
   `tiny.sha256` are unchanged.
-- `uv run python -m roastery_api seed`, then `uv run python -m uvicorn roastery_api.app:app` (Windows refuses the new `uvicorn.exe`; the module form works everywhere), then
+- `uv run python -m roastery_api seed`, then `SHOP_API_SANDBOX=1 uv run python -m uvicorn roastery_api.app:app --no-access-log` (Windows refuses the new `uvicorn.exe`; the module form works everywhere), then
   `npm run dev` in `apps/storefront`. Walk the shop in both themes, in NO, SE and DK.
 - `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npx playwright test`.

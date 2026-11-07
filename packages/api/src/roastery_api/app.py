@@ -36,7 +36,8 @@ from starlette.exceptions import HTTPException
 from starlette.types import Receive, Scope, Send
 
 from roastery_api import fx, schemas
-from roastery_api.live import LOG, Deps, Live, open_live
+from roastery_api.limits import BodyLimit
+from roastery_api.live import CHECKOUT_SCOPE, LOG, Deps, Live, open_live
 from roastery_api.sandbox import payments_handler
 from roastery_api.settings import DEFAULT_ORIGINS
 
@@ -45,7 +46,7 @@ PROBLEMS: Mapping[int | str, dict[str, Any]] = {
         'model': schemas.Problem,
         'content': {PROBLEM: {'schema': {'$ref': '#/components/schemas/Problem'}}},
     }
-    for status in (400, 402, 404, 409, 422, 500, 503)
+    for status in (400, 402, 404, 409, 413, 422, 500, 503)
 }
 """Every route may answer a problem; the document names the codes each one gives."""
 
@@ -97,8 +98,12 @@ def create_app(
     *,
     origins: tuple[str, ...] = (DEFAULT_ORIGINS,),
     owns: bool = False,
+    sandbox: bool = False,
 ) -> FastAPI:
     """The API on `live`; with `owns`, the wiring is closed when the server stops.
+
+    `POST /sandbox/payments` exists only with `sandbox` (`SHOP_API_SANDBOX=1`); without
+    it the route is a 404.
 
     `live` may be None only to read the OpenAPI document: every route then fails.
     """
@@ -115,6 +120,7 @@ def create_app(
         summary='The shop over HTTP: the catalogue, a quote, guest checkout, a test payment.',
         lifespan=lifespan,
     )
+    api.add_middleware(BodyLimit)
     api.add_middleware(
         CORSMiddleware,
         allow_origins=list(origins),
@@ -143,10 +149,11 @@ def create_app(
 
     handlers: dict[str, Handler[Deps]] = {}
     if live is not None:
-        handlers['checkout'] = live.idempotent(live.guest_checkout(), 'POST /checkout')
-        handlers['pay'] = live.idempotent(
-            payments_handler(live.state, live.ids, live.clock), 'POST /sandbox/payments'
-        )
+        handlers['checkout'] = live.idempotent(live.guest_checkout(), CHECKOUT_SCOPE)
+        if sandbox:
+            handlers['pay'] = live.idempotent(
+                payments_handler(live.state, live.ids, live.clock), 'POST /sandbox/payments'
+            )
         handlers['order'] = live.order_by_token()
 
     @api.get(
@@ -174,7 +181,7 @@ def create_app(
     @api.post(
         '/quote',
         response_model=schemas.Quote,
-        responses=_problems(400, 422),
+        responses=_problems(400, 413, 422),
         operation_id='quoteCart',
     )
     def quote(body: schemas.QuoteRequest) -> JSONResponse:
@@ -186,7 +193,7 @@ def create_app(
         '/checkout',
         status_code=201,
         response_model=schemas.PlacedOrder,
-        responses=_problems(400, 409, 422),
+        responses=_problems(400, 409, 413, 422),
         operation_id='checkout',
     )
     def place_order(body: schemas.CheckoutRequest, key: IdempotencyKey) -> JSONResponse:
@@ -196,19 +203,23 @@ def create_app(
         reply = wired().call(handlers['checkout'], request)
         return _render(reply, fx.placed_page)
 
-    @api.post(
-        '/sandbox/payments',
-        status_code=201,
-        response_model=schemas.SandboxPayment,
-        responses=_problems(400, 402, 404, 409, 503),
-        operation_id='payInSandbox',
-    )
-    def sandbox_payment(body: schemas.SandboxPaymentRequest, key: IdempotencyKey) -> JSONResponse:
-        """A test payment: no money moves. 402 `ProviderRefused` on decline, 503
-        `ProviderUnavailable` on outage, 409 `IllegalTransition` for a paid order."""
-        request = {'body': body.model_dump(mode='json'), 'key': key}
-        reply = wired().call(handlers['pay'], request)
-        return _render(reply)
+    if sandbox:
+
+        @api.post(
+            '/sandbox/payments',
+            status_code=201,
+            response_model=schemas.SandboxPayment,
+            responses=_problems(400, 402, 404, 409, 413, 503),
+            operation_id='payInSandbox',
+        )
+        def sandbox_payment(
+            body: schemas.SandboxPaymentRequest, key: IdempotencyKey
+        ) -> JSONResponse:
+            """A test payment: no money moves. 402 `ProviderRefused` on decline, 503
+            `ProviderUnavailable` on outage, 409 `IllegalTransition` for a paid order."""
+            request = {'body': body.model_dump(mode='json'), 'key': key}
+            reply = wired().call(handlers['pay'], request)
+            return _render(reply)
 
     @api.get(
         '/orders/{token}',
@@ -260,7 +271,9 @@ class _FromEnv:
                 log.addHandler(logging.StreamHandler())
                 log.setLevel(logging.INFO)
             live, settings = open_live(os.environ)
-            self._app = create_app(live, origins=settings.cors_origins, owns=True)
+            self._app = create_app(
+                live, origins=settings.cors_origins, owns=True, sandbox=settings.sandbox
+            )
         await self._app(scope, receive, send)
 
 

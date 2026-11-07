@@ -50,5 +50,5 @@ def live(env: dict[str, str], wall: FakeClock) -> Iterator[Live]:
 
 @pytest.fixture
 def client(live: Live) -> Iterator[TestClient]:
-    with TestClient(create_app(live)) as http:
+    with TestClient(create_app(live, sandbox=True)) as http:
         yield http

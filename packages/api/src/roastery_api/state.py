@@ -9,6 +9,7 @@ exported and never read by the spec.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import secrets
 import sqlite3
@@ -21,7 +22,7 @@ from roastery.repository import WIDTHS
 
 SCHEMA: Final = """
 CREATE TABLE IF NOT EXISTS order_links (
-    token TEXT PRIMARY KEY,
+    token_hash TEXT PRIMARY KEY,
     order_id TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
 );
@@ -84,6 +85,11 @@ def connect(url: str) -> sqlite3.Connection:
     return sqlite3.connect(url.removeprefix(SQLITE_URL), check_same_thread=False)
 
 
+def hash_token(token: str) -> str:
+    """What the db keeps of a link's token: its sha256, in hex."""
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
 def _stamp(at: dt.datetime) -> str:
     return at.astimezone(dt.UTC).isoformat()
 
@@ -110,11 +116,11 @@ class State:
         return number
 
     def link(self, order_id: OrderId, at: dt.datetime) -> str:
-        """A new private link to the order: its token."""
+        """A new private link to the order: its token. Only the token's hash is stored."""
         token = secrets.token_urlsafe(TOKEN_BYTES)
         self._db.execute(
-            'INSERT INTO order_links (token, order_id, created_at) VALUES (?, ?, ?)',
-            (token, str(order_id), _stamp(at)),
+            'INSERT INTO order_links (token_hash, order_id, created_at) VALUES (?, ?, ?)',
+            (hash_token(token), str(order_id), _stamp(at)),
         )
         self._db.commit()
         return token
@@ -122,7 +128,7 @@ class State:
     def order_of(self, token: str) -> OrderId:
         """The order the token links to; UnknownToken if none."""
         row = self._db.execute(
-            'SELECT order_id FROM order_links WHERE token = ?', (token,)
+            'SELECT order_id FROM order_links WHERE token_hash = ?', (hash_token(token),)
         ).fetchone()
         if row is None:
             raise UnknownToken

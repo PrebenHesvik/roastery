@@ -36,7 +36,7 @@ from roastery.checkout import Checkout
 from roastery.customer import Email
 from roastery.customers import Customers
 from roastery.fakes import ClosedFeed, FakeProvider
-from roastery.idempotency import once
+from roastery.idempotency import Stored, digest, once
 from roastery.ids import CustomerId, OrderId, PostalCode
 from roastery.middleware import logged, stack, timed
 from roastery.payments import Payments
@@ -48,6 +48,9 @@ from roastery.storefront import Storefront
 from roastery_api.clock import RequestClock, SystemClock
 from roastery_api.settings import ApiSettings, shop_settings
 from roastery_api.state import CountedIds, SqliteKeys, State, UnknownToken, connect
+
+CHECKOUT_SCOPE: Final = 'POST /checkout'
+"""The idempotency scope of the checkout route."""
 
 LOG: Final = 'roastery_api'
 """The logger's name: the notifier, the labels, the handlers and the orphans write here."""
@@ -210,20 +213,46 @@ class Live:
             body: dict[str, Any] = dict(reply['body'])  # type: ignore[call-overload]
             contact: Mapping[str, Any] = request['body']  # type: ignore[assignment]
             now = clock.now()
-            state.add_guest(
-                CustomerId(body.pop('customer_id')),
-                name=contact['name'],
-                email=contact['email'],
-                street=contact['street'],
-                postal_code=contact['postal_code'],
-                city=contact['city'],
-                country=contact['country'],
-                at=now,
-            )
-            body['token'] = state.link(OrderId(body['order_id']), now)
+            customer_id = CustomerId(body.pop('customer_id'))
+            try:
+                state.add_guest(
+                    customer_id,
+                    name=contact['name'],
+                    email=contact['email'],
+                    street=contact['street'],
+                    postal_code=contact['postal_code'],
+                    city=contact['city'],
+                    country=contact['country'],
+                    at=now,
+                )
+                body['token'] = state.link(OrderId(body['order_id']), now)
+            except Exception as error:
+                return self._after_commit(request, customer_id, body['order_id'], error)
             return {**reply, 'body': body}
 
         return checkout
+
+    def _after_commit(
+        self, request: Request, customer_id: CustomerId, order_id: str, error: Exception
+    ) -> Response:
+        """The shop committed the order but the guest or the link was not written: the
+        guest is logged as an orphan and a 500 is kept under the key, so a retry gets the
+        same 500 and places no second order (`once` keeps no 5xx of its own)."""
+        self.log.error('order %s placed, its state write failed: %r', order_id, error)
+        reason = f'{order_id} placed, state write failed: {error!r}'
+        failed = problem(error)
+        try:
+            self.state.add_orphan(customer_id, reason, self.clock.now())
+        except Exception:
+            self.log.exception('orphan %s not recorded', customer_id)
+        key = request.get('key')
+        if isinstance(key, str) and key:
+            try:
+                body_hash = digest(request.get('body', {}))
+                self.keys.put(CHECKOUT_SCOPE, key, Stored(body_hash, failed))
+            except Exception:
+                self.log.exception('the reply under key %s not kept', key)
+        return failed
 
     def order_by_token(self) -> Handler[Deps]:
         """`order_handler` for the order a token links to; 404 UnknownToken if none."""

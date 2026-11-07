@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -324,7 +325,7 @@ def test_a_reopened_db_raises_no_duplicate_id_and_the_ids_go_on(
     for run in range(2):
         live, _ = open_live(env, wall=wall)
         try:
-            with TestClient(create_app(live)) as client:
+            with TestClient(create_app(live, sandbox=True)) as client:
                 reply = checkout(client, f'restart-{run}')
                 assert reply.status_code == 201, reply.text
                 placed.append(reply.json())
@@ -372,3 +373,105 @@ def test_the_server_entry_wires_itself_from_the_environment(
         monkeypatch.setenv(name, value)
     with TestClient(_FromEnv()) as http:
         assert http.get('/products').status_code == 200
+
+
+# Gate, limits, hashed tokens, orphans -----------------------------------------------------
+
+
+def test_the_sandbox_route_does_not_exist_without_the_setting(live: Live) -> None:
+    with TestClient(create_app(live)) as off:
+        reply = off.post(
+            '/sandbox/payments',
+            json={'token': 'x', 'outcome': 'approve'},
+            headers={'Idempotency-Key': 'k'},
+        )
+        assert reply.status_code == 404
+        assert '/sandbox/payments' not in off.get('/openapi.json').json()['paths']
+
+
+def test_the_server_entry_mounts_the_sandbox_only_on_one(
+    env: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    asked = {'json': {'token': 'x', 'outcome': 'approve'}, 'headers': {'Idempotency-Key': 'k'}}
+    with TestClient(_FromEnv()) as off:
+        assert off.post('/sandbox/payments', **asked).status_code == 404
+    monkeypatch.setenv('SHOP_API_SANDBOX', '1')
+    with TestClient(_FromEnv()) as on:
+        assert on.post('/sandbox/payments', **asked).status_code == 404  # UnknownToken
+        assert on.post('/sandbox/payments', **asked).json()['code'] == 'UnknownToken'
+
+
+def test_the_limits_refuse_long_carts_big_quantities_and_long_text(client: TestClient) -> None:
+    many = [{'product_id': 'P-10', 'qty': 1}] * 51
+    assert client.post('/quote', json={'country': 'NO', 'items': many}).status_code == 400
+    big = [{'product_id': 'P-10', 'qty': 1000}]
+    assert client.post('/quote', json={'country': 'NO', 'items': big}).status_code == 400
+    fifty = [{'product_id': 'P-10', 'qty': 999}] * 50
+    assert client.post('/quote', json={'country': 'NO', 'items': fifty}).status_code in (200, 422)
+    total = quote(client, 'NO', P10_TWICE)['gross']
+    body = {**contact(), 'items': P10_TWICE, 'total': total, 'city': 'B' * 101}
+    reply = client.post('/checkout', json=body, headers={'Idempotency-Key': 'long'})
+    assert reply.status_code == 400
+
+
+def test_a_body_over_64_kib_is_a_413_problem_before_parsing(client: TestClient) -> None:
+    padding = 'x' * (64 * 1024)
+    reply = client.post('/quote', json={'country': 'NO', 'items': P10_TWICE, 'padding': padding})
+    assert reply.status_code == 413
+    assert reply.headers['content-type'] == 'application/problem+json'
+    assert reply.json()['code'] == 'ContentTooLarge'
+
+    def chunks() -> Any:
+        yield b'{"country":"NO","items":['
+        yield b' ' * (64 * 1024)
+        yield b']}'
+
+    streamed = client.post('/quote', content=chunks())
+    assert streamed.status_code == 413
+
+
+def test_the_state_db_keeps_only_the_hash_of_a_token(
+    client: TestClient, env: dict[str, str]
+) -> None:
+    token = checkout(client, 'hash-1').json()['token']
+    state = sqlite3.connect(env['SHOP_API_STATE_URL'].removeprefix('sqlite:///'))
+    try:
+        (stored,) = state.execute('SELECT token_hash FROM order_links').fetchone()
+    finally:
+        state.close()
+    assert stored == hashlib.sha256(token.encode()).hexdigest()
+    assert token not in stored
+    assert client.get(f'/orders/{token}').status_code == 200
+    assert client.get(f'/orders/{stored}').status_code == 404
+
+
+def test_a_failed_state_write_after_the_commit_is_an_orphan_and_the_retry_places_no_order(
+    client: TestClient, live: Live, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = live.state.link
+    calls: list[int] = []
+
+    def flaky(order_id: Any, at: Any) -> str:
+        calls.append(1)
+        if len(calls) == 1:
+            raise sqlite3.OperationalError('disk I/O error')
+        return real(order_id, at)
+
+    monkeypatch.setattr(live.state, 'link', flaky)
+    first = checkout(client, 'orphan-1')
+    assert first.status_code == 500
+    assert first.json()['code'] == 'InternalError'
+    orphans = live.state.orphans()
+    assert len(orphans) == 1
+    assert 'O-000001' in orphans[0][1]
+
+    retry = checkout(client, 'orphan-1')
+    assert retry.status_code == 500
+    assert retry.json() == first.json()
+    assert len(calls) == 1  # the retry did not place again
+
+    later = checkout(client, 'orphan-2')
+    assert later.status_code == 201
+    assert later.json()['order_id'] == 'O-000002'

@@ -7,6 +7,11 @@ dist/
 build/
 out/
 
+# Databases hold personal data
+*.db
+*.sqlite
+*.sqlite3
+
 # Impeccable: session state, not design record
 .impeccable/questions/
 .impeccable/hook.cache.json

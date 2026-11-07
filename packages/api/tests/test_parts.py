@@ -177,3 +177,12 @@ def test_a_refused_place_after_register_leaves_a_logged_orphan(
     ((customer_id, reason),) = live.state.orphans()
     assert customer_id == 'C-00001'
     assert 'OutOfStock' in reason
+
+
+def test_the_sandbox_setting_is_off_unless_one() -> None:
+    base = {'SHOP_API_STATE_URL': 'sqlite:///x.db'}
+    assert not ApiSettings.from_env(base).sandbox
+    assert ApiSettings.from_env({**base, 'SHOP_API_SANDBOX': '1'}).sandbox
+    with pytest.raises(SettingsError) as raised:
+        ApiSettings.from_env({**base, 'SHOP_API_SANDBOX': 'yes'})
+    assert raised.value.problems == ('SHOP_API_SANDBOX must be 0 or 1',)

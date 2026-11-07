@@ -17,7 +17,7 @@ TARGET = Path(__file__).resolve().parents[4] / 'apps' / 'storefront' / 'openapi.
 
 def render() -> str:
     """The document as text: sorted keys, two-space indent, one final newline."""
-    document = create_app(None).openapi()
+    document = create_app(None, sandbox=True).openapi()
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False) + '\n'
 
 

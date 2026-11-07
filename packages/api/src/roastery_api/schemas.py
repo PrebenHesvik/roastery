@@ -31,8 +31,8 @@ class _Body(BaseModel):
 class Amount(BaseModel):
     """Money: the amount as text with its decimals, and the currency."""
 
-    amount: str = Field(examples=['129.00'])
-    currency: str = Field(examples=['NOK'])
+    amount: str = Field(max_length=32, examples=['129.00'])
+    currency: str = Field(max_length=3, examples=['NOK'])
 
 
 class Problem(BaseModel):
@@ -100,13 +100,13 @@ class ProductPage(ListedProduct):
 class CartItem(_Body):
     """A cart's line: a product and a quantity. No price: the server prices it."""
 
-    product_id: str = Field(examples=['P-10'])
-    qty: int = Field(ge=1, examples=[2])
+    product_id: str = Field(min_length=1, max_length=32, examples=['P-10'])
+    qty: int = Field(ge=1, le=999, examples=[2])
 
 
 class QuoteRequest(_Body):
     country: Country
-    items: list[CartItem] = Field(min_length=1)
+    items: list[CartItem] = Field(min_length=1, max_length=50)
 
 
 class QuotedLine(BaseModel):
@@ -151,7 +151,7 @@ class CheckoutRequest(_Body):
     """A guest's order: the cart, the total the buyer confirmed (NOK), and the contact."""
 
     country: Country
-    items: list[CartItem] = Field(min_length=1)
+    items: list[CartItem] = Field(min_length=1, max_length=50)
     total: Amount
     name: str = Field(min_length=1, max_length=200)
     email: str = Field(max_length=254, pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
@@ -183,7 +183,7 @@ class PlacedOrder(BaseModel):
 class SandboxPaymentRequest(_Body):
     """A test payment of the order the token links to. No amount: the order's is paid."""
 
-    token: str = Field(min_length=1)
+    token: str = Field(min_length=1, max_length=128)
     outcome: Literal['approve', 'decline', 'outage']
 
 

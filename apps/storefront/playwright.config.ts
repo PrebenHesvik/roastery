@@ -29,11 +29,12 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: `uv run python -m roastery_api seed && uv run python -m uvicorn roastery_api.app:app --port ${String(API_PORT)}`,
+      command: `uv run python -m roastery_api seed && uv run python -m uvicorn roastery_api.app:app --no-access-log --port ${String(API_PORT)}`,
       cwd: repo,
       env: {
         ROASTERY_DATABASE_URL: sqlite('shop.db'),
         SHOP_API_STATE_URL: sqlite('state.db'),
+        SHOP_API_SANDBOX: '1',
       },
       url: `http://127.0.0.1:${String(API_PORT)}/products?country=NO`,
       reuseExistingServer: false,
