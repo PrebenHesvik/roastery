@@ -6,6 +6,17 @@ copied = 2026-11-03
 path = 'data_docs_export/roastery_data/dataset.sql'
 sha256 = 'cf7cfc4c0df5360b58a80ac4d643ecad4e79712e3ddc9ed0a4c29baa7c4add4d'
 
+# The input of roastery-data 1.0 (its sha256 is in every manifest), kept as it was at
+# d23336d. data-docs deleted the file in 9bcd6aa (6.6) and reads the release instead.
 [tier3_sql]
 path = 'data_docs_export/roastery_data/tier3.sql'
 sha256 = '9452b4e6d9cef950029ed94018fd60a1c8380df77363cb1dca900fc086d5174d'
+deleted = '9bcd6aa'
+
+# What replaced tier3.sql in data-docs: only its eight headers are read here, as the key and
+# grain of each tier 3 table (S20). It is never built.
+[tier3_release_sql]
+path = 'data_docs_export/roastery_data/tier3_release.sql'
+commit = '5e3f7e9'
+copied = 2026-11-07
+sha256 = '90ebf4ebf0f05200203de7c472b63652714aa081ccdba3c6e475c05cfcddc00a'

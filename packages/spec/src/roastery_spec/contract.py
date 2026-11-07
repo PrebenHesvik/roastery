@@ -859,7 +859,7 @@ _TIER_3 = (
         system="derived: the web shop's consumer order lines",
         grain=(
             'One row per day and product with a price that day, 1 October 2024 to 30 September'
-            ' 2026.'
+            " 2026, of the web shop's consumer sales."
         ),
         key=('sale_date', 'product_id'),
         columns=_cols('sale_date DATE, product_id VARCHAR, qty INTEGER, amount DECIMAL(7,2)'),
@@ -966,8 +966,8 @@ _TIER_3 = (
         tier=3,
         system='derived: the subscriptions of everyone outside the cast',
         grain=(
-            'One subscription (240), started 2024 to September 2026 and counted on 30 September'
-            ' 2026.'
+            "One subscription (240) of the other subscribers, outside the teaching week's cast,"
+            ' started 2024 to September 2026 and counted on 30 September 2026.'
         ),
         key=('subscription_id',),
         columns=_cols('subscription_id INTEGER, product_id VARCHAR, started DATE, ended DATE'),

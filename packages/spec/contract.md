@@ -891,7 +891,7 @@ live in `full` only, and the pages show their totals, never their rows.
 
 ### `daily_sales`
 
-- **grain:** One row per day and product with a price that day, 1 October 2024 to 30 September 2026.
+- **grain:** One row per day and product with a price that day, 1 October 2024 to 30 September 2026, of the web shop's consumer sales.
 - **key:** `sale_date, product_id`
 - **system:** derived: the web shop's consumer order lines
 - **tiny:** none
@@ -992,7 +992,7 @@ live in `full` only, and the pages show their totals, never their rows.
 
 ### `subscribers`
 
-- **grain:** One subscription (240), started 2024 to September 2026 and counted on 30 September 2026.
+- **grain:** One subscription (240) of the other subscribers, outside the teaching week's cast, started 2024 to September 2026 and counted on 30 September 2026.
 - **key:** `subscription_id`
 - **system:** derived: the subscriptions of everyone outside the cast
 - **tiny:** none

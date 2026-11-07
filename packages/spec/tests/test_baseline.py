@@ -25,7 +25,7 @@ def test_the_copies_are_the_files_their_provenance_names():
     origin = baseline.provenance()
     assert origin['commit'] == 'd23336d'
     here = resources.files('roastery_spec') / 'baseline'
-    for key in ('dataset_sql', 'tier3_sql'):
+    for key in ('dataset_sql', 'tier3_sql', 'tier3_release_sql'):
         name = origin[key]['path'].rsplit('/', 1)[1]
         assert hashlib.sha256((here / name).read_bytes()).hexdigest() == origin[key]['sha256']
 

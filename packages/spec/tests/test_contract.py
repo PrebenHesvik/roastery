@@ -13,11 +13,13 @@ def _label(value: str) -> str:
     return value.split(': ', 1)[0]
 
 
+def _tables(name: str) -> list[dict]:
+    return baseline.tables(HERE.joinpath(name).read_text(encoding='utf-8'))
+
+
 def _headers() -> list[dict]:
-    found = []
-    for name in ('dataset.sql', 'tier3.sql'):
-        found += baseline.tables(HERE.joinpath(name).read_text(encoding='utf-8'))
-    return found
+    """The key and grain of each baseline table: tier 3's from data-docs' newer file (S20)."""
+    return _tables('dataset.sql') + _tables('tier3_release.sql')
 
 
 @pytest.fixture(scope='module')
@@ -115,6 +117,11 @@ def test_a_baseline_table_has_the_key_and_grain_of_its_header(head):
     table = contract.by_name()[head['name']]
     assert table.key == (() if head['key'] == ['none'] else tuple(head['key']))
     assert table.grain == head['grain']
+
+
+def test_tier3_sql_and_its_successor_hold_the_same_tables_and_keys():
+    built = [(h['name'], h['key']) for h in _tables('tier3.sql')]
+    assert built == [(h['name'], h['key']) for h in _tables('tier3_release.sql')]
 
 
 def test_tier_1_is_the_first_five_tables_of_dataset_sql():
