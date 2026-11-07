@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sydvest</title>
+<style>
+  :root {
+    --slate: #11161b;
+    --wet: #1a2128;
+    --oilskin: #f3c623;
+    --oil-ink: #1b1608;
+    --window: #e8a04a;
+    --chalk: #e9e6df;
+    --mist: #a7afb7;
+    --rule: #2a323a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    width: 1440px; height: 900px; overflow: hidden; color: var(--chalk);
+    font-family: "Schibsted Grotesk", Arial, sans-serif;
+    background:
+      repeating-linear-gradient(100deg, transparent 0 46px, rgba(255,255,255,.035) 46px 47px),
+      radial-gradient(ellipse 60% 40% at 78% 92%, rgba(232,160,74,.22), transparent 70%),
+      var(--slate);
+  }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 26px 56px; }
+  .mark { font-weight: 800; font-size: 24px; letter-spacing: .02em; }
+  nav { display: flex; gap: 34px; font-size: 15px; color: var(--mist); }
+  nav b { color: var(--oil-ink); background: var(--oilskin); padding: 8px 14px; font-weight: 700; }
+  .stage { display: grid; grid-template-columns: 640px 1fr; height: 760px; }
+  .coat {
+    background: var(--oilskin); color: var(--oil-ink); padding: 56px 56px 48px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    border-top-right-radius: 220px 120px;
+  }
+  .coat .kick { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; font-weight: 700; }
+  .coat h1 { font-size: 96px; line-height: .9; font-weight: 800; letter-spacing: -.03em; margin-top: 0; }
+  .coat p { font-size: 19px; line-height: 1.45; max-width: 480px; margin-top: 22px; }
+  .buy { display: flex; gap: 14px; align-items: center; }
+  .buy button { background: var(--oil-ink); color: var(--oilskin); border: 0; padding: 18px 26px; font: 700 17px inherit; }
+  .buy span { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .street { padding: 56px 56px 0 64px; position: relative; }
+  .street h2 { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--mist); }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 22px; }
+  .card { background: var(--wet); border: 1px solid var(--rule); padding: 22px; }
+  .card h3 { font-size: 22px; }
+  .card .meta { color: var(--mist); font-size: 14px; margin-top: 6px; }
+  .scale { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin: 18px 0 6px; height: 34px; align-items: end; }
+  .scale i { display: block; background: #3a4048; }
+  .scale i.on { background: var(--window); }
+  .scale-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--mist); letter-spacing: .1em; text-transform: uppercase; }
+  .card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-variant-numeric: tabular-nums; }
+  .card button { background: transparent; color: var(--oilskin); border: 1px solid var(--oilskin); padding: 9px 14px; font: 700 14px inherit; }
+  .counter { position: absolute; left: 64px; right: 56px; bottom: 40px; display: flex; justify-content: space-between; border-top: 1px solid var(--rule); padding-top: 18px; color: var(--mist); font-size: 15px; }
+  .counter b { color: var(--window); }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">Sydvest</div>
+  <nav><span>Beans</span><span>Gear</span><span>The counter</span><span>NO · NOK</span><b>Bag · 0</b></nav>
+</header>
+<div class="stage">
+  <section class="coat">
+    <div>
+      <h1>Rain all<br>week.<br>Coffee<br>all week.</h1>
+      <p>Roasted in Bergen. Morning roast is Ethiopian, washed and light: a bright cup for the dark mornings.</p>
+    </div>
+    <div class="buy"><button>Add Morning roast</button><span>NOK 129</span></div>
+  </section>
+  <section class="street">
+    <h2>On the shelf</h2>
+    <div class="cards">
+      <article class="card">
+        <h3>Dark espresso</h3><div class="meta">Brazil · natural · 1000 g</div>
+        <div class="scale"><i style="height:20%"></i><i style="height:32%"></i><i style="height:44%"></i><i style="height:56%"></i><i style="height:68%"></i><i class="on" style="height:84%"></i><i class="on" style="height:100%"></i></div>
+        <div class="scale-label"><span>Light</span><span>Dark</span></div>
+        <div class="row"><span>NOK 349</span><button>Add</button></div>
+      </article>
+      <article class="card">
+        <h3>Decaf</h3><div class="meta">Colombia · washed · 250 g</div>
+        <div class="scale"><i style="height:20%"></i><i style="height:32%"></i><i class="on" style="height:44%"></i><i class="on" style="height:56%"></i><i style="height:68%"></i><i style="height:84%"></i><i style="height:100%"></i></div>
+        <div class="scale-label"><span>Light</span><span>Dark</span></div>
+        <div class="row"><span>Coming soon</span><button disabled style="color:var(--mist);border:1px dashed var(--mist)">Soon</button></div>
+      </article>
+    </div>
+    <div class="counter"><span><b>The counter is open</b> · Mon–Sat 10–17, closed Sundays</span><span>Loose espresso by the gram</span></div>
+  </section>
+</div>
+</body>
+</html>

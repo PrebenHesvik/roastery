@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-11-07T10:29:35.995Z",
+        "reason": "Claude: the detector reads the body's rgba(232,160,74,.22) glow as opaque #faead7; the real ground is #11161b slate, text #e9e6df / #a7afb7 on it is above 7:1. Decision sketch only."
+      }
+    ]
+  }
+}

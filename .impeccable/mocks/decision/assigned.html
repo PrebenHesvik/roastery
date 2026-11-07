@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Departures from Bergen</title>
+<style>
+  :root {
+    --night: #0d1826;
+    --deck: #13223a;
+    --board: #0a121d;
+    --chalk: #ece6d8;
+    --mist: #8d9bb0;
+    --signal: #f2c230;
+    --rule: #2a3c57;
+    --sea: #1d3550;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    width: 1440px; height: 900px; overflow: hidden;
+    background: var(--night); color: var(--chalk);
+    font-family: "Schibsted Grotesk", "Arial Narrow", Arial, sans-serif;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 28px 64px 22px; border-bottom: 1px solid var(--rule);
+  }
+  .mark { font-weight: 800; font-size: 22px; letter-spacing: .04em; }
+  .mark small { color: var(--mist); font-weight: 500; letter-spacing: .12em; margin-left: 14px; font-size: 13px; }
+  nav { display: flex; gap: 36px; font-size: 15px; color: var(--mist); }
+  nav b { color: var(--chalk); font-weight: 600; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 48px; padding: 44px 64px 0; }
+  h1 { font-size: 88px; line-height: .92; font-weight: 800; letter-spacing: -.02em; }
+  h1 span { color: var(--signal); }
+  .lede { margin-top: 18px; font-size: 19px; color: var(--mist); max-width: 640px; line-height: 1.45; }
+  .board { margin-top: 34px; background: var(--board); border: 1px solid var(--rule); }
+  .row {
+    display: grid; grid-template-columns: 92px 1.5fr 1fr .8fr .7fr .8fr 120px;
+    align-items: center; padding: 16px 22px; border-top: 1px solid var(--rule);
+    font-variant-numeric: tabular-nums; font-size: 17px;
+  }
+  .row.head { border-top: 0; font-size: 12px; letter-spacing: .14em; color: var(--mist); text-transform: uppercase; padding: 12px 22px; }
+  .time { color: var(--signal); font-weight: 700; }
+  .name { font-weight: 700; font-size: 19px; }
+  .add {
+    justify-self: end; background: var(--signal); color: var(--board); border: 0;
+    font: 700 14px/1 inherit; padding: 11px 16px; letter-spacing: .04em;
+  }
+  .muted { color: var(--mist); }
+  .soon .add { background: transparent; color: var(--mist); border: 1px dashed var(--rule); }
+  aside.ticket {
+    background: var(--chalk); color: var(--board); padding: 26px 26px 22px; position: relative;
+    align-self: start; margin-top: 8px;
+  }
+  aside.ticket::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px;
+    background: radial-gradient(circle at 8px 0, transparent 6px, var(--chalk) 6.5px) 0 0 / 16px 10px repeat-x;
+  }
+  .ticket h2 { font-size: 13px; letter-spacing: .18em; text-transform: uppercase; }
+  .ticket .big { font-size: 44px; font-weight: 800; margin: 14px 0 4px; font-variant-numeric: tabular-nums; }
+  .ticket p { font-size: 14px; line-height: 1.45; }
+  .ticket .go { margin-top: 18px; width: 100%; background: var(--board); color: var(--signal); border: 0; padding: 14px; font: 700 15px inherit; }
+  .waterline { position: absolute; left: 0; right: 0; bottom: 92px; border-top: 2px solid var(--sea); }
+  footer { position: absolute; bottom: 34px; left: 64px; right: 64px; display: flex; justify-content: space-between; color: var(--mist); font-size: 15px; }
+  footer b { color: var(--chalk); }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">SYDVEST<small>KAFFEBRENNERI · BERGEN</small></div>
+  <nav><b>Departures</b><span>Beans</span><span>Gear</span><span>The counter</span><span>NOK ▾</span><span>Ticket (0)</span></nav>
+</header>
+<main>
+  <section>
+    <h1>Departures<br>from <span>Bergen</span></h1>
+    <p class="lede">Roasted on the quay, sent across the north. Pick a bag from tonight's board; the ticket on the right is your cart.</p>
+    <div class="board" role="table">
+      <div class="row head"><span>Leaves</span><span>Coffee</span><span>From</span><span>Roast</span><span>Bag</span><span>Fare</span><span></span></div>
+      <div class="row"><span class="time">Mon</span><span class="name">Morning roast</span><span>Ethiopia, washed</span><span>Light</span><span>250 g</span><span>NOK 129</span><button class="add">Add</button></div>
+      <div class="row"><span class="time">Mon</span><span class="name">Dark espresso</span><span>Brazil, natural</span><span>Dark</span><span>1000 g</span><span>NOK 349</span><button class="add">Add</button></div>
+      <div class="row soon"><span class="time muted">—</span><span class="name muted">Decaf</span><span class="muted">Colombia, washed</span><span class="muted">Medium</span><span class="muted">250 g</span><span class="muted">Soon</span><button class="add">Notify</button></div>
+      <div class="row"><span class="time">Mon</span><span class="name">Hand grinder</span><span>Wood</span><span class="muted">—</span><span class="muted">—</span><span>NOK 899</span><button class="add">Add</button></div>
+    </div>
+  </section>
+  <aside class="ticket">
+    <h2>Your ticket</h2>
+    <div class="big">NOK 0</div>
+    <p>Empty for now. Prices shown for Norway, VAT included.</p>
+    <button class="go">To checkout</button>
+  </aside>
+</main>
+<div class="waterline"></div>
+<footer><span><b>The counter on the quay</b> · Mon–Sat 10–17 · closed Sundays</span><span>Ships to Norway, Sweden, Denmark, Finland</span></footer>
+</body>
+</html>

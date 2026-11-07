@@ -1,14 +1,15 @@
 # Roastery - guidance for Claude Code
 
 A Bergen coffee roaster as software: the shop app, the simulator that plays its trade
-through the app, and the data contract its extracts are held to. README.md has the install
-and the commands; `docs/phase-6/plan.md` is the plan.
+through the app, the data contract its extracts are held to, and the storefront with the
+API it stands on. README.md has the install and the commands; `docs/phase-7/plan.md` is
+the current plan.
 
 ## Start here
 
-1. Read **Status** at the top of `docs/phase-6/plan.md`; the first unticked step is current.
-2. Read that step's plan file and work from its first unticked unit. Phase 6 is done (6.6's plan is in data-docs,
-   `docs/proposal-roastery/phase-6.md`); `docs/phase-6/plan.md` says what is next.
+1. Read **Status** at the top of `docs/phase-7/plan.md`; the first unticked step is current.
+2. Work from that step's first unticked unit. Phase 6 is done (`docs/phase-6/plan.md`; 6.6's
+   plan is in data-docs, `docs/proposal-roastery/phase-6.md`).
 3. The record lives in files, not in a session:
    - a step's box is ticked, with its commit hash, in the commit that finishes the step;
    - what turned out different goes in the Notes, dated, with the step or unit;
@@ -22,6 +23,8 @@ and the commands; `docs/phase-6/plan.md` is the plan.
 | `packages/shop` | `roastery` | the app: domain, service layer, stores |
 | `packages/sim` | `roastery_sim` | the simulator, the outside systems, the export writer |
 | `packages/spec` | `roastery_spec` | the data contract and its claims, as tests |
+| `packages/api` | `roastery_api` | the HTTP API: FastAPI over the shop (phase 7, not yet built) |
+| `apps/storefront` | - | the web shop: React, Vite, TypeScript (phase 7, not yet built) |
 
 The data-docs repository beside this one is a learning site. It reads a pinned
 `roastery-data` release and is never imported from here; steps 6.1 to 6.5 never touch it.

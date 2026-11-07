@@ -6,3 +6,9 @@ __pycache__/
 dist/
 build/
 out/
+
+# Impeccable: session state, not design record
+.impeccable/questions/
+.impeccable/hook.cache.json
+.impeccable/config.local.json
+.impeccable/review/
