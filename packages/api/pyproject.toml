@@ -1,0 +1,17 @@
+[project]
+name = 'roastery-api'
+version = '0.0.0'
+description = 'The shop over HTTP: FastAPI on the handlers, sqlite, run locally.'
+requires-python = '>=3.13'
+dependencies = ['roastery', 'fastapi>=0.115', 'uvicorn>=0.32']
+
+[dependency-groups]
+dev = ['roastery-sim', 'httpx>=0.27']
+
+[build-system]
+requires = ['uv_build>=0.8.22,<0.9']
+build-backend = 'uv_build'
+
+[tool.uv.sources]
+roastery = { workspace = true }
+roastery-sim = { workspace = true }
