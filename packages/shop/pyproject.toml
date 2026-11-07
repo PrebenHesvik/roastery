@@ -1,6 +1,6 @@
 [project]
 name = 'roastery'
-version = '0.1.1'
+version = '0.2.0'
 description = 'The roastery shop app: domain, service layer and stores.'
 requires-python = '>=3.13'
 dependencies = ['tzdata>=2026.6']
