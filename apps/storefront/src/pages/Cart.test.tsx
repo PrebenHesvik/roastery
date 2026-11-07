@@ -138,6 +138,29 @@ describe('the bag', () => {
     expect(screen.getByRole('button', { name: 'Take 1' })).toBeEnabled();
   });
 
+  it('holds a stored quantity to 999 and stops "+" there', async () => {
+    storeCart({
+      country: 'SE',
+      items: [
+        { productId: 'P-10', qty: 5000 },
+        { productId: 'P-20', qty: 1 },
+      ],
+    });
+    renderAt('/cart');
+
+    expect(await screen.findByRole('button', { name: 'One more Morning roast' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'One more Hand grinder' })).toBeEnabled();
+    expect(quoted).toEqual([
+      {
+        country: 'SE',
+        items: [
+          { product_id: 'P-10', qty: 999 },
+          { product_id: 'P-20', qty: 1 },
+        ],
+      },
+    ]);
+  });
+
   it('says so when the bag is empty', () => {
     renderAt('/cart');
     expect(screen.getByRole('heading', { name: 'Your bag is empty.' })).toBeInTheDocument();

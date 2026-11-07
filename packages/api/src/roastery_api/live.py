@@ -47,7 +47,14 @@ from roastery.storefront import Storefront
 
 from roastery_api.clock import RequestClock, SystemClock
 from roastery_api.settings import ApiSettings, shop_settings
-from roastery_api.state import CountedIds, SqliteKeys, State, UnknownToken, connect
+from roastery_api.state import (
+    CountedIds,
+    SqliteKeys,
+    State,
+    UnknownToken,
+    connect,
+    floor_counters,
+)
 
 CHECKOUT_SCOPE: Final = 'POST /checkout'
 """The idempotency scope of the checkout route."""
@@ -142,6 +149,7 @@ class Live:
         self.clock = RequestClock(self.wall)
         self._connections = (shop, state)
         self.state = State(state)
+        floor_counters(self.state, shop)
         self.ids = CountedIds(self.state)
         self.keys = SqliteKeys(state, self.clock)
         store = sqlite_store(shop, clock=self.clock, price_ttl=settings.price_ttl)
@@ -193,9 +201,15 @@ class Live:
     # The API's own handlers --------------------------------------------------------------
 
     def guest_checkout(self) -> Handler[Deps]:
-        """`checkout_handler` for a guest: the guest's number drawn from the counter, the
-        real contact and street kept in the state db, the order's link made, the token in
-        the reply in place of the customer id (ADR 0016). An orphan is logged and kept (F2)."""
+        """`checkout_handler` for a guest, run once per key, with the order's link made on
+        every 201 (ADR 0016, F12): `placed`, kept under the key, holds no token; `linked`
+        issues one outside the kept reply, on the first reply and on each replay."""
+        return self.linked(self.idempotent(self.placed(), CHECKOUT_SCOPE))
+
+    def placed(self) -> Handler[Deps]:
+        """The guest's order without its link: the guest's number drawn from the counter,
+        the real contact and street kept in the state db, the customer id dropped from the
+        reply (ADR 0016). An orphan is logged and kept (F2)."""
         state, clock, log = self.state, self.clock, self.log
 
         def checkout(request: Request, deps: Deps) -> Response:
@@ -212,7 +226,6 @@ class Live:
                 return reply
             body: dict[str, Any] = dict(reply['body'])  # type: ignore[call-overload]
             contact: Mapping[str, Any] = request['body']  # type: ignore[assignment]
-            now = clock.now()
             customer_id = CustomerId(body.pop('customer_id'))
             try:
                 state.add_guest(
@@ -223,21 +236,42 @@ class Live:
                     postal_code=contact['postal_code'],
                     city=contact['city'],
                     country=contact['country'],
-                    at=now,
+                    at=clock.now(),
                 )
-                body['token'] = state.link(OrderId(body['order_id']), now)
             except Exception as error:
                 return self._after_commit(request, customer_id, body['order_id'], error)
             return {**reply, 'body': body}
 
         return checkout
 
+    def linked(self, handler: Handler[Deps]) -> Handler[Deps]:
+        """`handler` with a fresh private link on each 201: the token goes in the reply,
+        only its hash in the state db, and the order's earlier token stops working. A link
+        that fails is a 500; the 201 is kept already, so the retry links again and places
+        no second order."""
+        state, clock, log = self.state, self.clock, self.log
+
+        def checkout(request: Request, deps: Deps) -> Response:
+            reply = handler(request, deps)
+            if reply['status'] != 201:
+                return reply
+            body: dict[str, Any] = dict(reply['body'])  # type: ignore[call-overload]
+            try:
+                body['token'] = state.link(OrderId(body['order_id']), clock.now())
+            except Exception as error:
+                log.error('order %s placed, its link failed: %r', body['order_id'], error)
+                return problem(error)
+            return {**reply, 'body': body}
+
+        checkout.__name__ = getattr(handler, '__name__', 'checkout')
+        return checkout
+
     def _after_commit(
         self, request: Request, customer_id: CustomerId, order_id: str, error: Exception
     ) -> Response:
-        """The shop committed the order but the guest or the link was not written: the
-        guest is logged as an orphan and a 500 is kept under the key, so a retry gets the
-        same 500 and places no second order (`once` keeps no 5xx of its own)."""
+        """The shop committed the order but the guest was not written: the guest is logged
+        as an orphan and a 500 is kept under the key, so a retry gets the same 500 and
+        places no second order (`once` keeps no 5xx of its own)."""
         self.log.error('order %s placed, its state write failed: %r', order_id, error)
         reason = f'{order_id} placed, state write failed: {error!r}'
         failed = problem(error)

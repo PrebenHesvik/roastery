@@ -189,6 +189,21 @@ export default function Checkout() {
     );
   }
 
+  // Only unpriced items (F6): nothing can be quoted, so there is nothing to wait for.
+  if (products.isSuccess && items.length === 0) {
+    return (
+      <div className="page wrap">
+        <h1 className="page-title">{t('page.checkout')}</h1>
+        <EmptyState
+          title={t('checkout.unsellable.title')}
+          action={{ to: '/cart', label: t('checkout.unsellable.action') }}
+        >
+          {t('checkout.unsellable.body')}
+        </EmptyState>
+      </div>
+    );
+  }
+
   const onSubmit = (event: SyntheticEvent) => {
     event.preventDefault();
     if (quote.data !== undefined && !busy) void submit(quote.data);

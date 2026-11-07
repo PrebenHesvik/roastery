@@ -1,7 +1,8 @@
 """`python -m roastery_api seed`: the simulator's catalogue into an empty shop db (ADR 0016).
 
 The shop db is `ROASTERY_DATABASE_URL`'s, the state db `SHOP_API_STATE_URL`'s: the seed's
-movement ids come from the state db's counter, so the server's later ids go on after them.
+movement ids come from the state db's counter, so the server's later ids go on after them;
+the counters are first raised past the ids the shop db holds.
 `roastery-sim` is a dev dependency, imported inside the command only.
 """
 
@@ -15,7 +16,7 @@ from collections.abc import Mapping, Sequence
 from roastery.settings import SettingsError
 
 from roastery_api.settings import ApiSettings, shop_settings
-from roastery_api.state import CountedIds, State, connect
+from roastery_api.state import CountedIds, State, connect, floor_counters
 
 
 def seed(env: Mapping[str, str]) -> bool:
@@ -27,7 +28,9 @@ def seed(env: Mapping[str, str]) -> bool:
     shop = connect(settings.database_url)
     state = connect(api.state_url)
     try:
-        return catalogue(shop, then=CountedIds(State(state)))
+        counted = State(state)
+        floor_counters(counted, shop)
+        return catalogue(shop, then=CountedIds(counted))
     finally:
         shop.close()
         state.close()

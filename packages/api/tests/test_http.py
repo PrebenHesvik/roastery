@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -152,7 +153,12 @@ def test_the_same_key_and_body_give_the_same_reply_and_one_order(
     first = checkout(client, 'same-1')
     second = checkout(client, 'same-1')
     assert first.status_code == second.status_code == 201
-    assert first.json() == second.json()
+    replayed = second.json()
+    token = replayed.pop('token')
+    assert {**replayed, 'token': first.json()['token']} == first.json()
+    # the replay's link works, and it is the order's one link now
+    assert client.get(f'/orders/{token}').json()['order_id'] == first.json()['order_id']
+    assert client.get(f'/orders/{first.json()["token"]}').status_code == 404
     shop = sqlite3.connect(env['ROASTERY_DATABASE_URL'].removeprefix('sqlite:///'))
     try:
         (orders,) = shop.execute('SELECT count(*) FROM orders').fetchone()
@@ -450,16 +456,16 @@ def test_the_state_db_keeps_only_the_hash_of_a_token(
 def test_a_failed_state_write_after_the_commit_is_an_orphan_and_the_retry_places_no_order(
     client: TestClient, live: Live, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    real = live.state.link
+    real = live.state.add_guest
     calls: list[int] = []
 
-    def flaky(order_id: Any, at: Any) -> str:
+    def flaky(*args: Any, **kwargs: Any) -> None:
         calls.append(1)
         if len(calls) == 1:
             raise sqlite3.OperationalError('disk I/O error')
-        return real(order_id, at)
+        real(*args, **kwargs)
 
-    monkeypatch.setattr(live.state, 'link', flaky)
+    monkeypatch.setattr(live.state, 'add_guest', flaky)
     first = checkout(client, 'orphan-1')
     assert first.status_code == 500
     assert first.json()['code'] == 'InternalError'
@@ -475,3 +481,92 @@ def test_a_failed_state_write_after_the_commit_is_an_orphan_and_the_retry_places
     later = checkout(client, 'orphan-2')
     assert later.status_code == 201
     assert later.json()['order_id'] == 'O-000002'
+
+
+def test_a_failed_link_after_the_commit_is_linked_on_retry_and_places_no_order(
+    client: TestClient, live: Live, env: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = live.state.link
+    calls: list[int] = []
+
+    def flaky(order_id: Any, at: Any) -> str:
+        calls.append(1)
+        if len(calls) == 1:
+            raise sqlite3.OperationalError('disk I/O error')
+        return real(order_id, at)
+
+    monkeypatch.setattr(live.state, 'link', flaky)
+    first = checkout(client, 'link-1')
+    assert first.status_code == 500
+    assert first.json()['code'] == 'InternalError'
+
+    retry = checkout(client, 'link-1')
+    assert retry.status_code == 201
+    assert retry.json()['order_id'] == 'O-000001'
+    assert client.get(f'/orders/{retry.json()["token"]}').status_code == 200
+    assert live.state.orphans() == ()
+    shop = sqlite3.connect(env['ROASTERY_DATABASE_URL'].removeprefix('sqlite:///'))
+    try:
+        (orders,) = shop.execute('SELECT count(*) FROM orders').fetchone()
+    finally:
+        shop.close()
+    assert orders == 1
+
+
+def every_cell(url: str) -> list[str]:
+    """Every value in every table of the sqlite db at `url`, as text."""
+    db = sqlite3.connect(url.removeprefix('sqlite:///'))
+    try:
+        tables = db.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+        return [
+            str(cell)
+            for (table,) in tables
+            for row in db.execute(f'SELECT * FROM "{table}"').fetchall()
+            for cell in row
+        ]
+    finally:
+        db.close()
+
+
+def test_no_row_of_the_state_db_holds_a_token_not_even_a_kept_reply(
+    client: TestClient, env: dict[str, str]
+) -> None:
+    first = checkout(client, 'kept-1').json()['token']
+    replayed = checkout(client, 'kept-1').json()['token']
+    assert first != replayed
+    cells = every_cell(env['SHOP_API_STATE_URL'])
+    assert any('O-000001' in cell for cell in cells)  # the kept reply is there
+    for token in (first, replayed):
+        assert not any(token in cell for cell in cells)
+    assert not any(replayed in cell for cell in every_cell(env['ROASTERY_DATABASE_URL']))
+
+
+def test_a_new_state_db_beside_an_old_shop_db_goes_on_after_the_shops_ids(
+    fresh_env: dict[str, str], wall: FakeClock, tmp_path: Path
+) -> None:
+    env = fresh_env
+    assert seed(env)
+    live, _ = open_live(env, wall=wall)
+    try:
+        with TestClient(create_app(live, sandbox=True)) as client:
+            token = checkout(client, 'old-1').json()['token']
+            assert pay(client, token, 'approve', 'pay-old-1').status_code == 201
+    finally:
+        live.close()
+
+    fresh = tmp_path / 'other'
+    fresh.mkdir()
+    env = {**env, 'SHOP_API_STATE_URL': f'sqlite:///{(fresh / "state.db").as_posix()}'}
+    assert not seed(env)  # the seed raises the counters even when it plays nothing
+    live, _ = open_live(env, wall=wall)
+    try:
+        with TestClient(create_app(live, sandbox=True)) as client:
+            reply = checkout(client, 'new-1')
+            assert reply.status_code == 201, reply.text
+            assert reply.json()['order_id'] == 'O-000002'
+            paid = pay(client, reply.json()['token'], 'approve', 'pay-new-1')
+            assert paid.status_code == 201, paid.text
+            assert paid.json()['payment_id'] == 'PAY-2'
+        assert live.state.number('guest') == 3
+    finally:
+        live.close()

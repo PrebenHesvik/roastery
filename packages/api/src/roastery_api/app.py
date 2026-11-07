@@ -37,7 +37,7 @@ from starlette.types import Receive, Scope, Send
 
 from roastery_api import fx, schemas
 from roastery_api.limits import BodyLimit
-from roastery_api.live import CHECKOUT_SCOPE, LOG, Deps, Live, open_live
+from roastery_api.live import LOG, Deps, Live, open_live
 from roastery_api.sandbox import payments_handler
 from roastery_api.settings import DEFAULT_ORIGINS
 
@@ -149,7 +149,7 @@ def create_app(
 
     handlers: dict[str, Handler[Deps]] = {}
     if live is not None:
-        handlers['checkout'] = live.idempotent(live.guest_checkout(), CHECKOUT_SCOPE)
+        handlers['checkout'] = live.guest_checkout()
         if sandbox:
             handlers['pay'] = live.idempotent(
                 payments_handler(live.state, live.ids, live.clock), 'POST /sandbox/payments'

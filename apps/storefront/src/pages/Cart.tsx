@@ -6,7 +6,7 @@ import { factsLine } from '../components/ProductCard';
 import { EmptyState, ErrorState, Loading } from '../components/States';
 import { Totals } from '../components/Totals';
 import { t } from '../i18n/t';
-import { useCart, type CartItem } from '../lib/cart';
+import { MAX_QTY, useCart, type CartItem } from '../lib/cart';
 
 function Stepper({ item, name }: { item: CartItem; name: string }) {
   const { setQty } = useCart();
@@ -28,6 +28,7 @@ function Stepper({ item, name }: { item: CartItem; name: string }) {
       <button
         type="button"
         aria-label={t('qty.more_for', { name })}
+        disabled={item.qty >= MAX_QTY}
         onClick={() => {
           setQty(item.productId, item.qty + 1);
         }}

@@ -21,14 +21,19 @@ export type Paid =
 const CHECKOUT = 'checkout';
 const payingSlot = (token: string) => `pay.${token}`;
 
-/** A reply the server stored under the key, or not: only a 503 or no reply at all is not. */
+/**
+ * A reply the server stored under the key, or not. A 4xx is stored; a 5xx may be (a checkout whose
+ * order was placed before the failure keeps its 500, so the retry places no second order) or not
+ * (an outage), and no reply at all is not: in each of those the key is kept for the retry.
+ */
 function stored(status: number | undefined): boolean {
-  return status !== undefined && status !== 503;
+  return status !== undefined && status < 500;
 }
 
 /**
- * Places the order: one key per attempt (ADR 0019). The key is dropped on any stored reply, so
- * the next try, after a change of price or of stock, is a new attempt.
+ * Places the order: one key per attempt (ADR 0019). The key is dropped on a 2xx or 4xx reply, so
+ * the next try, after a change of price or of stock, is a new attempt; after a 5xx or no reply it
+ * is kept, so the retry cannot place a second order.
  */
 export async function placeOrder(body: CheckoutBody): Promise<Placed> {
   const key = await keyFor(CHECKOUT, body);
@@ -60,8 +65,8 @@ export async function placeOrder(body: CheckoutBody): Promise<Placed> {
 }
 
 /**
- * A sandbox payment attempt. A declined reply is stored under its key, so every attempt after a
- * reply takes a new key; only an outage keeps it, for "try again".
+ * A sandbox payment attempt. A declined reply (402) is stored under its key, so the next attempt
+ * takes a new key; an outage (503), any other 5xx or no reply keeps it, for "try again".
  */
 export async function pay(token: string, outcome: Outcome): Promise<Paid> {
   const slot = payingSlot(token);

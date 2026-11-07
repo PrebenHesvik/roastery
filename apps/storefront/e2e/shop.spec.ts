@@ -1,12 +1,29 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { Schemas } from '../src/api/queries';
+import { formatMoney } from '../src/lib/money';
 
 const REVIEW = fileURLToPath(new URL('../../../.impeccable/review/', import.meta.url));
 
 test.describe.configure({ mode: 'serial' });
 
 let paidOrder = '';
+
+/**
+ * The product's price in Norway as the API lists it today, set as the storefront sets it. The API
+ * runs on the wall clock, so a campaign (K-2, 16 to 29 November) moves the price: read, never
+ * written down.
+ */
+async function shownPrice(request: APIRequestContext, productId: string): Promise<string> {
+  const reply = await request.get('/api/products?country=NO');
+  expect(reply.ok()).toBe(true);
+  const list = (await reply.json()) as Schemas['ProductList'];
+  const price = list.products.find((each) => each.product.product_id === productId)?.display_price;
+  if (price === undefined || price === null) throw new Error(`${productId} has no price today`);
+  // Intl sets a no-break space after the code; the page's text is matched with plain spaces.
+  return formatMoney(price).replace(/\u00a0/g, ' ');
+}
 
 async function fillContact(page: Page) {
   await page.getByLabel('Full name').fill('Kari Nordmann');
@@ -31,7 +48,8 @@ async function checkOutInNorway(page: Page) {
   await expect(page).toHaveURL(/\/pay\//);
 }
 
-test('browse, add, check out in Norway, approve: the order is paid', async ({ page }) => {
+test('browse, add, check out in Norway, approve: the order is paid', async ({ page, request }) => {
+  const morning = await shownPrice(request, 'P-10');
   await page.goto('/');
   await expect(
     page.getByRole('heading', { name: 'Rain all week. Coffee all week.' }),
@@ -41,7 +59,7 @@ test('browse, add, check out in Norway, approve: the order is paid', async ({ pa
   await expect(page.getByRole('heading', { level: 1, name: 'Beans' })).toBeVisible();
   await page.getByRole('link', { name: 'Morning roast' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Morning roast' })).toBeVisible();
-  await expect(page.getByText('NOK 129.00').first()).toBeVisible();
+  await expect(page.getByText(morning).first()).toBeVisible();
   await page.getByRole('button', { name: 'Add to bag' }).click();
   await expect(page.getByRole('link', { name: 'Bag, 1 item' })).toBeVisible();
 
@@ -49,7 +67,7 @@ test('browse, add, check out in Norway, approve: the order is paid', async ({ pa
   await page.getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByRole('heading', { name: 'Status: Paid' })).toBeVisible();
   await expect(
-    page.getByRole('cell', { name: 'NOK 129.00' }).or(page.getByText('NOK 129.00').first()),
+    page.getByRole('cell', { name: morning }).or(page.getByText(morning).first()),
   ).toBeVisible();
   paidOrder = new URL(page.url()).pathname;
 });

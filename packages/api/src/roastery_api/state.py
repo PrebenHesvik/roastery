@@ -115,11 +115,23 @@ class State:
         self._db.commit()
         return number
 
+    def raise_to(self, kind: str, number: int) -> None:
+        """The next number of `kind` made at least `number`; never lowered."""
+        self._db.execute(
+            'INSERT INTO counters (kind, next) VALUES (?, ?)'
+            ' ON CONFLICT (kind) DO UPDATE SET next = max(next, excluded.next)',
+            (kind, number),
+        )
+        self._db.commit()
+
     def link(self, order_id: OrderId, at: dt.datetime) -> str:
-        """A new private link to the order: its token. Only the token's hash is stored."""
+        """A new private link to the order: its token. Only the token's hash is stored, one
+        per order: a new link replaces the order's earlier one, whose token stops working."""
         token = secrets.token_urlsafe(TOKEN_BYTES)
         self._db.execute(
-            'INSERT INTO order_links (token_hash, order_id, created_at) VALUES (?, ?, ?)',
+            'INSERT INTO order_links (token_hash, order_id, created_at) VALUES (?, ?, ?)'
+            ' ON CONFLICT (order_id) DO UPDATE'
+            ' SET token_hash = excluded.token_hash, created_at = excluded.created_at',
             (hash_token(token), str(order_id), _stamp(at)),
         )
         self._db.commit()
@@ -180,6 +192,54 @@ class State:
         if row is None:
             return None
         return dict(zip((each[0] for each in cursor.description), row, strict=True))
+
+
+def highest_ids(shop: sqlite3.Connection) -> dict[str, int]:
+    """The highest number of each counted kind the shop db holds, by kind: every id column
+    (`*_id`, `credit_of`) of every table, and the guests' `guest-<n>` pseudonyms (F1)."""
+    kinds = {prefix: kind for kind, prefix in PREFIXES.items()}
+    found: dict[str, int] = {}
+
+    def seen(kind: str, number: int) -> None:
+        found[kind] = max(found.get(kind, 0), number)
+
+    tables = shop.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
+    ).fetchall()
+    for (table,) in tables:
+        columns = shop.execute('SELECT name FROM pragma_table_info(?)', (table,)).fetchall()
+        for (column,) in columns:
+            if not (column.endswith('_id') or column == 'credit_of'):
+                continue
+            # The names come from the db's own catalogue, never from a request.
+            rows = shop.execute(
+                f'SELECT substr("{column}", 1, instr("{column}", :dash) - 1),'
+                f' max(CAST(substr("{column}", instr("{column}", :dash) + 1) AS INTEGER))'
+                f' FROM "{table}" WHERE "{column}" GLOB :id GROUP BY 1',
+                {'dash': '-', 'id': '*-[0-9]*'},
+            ).fetchall()
+            for prefix, number in rows:
+                if prefix in kinds and number is not None:
+                    seen(kinds[prefix], int(number))
+    has_customers = shop.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'customers'"
+    ).fetchone()
+    if has_customers is not None:
+        emails = shop.execute(
+            "SELECT email FROM customers WHERE email GLOB 'guest-[0-9]*@*'"
+        ).fetchall()
+        for (email,) in emails:
+            number = email.removeprefix('guest-').partition('@')[0]
+            if number.isdigit():
+                seen('guest', int(number))
+    return found
+
+
+def floor_counters(state: State, shop: sqlite3.Connection) -> None:
+    """Each counter raised past the shop db's highest id of its kind, so a new state db
+    beside an old shop db never draws an id the shop holds already."""
+    for kind, number in sorted(highest_ids(shop).items()):
+        state.raise_to(kind, number + 1)
 
 
 class CountedIds:

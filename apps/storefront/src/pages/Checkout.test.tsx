@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CART_KEY } from '../lib/cart';
-import { norwegianQuote, productList, renderAt, storeCart } from '../test/fixtures';
+import { MORNING, norwegianQuote, productList, renderAt, storeCart } from '../test/fixtures';
 
 interface Sent {
   key: string | null;
@@ -102,6 +102,31 @@ describe('checkout', () => {
     expect(second?.key).not.toBe(first?.key);
     // The cart holds no price, and is emptied once the order is placed.
     expect(JSON.parse(window.localStorage.getItem(CART_KEY) ?? '{}')).toMatchObject({ items: [] });
+  });
+
+  it('says nothing is for sale, not Loading, when the bag holds only unpriced items', async () => {
+    const list = productList('NO');
+    const decaf = {
+      ...list.products[0],
+      product: { ...MORNING, product_id: 'P-12', name: 'Decaf' },
+      unit_price: null,
+      display_price: null,
+    } as unknown as (typeof list.products)[number];
+    server.use(
+      http.get('/api/products', () =>
+        HttpResponse.json({ ...list, products: [...list.products, decaf] }),
+      ),
+    );
+    storeCart({ country: 'NO', items: [{ productId: 'P-12', qty: 1 }] });
+    renderAt('/checkout');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Nothing in your bag is for sale yet.' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to your bag' })).toHaveAttribute('href', '/cart');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Place order/ })).not.toBeInTheDocument();
+    expect(sent).toHaveLength(0);
   });
 
   it('asks for what is missing before it calls the shop', async () => {

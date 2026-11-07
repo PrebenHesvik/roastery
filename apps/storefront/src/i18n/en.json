@@ -170,6 +170,9 @@
 
   "checkout.lede": "As a guest: no account, no password. Choose your country first, so the prices and the VAT are right.",
   "checkout.empty": "There is nothing to check out. Put something in your bag first.",
+  "checkout.unsellable.title": "Nothing in your bag is for sale yet.",
+  "checkout.unsellable.body": "What is in your bag cannot be bought right now. Remove it from your bag, or pick something else.",
+  "checkout.unsellable.action": "Go to your bag",
   "checkout.country": "Where does it go?",
   "checkout.country_hint": "The country sets the currency and how VAT is handled.",
   "checkout.contact": "Who is it for?",

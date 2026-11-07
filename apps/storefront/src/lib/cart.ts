@@ -16,6 +16,12 @@ export interface Cart {
   items: CartItem[];
 }
 
+/** The most of one product a bag holds: the API refuses a larger `qty` (F12). */
+export const MAX_QTY = 999;
+
+/** A quantity held to 1..`MAX_QTY`. */
+export const clampQty = (qty: number): number => Math.min(Math.max(qty, 1), MAX_QTY);
+
 export const emptyCart = (): Cart => ({ version: CART_VERSION, country: 'NO', items: [] });
 
 const isCountry = (value: unknown): value is Country =>
@@ -26,7 +32,7 @@ function asItem(value: unknown): CartItem | null {
   const { productId, qty } = value as Record<string, unknown>;
   if (typeof productId !== 'string' || productId === '') return null;
   if (typeof qty !== 'number' || !Number.isInteger(qty) || qty < 1) return null;
-  return { productId, qty };
+  return { productId, qty: clampQty(qty) };
 }
 
 /** The stored text as a cart; anything that does not parse or has another version is dropped. */
@@ -117,9 +123,9 @@ export function useCart(): CartApi {
         const found = current.items.some((item) => item.productId === productId);
         const items = found
           ? current.items.map((item) =>
-              item.productId === productId ? { ...item, qty: item.qty + qty } : item,
+              item.productId === productId ? { ...item, qty: clampQty(item.qty + qty) } : item,
             )
-          : [...current.items, { productId, qty }];
+          : [...current.items, { productId, qty: clampQty(qty) }];
         return { ...current, items };
       });
     },
@@ -128,7 +134,9 @@ export function useCart(): CartApi {
         ...current,
         items:
           qty > 0
-            ? current.items.map((item) => (item.productId === productId ? { ...item, qty } : item))
+            ? current.items.map((item) =>
+                item.productId === productId ? { ...item, qty: clampQty(qty) } : item,
+              )
             : current.items.filter((item) => item.productId !== productId),
       }));
     },
