@@ -23,8 +23,8 @@ the current plan.
 | `packages/shop` | `roastery` | the app: domain, service layer, stores |
 | `packages/sim` | `roastery_sim` | the simulator, the outside systems, the export writer |
 | `packages/spec` | `roastery_spec` | the data contract and its claims, as tests |
-| `packages/api` | `roastery_api` | the HTTP API: FastAPI over the shop (phase 7, not yet built) |
-| `apps/storefront` | - | the web shop: React, Vite, TypeScript (phase 7, not yet built) |
+| `packages/api` | `roastery_api` | the HTTP API: FastAPI over the shop, on sqlite |
+| `apps/storefront` | - | the web shop: React, Vite, TypeScript (`DESIGN.md`) |
 
 The data-docs repository beside this one is a learning site. It reads a pinned
 `roastery-data` release and is never imported from here; steps 6.1 to 6.5 never touch it.
@@ -70,8 +70,10 @@ Large work runs through subagents, so the lead session keeps its context.
   | `sonnet` | building to a clear spec: porting a test file, a module against its ADR, a store twin |
   | `haiku` | lookups and sweeps: every file that reads X, test names checked, table inventories |
 
-- **Agents never commit** and never push. The lead runs the step's tests itself before it
-  calls an agent's unit done. One heavy job at a time.
+- **Agents never commit** and never push. The lead runs the unit's own tests (the touched
+  package, or the storefront's unit tests, plus the frozen-file check) before it calls an
+  agent's unit done; the full suite and the e2e run once, at a step's close (the owner,
+  2026-11-07). One heavy job at a time.
 - **Reviews:** the advisor before a step is called done; `/code-review` before a release
   (6.5) and before 6.6's merge; `security-review` on `packages/shop` before 6.5.
 

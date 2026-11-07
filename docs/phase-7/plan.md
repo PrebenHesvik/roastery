@@ -25,9 +25,9 @@ has been through real refactoring (F7).
 | 7.1 the shop's HTTP edge (`packages/shop`) | [x] `28d8a40`, `9b5d951`; closed 2026-11-07, 899 passed, contract B and tiny unchanged |
 | 7.2 `packages/api`: FastAPI on sqlite | [x] `06e61d7` and this commit; closed 2026-11-07, 937 passed; the real server serves the seeded shop |
 | 7.3 the contract to TypeScript | [x] closed 2026-11-07 with the 7.4 scaffold, in one commit |
-| 7.4 the storefront shell (`apps/storefront`) | [ ] |
-| 7.5 the shop flow | [ ] |
-| 7.6 close: review, `DESIGN.md`, CI, `shop-0.2.0` | [ ] |
+| 7.4 the storefront shell (`apps/storefront`) | [x] `845eb3e`, design pass in `c5388c0` |
+| 7.5 the shop flow | [x] `c5388c0` |
+| 7.6 close: review, `DESIGN.md`, CI, `shop-0.2.0` | [x] `ddee4ab`, `ae547eb`, `e17c9f0`, `887750e`, `21b8dd4`; closed 2026-11-07, 949 passed, every storefront check and e2e green. The finish review's ship covers its six fixes, not the whole site (product, bag and pay screens were never captured). Tag `shop-0.2.0` waits on the owner's word |
 
 Notes:
 

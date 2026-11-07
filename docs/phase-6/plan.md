@@ -30,7 +30,7 @@ revised with the owner. data-docs points here from `docs/proposal-roastery/phase
 
 **What is next.** Phase 6 is done (2026-11-05). In order of need:
 
-1. [x] In this repository, two follow-ups from 6.6 (Notes, 6.6): contract A's `daily_sales` and `subscribers` grains take data-docs' new sentences, and `PROVENANCE.toml` records that `tier3.sql` is gone; done 2026-11-07 (S20 in 6.1-contract.md).
+1. [x] In this repository, two follow-ups from 6.6 (Notes, 6.6): contract A's `daily_sales` and `subscribers` grains take data-docs' new sentences, and `PROVENANCE.toml` records that `tier3.sql` is gone; done 2026-11-07 in `9ccaa72` (S20 in 6.1-contract.md).
 2. [x] The storefront (§8) is phase 7, planned with the owner on 2026-11-07: [../phase-7/plan.md](../phase-7/plan.md).
 3. The owner, 2026-11-07: Design Patterns on the app (data-docs) waits until the server has been through real refactoring, so the pages teach a pinned `shop` release that has been changed under pressure, not the first build. The live shop, Design Patterns, DevOps and the medallion pipeline on `month` (which takes the 6.5 landing items) are renumbered when each is planned (phase 7, F7).
 
