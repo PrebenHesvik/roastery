@@ -33,6 +33,11 @@ const BODY_PAIRS: [string, string][] = [
   ['window', 'ground'],
   ['window', 'surface'],
   ['on-oilskin', 'oilskin'],
+  ['on-oilskin-muted', 'oilskin'],
+  ['danger', 'ground'],
+  ['danger', 'surface'],
+  ['text', 'surface-raised'],
+  ['muted', 'surface-raised'],
 ];
 
 const THEMES = {

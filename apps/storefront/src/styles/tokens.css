@@ -6,25 +6,55 @@
   color-scheme: dark;
   --ground: #11161b;
   --surface: #1a2128;
+  --surface-raised: #212a32;
   --text: #e9e6df;
   --muted: #a7afb7;
   --rule: #2a323a;
+  --rule-strong: #3d4751;
   --oilskin: #f3c623;
+  --oilskin-hover: #ffd84a;
+  --oilskin-edge: #f3c623;
   --on-oilskin: #1b1608;
+  --on-oilskin-muted: #4a3d0c;
   --oilskin-text: #f3c623;
   --window: #e8a04a;
+  --window-glow: rgb(232 160 74 / 0.2);
+  --danger: #f2937f;
+  --scale-off: #343c45;
+  --streak: rgb(233 230 223 / 0.035);
+  --rain: 233 230 223;
+  --rain-alpha: 0.16;
+  --focus: #f3c623;
+  --selection: rgb(243 198 35 / 0.32);
+  --shadow: 0 18px 40px -24px rgb(0 0 0 / 0.7);
   --font-sans: 'Schibsted Grotesk Variable', system-ui, sans-serif;
 }
 
+/* Overcast noon: fog ground, slate ink. The yellow stays the coat; on fog it needs an ink
+   edge, and as text it darkens to --oilskin-text. */
 :root[data-theme='light'] {
   color-scheme: light;
   --ground: #e4e8eb;
   --surface: #f3f5f6;
+  --surface-raised: #ffffff;
   --text: #1a232c;
   --muted: #465361;
   --rule: #c3cbd1;
+  --rule-strong: #8f9ba6;
   --oilskin: #f3c623;
+  --oilskin-hover: #ffd84a;
+  --oilskin-edge: #1b1608;
   --on-oilskin: #1b1608;
+  --on-oilskin-muted: #4a3d0c;
   --oilskin-text: #6e5200;
   --window: #8a4a00;
+  --window-glow: rgb(232 160 74 / 0.14);
+  --danger: #9b2c17;
+  --scale-off: #c9d0d6;
+  --streak: rgb(26 35 44 / 0.04);
+  --rain: 26 35 44;
+  --rain-alpha: 0.14;
+  --focus: #1a232c;
+  --selection: rgb(243 198 35 / 0.55);
+  --shadow: 0 18px 36px -26px rgb(26 35 44 / 0.45);
 }

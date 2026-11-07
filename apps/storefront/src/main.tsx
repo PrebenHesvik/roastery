@@ -1,13 +1,17 @@
 import '@fontsource-variable/schibsted-grotesk';
 import './styles/tokens.css';
 import './styles/base.css';
+import './styles/home.css';
+import './styles/pages.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
+});
 const root = document.getElementById('root');
 if (root === null) throw new Error('index.html has no #root');
 

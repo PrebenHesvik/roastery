@@ -17,3 +17,5 @@ out/
 apps/storefront/node_modules/
 apps/storefront/dist/
 apps/storefront/coverage/
+apps/storefront/test-results/
+apps/storefront/playwright-report/
