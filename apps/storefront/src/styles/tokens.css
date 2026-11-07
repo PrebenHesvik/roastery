@@ -1,0 +1,30 @@
+/* Tokens (ADR 0019). Dark is the default whatever the system says; the light theme is set only
+   by data-theme="light". Values: .impeccable/surfaces/apps-storefront-src-pages-home-tsx.md. */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ground: #11161b;
+  --surface: #1a2128;
+  --text: #e9e6df;
+  --muted: #a7afb7;
+  --rule: #2a323a;
+  --oilskin: #f3c623;
+  --on-oilskin: #1b1608;
+  --oilskin-text: #f3c623;
+  --window: #e8a04a;
+  --font-sans: 'Schibsted Grotesk Variable', system-ui, sans-serif;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --ground: #e4e8eb;
+  --surface: #f3f5f6;
+  --text: #1a232c;
+  --muted: #465361;
+  --rule: #c3cbd1;
+  --oilskin: #f3c623;
+  --on-oilskin: #1b1608;
+  --oilskin-text: #6e5200;
+  --window: #8a4a00;
+}

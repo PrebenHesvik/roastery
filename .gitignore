@@ -12,3 +12,8 @@ out/
 .impeccable/hook.cache.json
 .impeccable/config.local.json
 .impeccable/review/
+
+# Storefront (npm)
+apps/storefront/node_modules/
+apps/storefront/dist/
+apps/storefront/coverage/

@@ -1,0 +1,1352 @@
+{
+  "components": {
+    "schemas": {
+      "Amount": {
+        "description": "Money: the amount as text with its decimals, and the currency.",
+        "properties": {
+          "amount": {
+            "examples": [
+              "129.00"
+            ],
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "examples": [
+              "NOK"
+            ],
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "Amount",
+        "type": "object"
+      },
+      "BeanDetails": {
+        "properties": {
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "process": {
+            "title": "Process",
+            "type": "string"
+          },
+          "roast": {
+            "title": "Roast",
+            "type": "string"
+          },
+          "weight_g": {
+            "title": "Weight G",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weight_g",
+          "origin",
+          "roast",
+          "process"
+        ],
+        "title": "BeanDetails",
+        "type": "object"
+      },
+      "CartItem": {
+        "description": "A cart's line: a product and a quantity. No price: the server prices it.",
+        "properties": {
+          "product_id": {
+            "examples": [
+              "P-10"
+            ],
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "examples": [
+              2
+            ],
+            "minimum": 1.0,
+            "title": "Qty",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "qty"
+        ],
+        "title": "CartItem",
+        "type": "object"
+      },
+      "CheckoutRequest": {
+        "description": "A guest's order: the cart, the total the buyer confirmed (NOK), and the contact.",
+        "properties": {
+          "city": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "City",
+            "type": "string"
+          },
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CartItem"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "postal_code": {
+            "examples": [
+              "5003"
+            ],
+            "maxLength": 12,
+            "minLength": 1,
+            "title": "Postal Code",
+            "type": "string"
+          },
+          "street": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Street",
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "required": [
+          "country",
+          "items",
+          "total",
+          "name",
+          "email",
+          "street",
+          "postal_code",
+          "city"
+        ],
+        "title": "CheckoutRequest",
+        "type": "object"
+      },
+      "EquipmentDetails": {
+        "properties": {
+          "material": {
+            "title": "Material",
+            "type": "string"
+          },
+          "warranty_months": {
+            "title": "Warranty Months",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "warranty_months",
+          "material"
+        ],
+        "title": "EquipmentDetails",
+        "type": "object"
+      },
+      "ListedProduct": {
+        "description": "A product on Norway's day. No price (`unit_price` null): coming soon.",
+        "properties": {
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BeanDetails"
+              },
+              {
+                "$ref": "#/components/schemas/EquipmentDetails"
+              }
+            ],
+            "title": "Details"
+          },
+          "display_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "in_stock": {
+            "title": "In Stock",
+            "type": "boolean"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductInfo"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "product",
+          "details",
+          "unit_price",
+          "percent",
+          "in_stock",
+          "display_price"
+        ],
+        "title": "ListedProduct",
+        "type": "object"
+      },
+      "Order": {
+        "properties": {
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "NOK",
+              "SEK",
+              "DKK",
+              "EUR"
+            ],
+            "title": "Currency",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "display_total": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/OrderLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "placed",
+              "paid",
+              "invoiced",
+              "shipped",
+              "delivered",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "required": [
+          "order_id",
+          "status",
+          "country",
+          "day",
+          "lines",
+          "total",
+          "currency",
+          "display_total"
+        ],
+        "title": "Order",
+        "type": "object"
+      },
+      "OrderLine": {
+        "properties": {
+          "display_unit_price": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "line_id": {
+            "title": "Line Id",
+            "type": "string"
+          },
+          "product_id": {
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "integer"
+          },
+          "unit_price": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "required": [
+          "line_id",
+          "product_id",
+          "qty",
+          "unit_price",
+          "display_unit_price"
+        ],
+        "title": "OrderLine",
+        "type": "object"
+      },
+      "PlacedOrder": {
+        "description": "The order placed; `token` is its private link.",
+        "properties": {
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "NOK",
+              "SEK",
+              "DKK",
+              "EUR"
+            ],
+            "title": "Currency",
+            "type": "string"
+          },
+          "display_total": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "required": [
+          "order_id",
+          "country",
+          "total",
+          "token",
+          "currency",
+          "display_total"
+        ],
+        "title": "PlacedOrder",
+        "type": "object"
+      },
+      "Problem": {
+        "additionalProperties": true,
+        "description": "An error, as RFC 9457's problem+json. Switch on `code`, never on `title`.",
+        "properties": {
+          "code": {
+            "examples": [
+              "OutOfStock"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "default": "about:blank",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "status",
+          "code"
+        ],
+        "title": "Problem",
+        "type": "object"
+      },
+      "ProductInfo": {
+        "properties": {
+          "category_id": {
+            "title": "Category Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "beans",
+              "equipment"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "examples": [
+              "P-10"
+            ],
+            "title": "Product Id",
+            "type": "string"
+          },
+          "weight_g": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight G"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "kind",
+          "category_id",
+          "weight_g"
+        ],
+        "title": "ProductInfo",
+        "type": "object"
+      },
+      "ProductList": {
+        "properties": {
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "NOK",
+              "SEK",
+              "DKK",
+              "EUR"
+            ],
+            "title": "Currency",
+            "type": "string"
+          },
+          "price_label": {
+            "enum": [
+              "incl_vat",
+              "no_norwegian_vat"
+            ],
+            "title": "Price Label",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/ListedProduct"
+            },
+            "title": "Products",
+            "type": "array"
+          }
+        },
+        "required": [
+          "country",
+          "currency",
+          "price_label",
+          "products"
+        ],
+        "title": "ProductList",
+        "type": "object"
+      },
+      "ProductPage": {
+        "properties": {
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "NOK",
+              "SEK",
+              "DKK",
+              "EUR"
+            ],
+            "title": "Currency",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BeanDetails"
+              },
+              {
+                "$ref": "#/components/schemas/EquipmentDetails"
+              }
+            ],
+            "title": "Details"
+          },
+          "display_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "in_stock": {
+            "title": "In Stock",
+            "type": "boolean"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "price_label": {
+            "enum": [
+              "incl_vat",
+              "no_norwegian_vat"
+            ],
+            "title": "Price Label",
+            "type": "string"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductInfo"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "product",
+          "details",
+          "unit_price",
+          "percent",
+          "in_stock",
+          "display_price",
+          "country",
+          "currency",
+          "price_label"
+        ],
+        "title": "ProductPage",
+        "type": "object"
+      },
+      "Quote": {
+        "properties": {
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "NOK",
+              "SEK",
+              "DKK",
+              "EUR"
+            ],
+            "title": "Currency",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "display_gross": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/QuotedLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "scheme": {
+            "enum": [
+              "domestic",
+              "export"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "vat_display": {
+            "$ref": "#/components/schemas/VatDisplay"
+          }
+        },
+        "required": [
+          "country",
+          "day",
+          "scheme",
+          "lines",
+          "gross",
+          "vat",
+          "currency",
+          "display_gross",
+          "vat_display"
+        ],
+        "title": "Quote",
+        "type": "object"
+      },
+      "QuoteRequest": {
+        "properties": {
+          "country": {
+            "enum": [
+              "DK",
+              "FI",
+              "NO",
+              "SE"
+            ],
+            "title": "Country",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CartItem"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "country",
+          "items"
+        ],
+        "title": "QuoteRequest",
+        "type": "object"
+      },
+      "QuotedLine": {
+        "properties": {
+          "display_gross": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "display_unit_price": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "on_hand": {
+            "title": "On Hand",
+            "type": "integer"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "integer"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductInfo"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "integer"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "unit_price": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/Amount"
+          }
+        },
+        "required": [
+          "product",
+          "qty",
+          "unit_price",
+          "percent",
+          "gross",
+          "vat",
+          "rate",
+          "on_hand",
+          "display_unit_price",
+          "display_gross"
+        ],
+        "title": "QuotedLine",
+        "type": "object"
+      },
+      "SandboxPayment": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "payment_id": {
+            "examples": [
+              "PAY-1"
+            ],
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "placed",
+              "paid",
+              "invoiced",
+              "shipped",
+              "delivered",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "payment_id",
+          "order_id",
+          "status",
+          "amount"
+        ],
+        "title": "SandboxPayment",
+        "type": "object"
+      },
+      "SandboxPaymentRequest": {
+        "description": "A test payment of the order the token links to. No amount: the order's is paid.",
+        "properties": {
+          "outcome": {
+            "enum": [
+              "approve",
+              "decline",
+              "outage"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "token": {
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "outcome"
+        ],
+        "title": "SandboxPaymentRequest",
+        "type": "object"
+      },
+      "VatDisplay": {
+        "description": "What the page says of VAT (ADR 0018). The words are the storefront's copy.",
+        "properties": {
+          "display_import_vat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "due_on_delivery": {
+            "enum": [
+              "nothing",
+              "import_vat_estimate",
+              "vat_excise_and_fees"
+            ],
+            "title": "Due On Delivery",
+            "type": "string"
+          },
+          "import_vat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "norwegian_vat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Amount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price_label": {
+            "enum": [
+              "incl_vat",
+              "no_norwegian_vat"
+            ],
+            "title": "Price Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price_label",
+          "due_on_delivery",
+          "norwegian_vat",
+          "import_vat",
+          "display_import_vat"
+        ],
+        "title": "VatDisplay",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "summary": "The shop over HTTP: the catalogue, a quote, guest checkout, a test payment.",
+    "title": "Sydvest Kaffebrenneri",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/checkout": {
+      "post": {
+        "description": "A guest's order. 409 `PriceChanged` (with the new quote), `OutOfStock` or\n`KeyReused`; nothing is written on a refusal.",
+        "operationId": "checkout",
+        "parameters": [
+          {
+            "description": "One key per attempt: the same key and body give the same reply.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "One key per attempt: the same key and body give the same reply.",
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacedOrder"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Place Order"
+      }
+    },
+    "/orders/{token}": {
+      "get": {
+        "description": "The order its private link names; 404 `UnknownToken`.",
+        "operationId": "getOrder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Get Order"
+      }
+    },
+    "/products": {
+      "get": {
+        "description": "Every product, priced on Norway's day; also in the country's currency.",
+        "operationId": "listProducts",
+        "parameters": [
+          {
+            "description": "The buyer's country: its currency and VAT wording.",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "NO",
+              "description": "The buyer's country: its currency and VAT wording.",
+              "enum": [
+                "DK",
+                "FI",
+                "NO",
+                "SE"
+              ],
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          }
+        },
+        "summary": "List Products"
+      }
+    },
+    "/products/{product_id}": {
+      "get": {
+        "description": "One product; 404 `UnknownId`.",
+        "operationId": "getProduct",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "title": "Product Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The buyer's country: its currency and VAT wording.",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "default": "NO",
+              "description": "The buyer's country: its currency and VAT wording.",
+              "enum": [
+                "DK",
+                "FI",
+                "NO",
+                "SE"
+              ],
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "summary": "Get Product"
+      }
+    },
+    "/quote": {
+      "post": {
+        "description": "The cart priced for the country on its day, with the VAT the page shows.",
+        "operationId": "quoteCart",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Quote"
+      }
+    },
+    "/sandbox/payments": {
+      "post": {
+        "description": "A test payment: no money moves. 402 `ProviderRefused` on decline, 503\n`ProviderUnavailable` on outage, 409 `IllegalTransition` for a paid order.",
+        "operationId": "payInSandbox",
+        "parameters": [
+          {
+            "description": "One key per attempt: the same key and body give the same reply.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "One key per attempt: the same key and body give the same reply.",
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxPaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SandboxPayment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Sandbox Payment"
+      }
+    }
+  }
+}

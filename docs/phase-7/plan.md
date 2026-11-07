@@ -10,7 +10,7 @@ has been through real refactoring (F7).
 
 1. Read **Status** below: the first step that is not ticked is the current one.
 2. Read `CLAUDE.md` at the repository root: the rules, the freezes, how agents are briefed.
-3. The decisions (F1–F10 and each ADR) are made. A change is a new numbered row, with its reason.
+3. The decisions (F1–F11 and each ADR) are made. A change is a new numbered row, with its reason.
 4. Contract B does not move in this phase: `packages/shop/tests/contract_b.txt` and
    `packages/sim/tests/tiny.sha256` stay byte-identical, so there is no new data version.
 5. Before the context runs low, write where you stand into Status and Notes.
@@ -23,8 +23,8 @@ has been through real refactoring (F7).
 |---|---|
 | 7.0 decisions and design direction | [x] ADRs 0016–0019 accepted 2026-11-07; Sydvest chosen |
 | 7.1 the shop's HTTP edge (`packages/shop`) | [x] `28d8a40`, `9b5d951`; closed 2026-11-07, 899 passed, contract B and tiny unchanged |
-| 7.2 `packages/api`: FastAPI on sqlite | [x] `06e61d7` and this commit; closed 2026-11-07, 938 passed; the real server serves the seeded shop |
-| 7.3 the contract to TypeScript | [ ] |
+| 7.2 `packages/api`: FastAPI on sqlite | [x] `06e61d7` and this commit; closed 2026-11-07, 937 passed; the real server serves the seeded shop |
+| 7.3 the contract to TypeScript | [x] closed 2026-11-07 with the 7.4 scaffold, in one commit |
 | 7.4 the storefront shell (`apps/storefront`) | [ ] |
 | 7.5 the shop flow | [ ] |
 | 7.6 close: review, `DESIGN.md`, CI, `shop-0.2.0` | [ ] |
@@ -45,6 +45,7 @@ Notes:
   - **A declined payment is stored under its key**, so the storefront takes a new `Idempotency-Key` for each pay attempt (7.5).
   - The lead's change before closing: the sandbox refuses an order that is not `placed` (409 `IllegalTransition`) before the provider sees it, so the fake provider never holds a payment the shop refused and no `PAY-n` is spent. `PAY-n` and guest numbers are unpadded.
   - `uv run uvicorn` fails on Windows ("Access denied" on the new `uvicorn.exe`); `python -m uvicorn` works. The TestClient warns that Starlette wants `httpx2`; watch it in CI.
+- 2026-11-07 (7.3, 7.4 scaffold): `uv run python -m roastery_api.openapi` writes `apps/storefront/openapi.json` (a Python test and `npm run gen:check` hold it and `src/api/schema.d.ts` to the API). `apps/storefront` is scaffolded: React 19, Vite 8, strict TypeScript ~5.9 (openapi-typescript needs 5.x), eslint 9 (jsx-a11y needs it), Vitest, MSW, Node 26 (`.nvmrc`). Routes are placeholders; `t()` and `en.json` carry the four VAT codes the API sends (`incl_vat`, `no_norwegian_vat`, `import_vat_estimate`, `vat_excise_and_fees`); money is formatted from the decimal string, never a float. Theme tokens: dark as in the direction contract; light ground #e4e8eb, ink #1a232c, muted #465361, oilskin text #6e5200, window #8a4a00; a test holds every text pair at 4.5:1 or more. **Oilskin yellow on the light fog ground is 1.3:1**, so light-theme yellow fills need an ink edge (7.5). Ports 8000 and 5173 are taken by other programs on the owner's machine; the lead ran the API on 8700 and Vite on 5180 with `STOREFRONT_API_URL` (F11), and `/api/products?country=SE` came through the proxy in SEK. `npm audit` reports a moderate issue in a dev-only dependency (minimatch), left.
 ---
 
 ## 0. Context
@@ -93,6 +94,7 @@ The outcome:
 | F8 | The API reads the wall clock once per request (`RequestClock`), and a quote builds a throwaway draft order so `vat.scheme_for` prices it (ADR 0016, 0017) | the re-quote and `place` price on the same day; VAT has one home for phase 8's IOSS |
 | F9 | The fake provider's required settings take placeholder values (ADR 0016) | nothing reads them until real payments |
 | F10 | `roastery_api.app:app` is the package's one module-level object, for uvicorn's import string; it reads no setting on import, only when the server starts | uvicorn needs the object; the rule "no module state" holds for everything else |
+| F11 | The storefront calls the API on its own origin under `/api`; in dev, Vite proxies `/api` to `STOREFRONT_API_URL` (default `http://127.0.0.1:8000`), stripping the prefix. ADR 0019's `VITE_API_URL` is not used | one origin means no CORS in dev and no API URL baked into the bundle; the target is configurable because port 8000 is taken on the owner's machine |
 
 ## 3. The steps
 
